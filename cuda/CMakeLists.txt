@@ -19,7 +19,9 @@ endif()
 add_cuda_defenitions("${HARDWARE_DEFINITIONS}")  # returns:  AUX_FLAGS
 
 
-
-#set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -O3; -std=c++11; --use_fast_math; -arch=sm_50; -Xptxas -v; ${AUX_FLAGS})
+#set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -O3; -std=c++11; --use_fast_math; -arch=sm_61; -Xptxas -v; ${AUX_FLAGS})
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11; -arch=sm_50; -Xptxas -v; ${AUX_FLAGS})
-cuda_add_library(custom_blas STATIC "src/device_utils.cu" "src/memory_menagment.cu")
+
+cuda_add_library(custom_blas STATIC "src/auxiliary.cu"
+                                    "src/gemm.cu"
+                                    "src/memory_menagment.cu")

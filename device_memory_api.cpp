@@ -14,7 +14,6 @@
 
 int main() {
 
-    // TODO: it must be a unit test!!!
     check_device_operation();
 
     size_t size = 10;
