@@ -34,7 +34,6 @@ void device_copy_2D_from(void *dst,
                          size_t height);
 
 
-void device_scale_array(const real scalar, real *dev_array, const size_t num_elements);
 void device_compare_with_host_array(const real *host_ptr,
                                     const real * dev_ptr,
                                     const size_t num_elements,
@@ -42,6 +41,7 @@ void device_compare_with_host_array(const real *host_ptr,
 
 void device_init_linspace(const size_t num_elements, unsigned *array);
 void device_scale_linspace(const unsigned* linspace, const unsigned scale, const size_t num_elements, unsigned *output);
+void device_scale_array(const real scalar, const size_t num_elements, real *dev_array);
 void device_scale_array(const unsigned scale, const size_t num_elements, unsigned *output);
 void device_init_array(const unsigned value, const size_t num_elements, unsigned *output);
 

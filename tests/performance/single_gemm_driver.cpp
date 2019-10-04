@@ -204,7 +204,7 @@ void SingleGemmCudaDriver::runReferenceImplTest() {
 void SingleGemmCudaDriver::runNaiveDeviceImplWithTransfers() {
     std::cout << std::string(80, '-') << std::endl;
     std::cout << "device: with transfers" << std::endl;
-    device_scale_array(0.0, d_C, size_C * num_elements);
+    device_scale_array(0.0, size_C * num_elements, d_C);
 
     // call cuda
     auto start = steady_clock::now();
@@ -248,7 +248,7 @@ void SingleGemmCudaDriver::runNaiveDeviceImplWithTransfers() {
 void SingleGemmCudaDriver::runNaiveDeviceImplWithoutTransfers() {
     std::cout << std::string(80, '-') << std::endl;
     std::cout << "device: without transfers" << std::endl;
-    device_scale_array(0.0, d_C, size_C * num_elements);
+    device_scale_array(0.0, size_C * num_elements, d_C);
 
     // call cuda
     auto start = steady_clock::now();
@@ -307,7 +307,7 @@ void SingleGemmCudaDriver::runNaiveDeviceImplOnlyTransfers() {
 void SingleGemmCudaDriver::runNaiveDeviceImplReducedTransfers(const unsigned ratio = 5) {
     std::cout << std::string(80, '-') << std::endl;
     std::cout << "device: reduced transfers: 1tr. per " << ratio << " inter." << std::endl;
-    device_scale_array(0.0, d_C, size_C * num_elements);
+    device_scale_array(0.0, size_C * num_elements, d_C);
 
     // call cuda
     auto start = steady_clock::now();
