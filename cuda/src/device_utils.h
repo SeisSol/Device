@@ -3,7 +3,8 @@
 
 #include <string>
 #include "common.h"
-
+#include <assert.h>
+#include <stack>
 
 // memory menagment:
 void check_device_operation();
@@ -51,7 +52,7 @@ void device_init_array(const unsigned value, const size_t num_elements, unsigned
     enum CBLAS_LAYOUT {CblasRowMajor=101, CblasColMajor=102};
     enum CBLAS_TRANSPOSE {CblasNoTrans=111, CblasTrans=112, CblasConjTrans=113};
 #endif
-
+using CBLAS_LAYOUT = CBLAS_ORDER;
 
 template <typename T, typename D>
 void cuda_copy_add_scale(const int m, const int n,
@@ -74,5 +75,44 @@ void cuda_blas_gemm(const CBLAS_LAYOUT Layout,
                     D stride_B,
                     F stride_C,
                     const unsigned num_elements = 1);
+
+
+#define SCRATCH_MEM 1024*1024*64
+class DeviceScratchMem {
+    public:
+        ~DeviceScratchMem() {
+            device_free(m_ptr);
+        }
+        
+        static DeviceScratchMem& get_instance() {
+            static DeviceScratchMem instance;
+            return instance;
+        }
+
+        void* get_mem(unsigned amount) {
+            assert((m_counter < m_max_mem) && "run of scratch mem.");
+            void *return_value = m_ptr + m_counter;
+            m_counter += amount;
+            m_stack.push(amount);
+            return return_value;
+        }
+
+        void free() {
+            m_counter -= m_stack.top();
+            m_stack.pop();
+        }
+
+    private:
+        DeviceScratchMem() : m_ptr(nullptr),
+                             m_counter(0),
+                             m_max_mem(SCRATCH_MEM) {
+            m_ptr = device_malloc(m_max_mem * sizeof(real));    
+        }
+
+    void *m_ptr;
+    unsigned m_counter;
+    unsigned m_max_mem;
+    std::stack<unsigned> m_stack{};    
+};
 
 #endif  // CUDA_UTILS_CUH_
