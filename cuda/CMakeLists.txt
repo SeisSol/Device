@@ -26,3 +26,5 @@ cuda_add_library(custom_blas STATIC "src/auxiliary.cu"
                                     "src/gemm.cu"
                                     "src/memory_menagment.cu"
                                     "src/scratch_mem_system.cu")
+
+target_link_libraries(custom_blas -lnvToolsExt)
