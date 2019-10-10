@@ -3,6 +3,7 @@
 
 #include <string>
 #include "common.h"
+#include "scratch_mem_system.h"
 
 
 // memory menagment:
@@ -18,6 +19,11 @@ void device_synch();
 void device_copy_to(void* dst, const void* src, size_t count);
 void device_copy_from(void* dst, const void* src, size_t count);
 void device_copy_between(void* dst, const void* src, size_t count);
+
+
+void device_copy_from_asynch(void* dst, const void* src, size_t count); 
+//void device_asynch_copy_finish(void *handler); 
+
 
 void device_copy_2D_to(void *dst,
                        size_t dpitch,

@@ -24,4 +24,5 @@ set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11; -arch=sm_50; -Xptxas -v; ${A
 
 cuda_add_library(custom_blas STATIC "src/auxiliary.cu"
                                     "src/gemm.cu"
-                                    "src/memory_menagment.cu")
+                                    "src/memory_menagment.cu"
+                                    "src/scratch_mem_system.cu")

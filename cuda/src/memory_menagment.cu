@@ -39,6 +39,23 @@ void device_copy_between(void* dst, const void* src, size_t count) {
     cudaMemcpy(dst, src, count, cudaMemcpyDeviceToDevice); CUDA_CHECK;
 }
 
+void device_copy_from_asynch(void* dst, const void* src, size_t count) {
+    //cudaStream_t *stream = new cudaStream_t;
+    //cudaStreamCreateWithFlags(stream, cudaStreamNonBlocking); CUDA_CHECK;
+    //cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToHost, *stream); CUDA_CHECK;
+    //return reinterpret_cast<void*>(stream);
+
+    cudaStream_t stream; 
+    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); CUDA_CHECK;
+    cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToHost, stream); CUDA_CHECK;
+    cudaStreamDestroy(stream); CUDA_CHECK;
+}
+
+
+//void device_asynch_copy_finish(void *handler) {
+    //cudaStreamDestroy(*(reinterpret_cast<cudaStream_t*>(handler)));    
+//}
+
 
 void device_copy_2D_to(void *dst,
                        size_t dpitch,
