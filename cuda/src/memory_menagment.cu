@@ -9,6 +9,12 @@ void * device_malloc(size_t size) {
     return devPtr;
 }
 
+void * device_malloc_unified(size_t size) {
+    void *devPtr;
+    cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal); CUDA_CHECK;
+    return devPtr;
+}
+
 void * device_malloc_pinned(size_t size) {
     void *devPtr;
     cudaMallocHost(&devPtr, size); CUDA_CHECK;
@@ -75,8 +81,6 @@ void device_copy_2D_from(void *dst,
                          size_t height) {
     cudaMemcpy2D(dst, dpitch, src, spitch, width, height, cudaMemcpyDeviceToHost); CUDA_CHECK;
 }
-
-
 
 
 

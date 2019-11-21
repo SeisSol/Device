@@ -23,7 +23,7 @@ void cuda_check(std::string file, int line) {
         if (prev_line > 0)
             std::cout << "Previous CUDA call:" << std::endl 
                       << prev_file << ", line " << prev_line << std::endl;
-        exit(1);
+        throw;
     }
     prev_file = file;
     prev_line = line;
@@ -136,4 +136,50 @@ void device_init_array(const unsigned value, const size_t num_elements, unsigned
   dim3 block(optimal_kernel_size, 1, 1);
   dim3 grid = compute_grid_1D(block,  num_elements);
   kernel_init_array<<<grid, block>>>(value, num_elements, output); CUDA_CHECK;
+}
+
+
+// ------------------------------------------------------------------------------
+__global__ void kernel_vector_copy_add(unsigned* dst_ptr,
+                                       unsigned* src_ptr,
+                                       unsigned scalar,
+                                       size_t num_elements)  {
+  unsigned index = threadIdx.x + blockIdx.x * blockDim.x;
+  if (index < num_elements) {
+    dst_ptr[index] = src_ptr[index] + scalar;
+  }
+}
+void device_vector_copy_add(unsigned* dst_ptr, unsigned* src_ptr, unsigned scalar, size_t num_elements) {
+  unsigned optimal_kernel_size = 32;
+  dim3 block(optimal_kernel_size, 1, 1);
+  dim3 grid = compute_grid_1D(block,  num_elements);
+  kernel_vector_copy_add<<<grid, block>>>(dst_ptr, src_ptr, scalar, num_elements); CUDA_CHECK;
+}
+
+
+
+// ------------------------------------------------------------------------------
+/**
+ * Used to check whether memory was allocated as expected.
+ * NOTE: it is going to get crashed in case of inconsistent indices. It means that binning was dont incorrectly
+ */
+__global__ void kernel_touch_variables(real* base_ptr,
+                                       unsigned *indices,
+                                       unsigned var_size)  {
+  unsigned index = threadIdx.x + blockIdx.x * blockDim.x;
+  real *variable = base_ptr + indices[blockIdx.x];
+  const real DUMMY_VALUE = 2e-16;
+  if (index < var_size) {
+    // addition prevents the compiler optimization
+    variable[index] += DUMMY_VALUE;
+  }
+}
+
+/**
+ * This piece of code is not for production! Only for debugging the memory allocation
+ */
+void device_touch_variables(real* base_ptr, unsigned *indices, unsigned var_size, size_t num_vatiables) {
+  dim3 block(var_size, 1, 1);
+  dim3 grid (num_vatiables, 1, 1); // grid(x, y, z)
+  kernel_touch_variables<<<grid, block>>>(base_ptr, indices, var_size); CUDA_CHECK;
 }

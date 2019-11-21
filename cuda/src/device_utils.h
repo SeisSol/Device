@@ -3,7 +3,7 @@
 
 #include <string>
 #include "common.h"
-#include "scratch_mem_system.h"
+#include "temporary_mem_menager.h"
 #include "nvToolsExt.h"
 
 const uint32_t colors[] = { 0xff00ff00, 0xff0000ff, 0xffffff00, 0xffff00ff, 0xff00ffff, 0xffff0000, 0xffffffff };
@@ -28,6 +28,7 @@ const int num_colors = sizeof(colors)/sizeof(uint32_t);
 // memory menagment:
 void check_device_operation();
 void * device_malloc(size_t size);
+void * device_malloc_unified(size_t size);
 void * device_malloc_pinned(size_t size);
 
 void device_free(void *devPtr);
@@ -69,7 +70,9 @@ void device_scale_linspace(const unsigned* linspace, const unsigned scale, const
 void device_scale_array(const real scalar, const size_t num_elements, real *dev_array);
 void device_scale_array(const unsigned scale, const size_t num_elements, unsigned *output);
 void device_init_array(const unsigned value, const size_t num_elements, unsigned *output);
+void device_vector_copy_add(unsigned* dst_ptr, unsigned* src_ptr, unsigned scalar, size_t num_elements);
 
+void device_touch_variables(real* base_ptr, unsigned *indices, unsigned var_size, size_t num_vatiables);
 
 // computational kernels:
 #if !defined CBLAS_H && !defined __MKL_CBLAS_H__

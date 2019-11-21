@@ -14,7 +14,7 @@ find_package(CUDA REQUIRED)
 
 
 if (NOT DEFINED HARDWARE_DEFINITIONS)
-    set(HARDWARE_DEFINITIONS "REAL_SIZE=4" "ALIGNMENT=128")
+    set(HARDWARE_DEFINITIONS "REAL_SIZE=8" "ALIGNMENT=128")
 endif()
 add_cuda_defenitions("${HARDWARE_DEFINITIONS}")  # returns:  AUX_FLAGS
 
@@ -25,6 +25,6 @@ set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11; -arch=sm_50; -Xptxas -v; ${A
 cuda_add_library(custom_blas STATIC "src/auxiliary.cu"
                                     "src/gemm.cu"
                                     "src/memory_menagment.cu"
-                                    "src/scratch_mem_system.cu")
+                                    "src/temporary_mem_menager.cu")
 
 target_link_libraries(custom_blas -lnvToolsExt)
