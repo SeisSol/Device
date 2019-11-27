@@ -72,6 +72,15 @@ void device_scale_array(const unsigned scale, const size_t num_elements, unsigne
 void device_init_array(const unsigned value, const size_t num_elements, unsigned *output);
 void device_vector_copy_add(unsigned* dst_ptr, unsigned* src_ptr, unsigned scalar, size_t num_elements);
 
+void device_stream_data(real *base_src, unsigned *src_indices,
+                        real *base_dst, unsigned *dst_indices,
+                        unsigned element_size, unsigned num_elements);
+
+void device_accumulate_data(real *base_src, unsigned *src_indices,
+                            real *base_dst, unsigned *dst_indices,
+                            unsigned element_size, unsigned num_elements);
+
+
 void device_touch_variables(real* base_ptr, unsigned *indices, unsigned var_size, size_t num_vatiables);
 
 // computational kernels:
@@ -82,25 +91,25 @@ void device_touch_variables(real* base_ptr, unsigned *indices, unsigned var_size
 
 
 template <typename T, typename D>
-void cuda_copy_add_scale(const int m, const int n,
-                         const real alpha, const real *A, const int lda,
-                         const real beta, real *B, const int ldb,
-                         T stride_A,
-                         D stride_B,
-                         const unsigned num_elements);
+void device_copy_add_scale(const int m, const int n,
+                           const real alpha, const real *A, const int lda,
+                           const real beta, real *B, const int ldb,
+                           T stride_A,
+                           D stride_B,
+                           const unsigned num_elements);
 
 
 template <typename T, typename D, typename F>
-void cuda_blas_gemm(const CBLAS_LAYOUT Layout,
-                    const CBLAS_TRANSPOSE transa,
-                    const CBLAS_TRANSPOSE transb,
-                    const int m, const int n, const int k,
-                    const real alpha, const real *A_base, const int lda,
-                    const real *B_base, const int ldb,
-                    const real beta, real *C_base, const int ldc,
-                    T stride_A,
-                    D stride_B,
-                    F stride_C,
-                    const unsigned num_elements = 1);
+void device_gemm(const CBLAS_LAYOUT Layout,
+                 const CBLAS_TRANSPOSE transa,
+                 const CBLAS_TRANSPOSE transb,
+                 const int m, const int n, const int k,
+                 const real alpha, const real *A_base, const int lda,
+                 const real *B_base, const int ldb,
+                 const real beta, real *C_base, const int ldc,
+                 T stride_A,
+                 D stride_B,
+                 F stride_C,
+                 const unsigned num_elements = 1);
 
 #endif  // CUDA_UTILS_CUH_

@@ -62,12 +62,12 @@ __global__ void kernel_cuda_copy_add_scale(const int m, const int n,
  *
  * */
  template <typename T, typename D>
-void cuda_copy_add_scale(const int m, const int n,
-                         const real alpha, const real *A, const int lda,
-                         const real beta, real *B, const int ldb,
-                         T stride_A,
-                         D stride_B,
-                         const unsigned num_elements)
+void device_copy_add_scale(const int m, const int n,
+                           const real alpha, const real *A, const int lda,
+                           const real beta, real *B, const int ldb,
+                           T stride_A,
+                           D stride_B,
+                           const unsigned num_elements)
 {
 
     dim3 block(m, n, 1); // block(x, y, z)
@@ -366,17 +366,17 @@ __global__ void kernel_cuda_blas_gemm_NT(const int m, const int n, const int k,
  * */
 #include <iostream>  // DEBUGGING
 template <typename T, typename D, typename F>
-void cuda_blas_gemm(const CBLAS_LAYOUT Layout,
-                    const CBLAS_TRANSPOSE transa,
-                    const CBLAS_TRANSPOSE transb,
-                    const int m, const int n, const int k,
-                    const real alpha, const real *A_base, const int lda,
-                    const real *B_base, const int ldb,
-                    const real beta, real *C_base, const int ldc,
-                    T stride_A,
-                    D stride_B,
-                    F stride_C,
-                    const unsigned num_elements) {
+void device_gemm(const CBLAS_LAYOUT Layout,
+                 const CBLAS_TRANSPOSE transa,
+                 const CBLAS_TRANSPOSE transb,
+                 const int m, const int n, const int k,
+                 const real alpha, const real *A_base, const int lda,
+                 const real *B_base, const int ldb,
+                 const real beta, real *C_base, const int ldc,
+                 T stride_A,
+                 D stride_B,
+                 F stride_C,
+                 const unsigned num_elements) {
     dim3 block(m, n, 1); // block(x, y, z)
     dim3 grid (num_elements, 1, 1); // grid(x, y, z)
     size_t shared_mem_size = (m * k + k * n) * sizeof(real);
@@ -456,7 +456,7 @@ void cuda_blas_gemm(const CBLAS_LAYOUT Layout,
 
 /** The function is used by the compiler to instantiate specific GEMM implementations
 * NOTE: it is not callable
-* NOTE: we use pragma noinline to prevent inlining during code optimization i.e. -O2.
+* NOTE: we use pragma noinline to prevent inlining during a code optimization i.e. -O2.
 *   if compiler inlines a function then the corresponding template specification is not going to appear
 *   as a symbol in a static library
 */
@@ -467,38 +467,38 @@ void instantiate() {
     real *data = 0;
 
     #pragma noinline
-    cuda_blas_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, integer, integer, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, integer, integer, 0);
 
     #pragma noinline
-    cuda_blas_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, integer, integer, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, integer, integer, 0);
 
     #pragma noinline
-    cuda_blas_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, ptr, integer, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, ptr, integer, 0);
 
     #pragma noinline
-    cuda_blas_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, integer, ptr, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, integer, ptr, 0);
 
     #pragma noinline
-    cuda_blas_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, ptr, integer, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, ptr, integer, 0);
 
     #pragma noinline
-    cuda_blas_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, integer, ptr, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, integer, ptr, 0);
 
     #pragma noinline
-    cuda_blas_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, ptr, ptr, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, ptr, ptr, 0);
 
     #pragma noinline
-    cuda_blas_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, ptr, ptr, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, ptr, ptr, 0);
 
     #pragma noinline
-    cuda_copy_add_scale<unsigned int, unsigned int>(0, 0, 0.0, data, 0, 0.0, data, 0, integer, integer, 0);
+    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, integer, 0);
 
     #pragma noinline
-    cuda_copy_add_scale<unsigned int*, unsigned int>(0, 0, 0.0, data, 0, 0.0, data, 0, ptr, integer, 0);
+    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, ptr, integer, 0);
 
     #pragma noinline
-    cuda_copy_add_scale<unsigned int, unsigned int*>(0, 0, 0.0, data, 0, 0.0, data, 0, integer, ptr, 0);
+    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, ptr, 0);
 
     #pragma noinline
-    cuda_copy_add_scale<unsigned int*, unsigned int*>(0, 0, 0.0, data, 0, 0.0, data, 0, ptr, ptr, 0);
+    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, ptr, ptr, 0);
 }
