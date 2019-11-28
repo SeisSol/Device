@@ -1,5 +1,7 @@
 //DEBUGGING
 #include <stdio.h>
+#include <cmath>
+#include <cfloat>
 #include "common.h"
 
 
@@ -97,14 +99,20 @@ void device_compare_with_host_array(const real *host_ptr,
     const real eps = 1e-12;
     for (unsigned i = 0; i < num_elements; ++i) {
         if (abs(host_ptr[i] - temp[i]) > eps) {
-            printf("ERROR::DEVICE:: host and device arrays are different\n");
-            printf("ERROR::DEVICE:: host array (%f) != device array(%f); index (%d)\n", host_ptr[i], temp[i], i);
+            if ((std::isnan(host_ptr[i])) || (std::isnan(temp[i]))) {
+                printf("RESULTS IS NAN:: cannot proceed\n");
+                abort();
+            }
+
+            printf("ERROR::DEVICE::%s:: host and device arrays are different\n", array_name);
+            printf("ERROR::DEVICE:: host array (%4.18f) != device array(%4.18f); index (%d)\n", host_ptr[i], temp[i], i);
+            printf("ERROR::DEVICE:: difference = %4.18f\n", host_ptr[i] - temp[i]);
             delete [] temp;
             abort();
         }
         /*
         else {
-            printf("DEVICE: values %f == %f (%s)\n", host_ptr[i], temp[i], array_name);
+            printf("DEVICE: difference %f \n", host_ptr[i] - temp[i]);
         }
         */
     }
