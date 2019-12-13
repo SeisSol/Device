@@ -461,44 +461,51 @@ void device_gemm(const CBLAS_LAYOUT Layout,
 *   as a symbol in a static library
 */
 
+
+
+#include <tuple>
+#include <array>
+#include <type_traits>
+
 void instantiate() {
     unsigned int integer = 0;
-    unsigned int *ptr = 0;
+    unsigned int *uint_ptr = 0;
+    real *real_ptr = 0;
     real *data = 0;
 
     #pragma noinline
     device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, integer, integer, 0);
 
     #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, integer, integer, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, uint_ptr, integer, integer, 0);
 
     #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, ptr, integer, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, uint_ptr, integer, 0);
 
     #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, integer, ptr, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, integer, uint_ptr, 0);
 
     #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, ptr, integer, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, uint_ptr, uint_ptr, integer, 0);
 
     #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, integer, ptr, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, uint_ptr, integer, uint_ptr, 0);
 
     #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, ptr, ptr, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, uint_ptr, uint_ptr, 0);
 
     #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, ptr, ptr, ptr, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, uint_ptr, uint_ptr, uint_ptr, 0);
 
     #pragma noinline
     device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, integer, 0);
 
     #pragma noinline
-    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, ptr, integer, 0);
+    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, uint_ptr, integer, 0);
 
     #pragma noinline
-    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, ptr, 0);
+    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, uint_ptr, 0);
 
     #pragma noinline
-    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, ptr, ptr, 0);
+    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, uint_ptr, uint_ptr, 0);
 }
