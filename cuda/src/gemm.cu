@@ -18,14 +18,6 @@
 extern dim3 compute_grid_1D(const dim3 &block, const int size);
 
 
-__device__ unsigned get_stride(unsigned *stride, unsigned blockId) {
-    return stride[blockId];
-}
-
-__device__ unsigned get_stride(unsigned stride, unsigned blockId) {
-    return blockId * stride;
-}
-
 // in case of a base array and offsets
 template <typename T>
 __device__
