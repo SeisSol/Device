@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdio.h>
+#include <type_traits>
 
 #include "common.h"
 
@@ -25,22 +26,47 @@ __device__ unsigned get_stride(unsigned stride, unsigned blockId) {
     return blockId * stride;
 }
 
+// in case of a base array and offsets
+template <typename T>
+__device__
+typename std::enable_if<std::is_floating_point<T>::value, T*>::type
+find_data(T *data, unsigned *stride, unsigned blockId) {
+  return &data[stride[blockId]];
+}
+
+
+// in case of a base array and offsets
+template <typename T>
+__device__
+typename std::enable_if<std::is_floating_point<T>::value, T*>::type
+find_data(T *data, unsigned stride, unsigned blockId) {
+  return &data[blockId * stride];
+}
+
+
+// in case of an array of pointers, i.e. real**
+template <typename T>
+__device__
+typename std::remove_pointer<T>::type find_data(T data, unsigned stride, unsigned blockId) {
+  return &(data[blockId][stride]);
+}
+
 
 // ------------------------------------------------------------------------------
 //                          CUDA COPY-ADD-SCALE KERNELS
 // ------------------------------------------------------------------------------
-template <typename T, typename D>
+template <typename AT, typename BT, typename T, typename D>
 __global__ void kernel_cuda_copy_add_scale(const int m, const int n,
-                                           const real alpha, const real *A, const int lda,
-                                           const real beta, real *B, const int ldb,
-                                           T stride_A,
-                                           D stride_B) {
+                                           const real alpha, const AT *A, const int lda,
+                                           const real beta, BT *B, const int ldb,
+                                           T offsets_A,
+                                           D offsets_B) {
 
-    A += get_stride(stride_A, blockIdx.x);
-    B += get_stride(stride_B, blockIdx.x);
+  const real *matrix_A = find_data(A, offsets_A, blockIdx.x);
+  real *matrix_B =  find_data(B, offsets_B, blockIdx.x);
 
-    B[threadIdx.x + threadIdx.y * ldb] = beta  * B[threadIdx.x + threadIdx.y * ldb]
-                                       + alpha * A[threadIdx.x + threadIdx.y * lda];
+  matrix_B[threadIdx.x + threadIdx.y * ldb] = beta * matrix_B[threadIdx.x + threadIdx.y * ldb]
+                                              + alpha * matrix_A[threadIdx.x + threadIdx.y * lda];
 
 }
 
@@ -61,12 +87,12 @@ __global__ void kernel_cuda_copy_add_scale(const int m, const int n,
  *  |______|            |______|
  *
  * */
- template <typename T, typename D>
+template <typename AT, typename BT, typename T, typename D>
 void device_copy_add_scale(const int m, const int n,
-                           const real alpha, const real *A, const int lda,
-                           const real beta, real *B, const int ldb,
-                           T stride_A,
-                           D stride_B,
+                           const real alpha, const AT *A, const int lda,
+                           const real beta, BT *B, const int ldb,
+                           T offsets_A,
+                           D offsets_B,
                            const unsigned num_elements)
 {
 
@@ -83,8 +109,8 @@ void device_copy_add_scale(const int m, const int n,
     kernel_cuda_copy_add_scale<<<grid, block>>>(m, n,
                                                 alpha, A, lda,
                                                 beta, B, ldb,
-                                                stride_A,
-                                                stride_B);
+                                                offsets_A,
+                                                offsets_B);
     CUDA_CHECK;
 }
 
@@ -95,45 +121,45 @@ void device_copy_add_scale(const int m, const int n,
 
 // TODO: generalize for execution with multible blocks
 // transa == CblasNoTrans) && (transb == CblasNoTrans)
-template <typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
 __global__ void kernel_cuda_blas_gemm_NN(const int m, const int n, const int k,
-                                         const real alpha, const real *A, const int lda,
-                                         const real *B, const int ldb,
-                                         const real beta, real *C, const int ldc,
-                                         T stride_A = 0,
-                                         D stride_B = 0,
-                                         F stride_C = 0)
+                                         const real alpha, const AT *A, const int lda,
+                                         const BT *B, const int ldb,
+                                         const real beta, CT *C, const int ldc,
+                                         T offsets_A = 0,
+                                         D offsets_B = 0,
+                                         F offsets_C = 0)
 {
 
-    A += get_stride(stride_A, blockIdx.x);
-    B += get_stride(stride_B, blockIdx.x);
-    C += get_stride(stride_C, blockIdx.x);
+    const real *matrix_A = find_data(A, offsets_A, blockIdx.x);
+    const real *matrix_B = find_data(B, offsets_B, blockIdx.x);
+    real *matrix_C = find_data(C, offsets_C, blockIdx.x);
 
-    // declare a pointer to array A within shared memery
+    // declare a pointer to array matrix_A within shared memery
     extern __shared__ real sm_A[];
 
-    // declare a pointer to array B within shared memery
+    // declare a pointer to array matrix_B within shared memery
     // NOTE: sm_B and sm_A points into the same chunch of memory
     //       However, sm_B is shifted from sm_A into m * k elements
     real *sm_B = sm_A + m * k;
 
-    // load matrix A to shared memory
+    // load matrix matrix_A to shared memory
     // slide along matrix columns
     const unsigned column_repeats = (k + n - 1) / n;
     for (int column_shift = 0; column_shift < column_repeats; ++column_shift) {
 
         int column = threadIdx.y + column_shift * blockDim.y;
         if (column < k)
-            sm_A[threadIdx.x + column * m] = A[threadIdx.x + column * lda];
+            sm_A[threadIdx.x + column * m] = matrix_A[threadIdx.x + column * lda];
     }
 
-    // load matrix B to shared memory
+    // load matrix matrix_B to shared memory
     // slide along matrix rows
     int row_repeats = (k + m - 1) / m;
     for (int row_shift = 0; row_shift < row_repeats; ++row_shift) {
         int row = threadIdx.x + row_shift * blockDim.x;
         if (row < k)
-            sm_B[row + threadIdx.y * k] = B[row + threadIdx.y * ldb];
+            sm_B[row + threadIdx.y * k] = matrix_B[row + threadIdx.y * ldb];
     }
 
     __syncthreads();
@@ -143,36 +169,36 @@ __global__ void kernel_cuda_blas_gemm_NN(const int m, const int n, const int k,
         result += (sm_A[threadIdx.x + j * m] * sm_B[j + threadIdx.y * k]);
     }
 
-    C[threadIdx.x + threadIdx.y * ldc] = alpha * result
-                                       + beta * C[threadIdx.x + threadIdx.y * ldc];
+  matrix_C[threadIdx.x + threadIdx.y * ldc] = alpha * result
+                                              + beta * matrix_C[threadIdx.x + threadIdx.y * ldc];
 }
 
 
 // TODO: generalize for execution with multible blocks
 // (transa == CblasTrans) && (transb == CblasTrans)
-template <typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
 __global__ void kernel_cuda_blas_gemm_TT(const int m, const int n, const int k,
-                                         const real alpha, const real *A, const int lda,
-                                         const real *B, const int ldb,
-                                         const real beta, real *C, const int ldc,
-                                         T stride_A = 0,
-                                         D stride_B = 0,
-                                         F stride_C = 0)
+                                         const real alpha, const AT *A, const int lda,
+                                         const BT *B, const int ldb,
+                                         const real beta, CT *C, const int ldc,
+                                         T offsets_A = 0,
+                                         D offsets_B = 0,
+                                         F offsets_C = 0)
 {
 
-    A += get_stride(stride_A, blockIdx.x);
-    B += get_stride(stride_B, blockIdx.x);
-    C += get_stride(stride_C, blockIdx.x);
+  const real *matrix_A = find_data(A, offsets_A, blockIdx.x);
+  const real *matrix_B = find_data(B, offsets_B, blockIdx.x);
+  real *matrix_C = find_data(C, offsets_C, blockIdx.x);
 
-    // declare a pointer to array A within shared memery
+    // declare a pointer to array matrix_A within shared memery
     extern __shared__ real sm_A[];
 
-    // declare a pointer to array B within shared memery
+    // declare a pointer to array matrix_B within shared memery
     // NOTE: sm_B and sm_A points into the same chunch of memory
     //       However, sm_B is shifted from sm_A into m * k elements
     real *sm_B = sm_A + m * k;
 
-    // load matrix A to shared memory
+    // load matrix matrix_A to shared memory
     // slide along matrix columns
     int column_repeats = (m + n - 1) / n;
     for (int column_shift = 0; column_shift < column_repeats; ++column_shift) {
@@ -183,13 +209,13 @@ __global__ void kernel_cuda_blas_gemm_TT(const int m, const int n, const int k,
         for (int row_shift = 0; row_shift < row_repeats; ++row_shift) {
             int row = threadIdx.x + row_shift * blockDim.x;
             if ((row < k) && (column < m)) {
-                sm_A[row + column * k] = A[row + column * lda];
+                sm_A[row + column * k] = matrix_A[row + column * lda];
             }
         }
     }
 
 
-    // load matrix B to shared memory
+    // load matrix matrix_B to shared memory
     // slide along matrix columns
     column_repeats = (k + n - 1) / n;
     for (int column_shift = 0; column_shift < column_repeats; ++column_shift) {
@@ -200,7 +226,7 @@ __global__ void kernel_cuda_blas_gemm_TT(const int m, const int n, const int k,
         for (int row_shift = 0; row_shift < row_repeats; ++row_shift) {
             int row = threadIdx.x + row_shift * blockDim.x;
             if ((row < n) && (column < k)) {
-                sm_B[row + column * n] = B[row + column * ldb];
+                sm_B[row + column * n] = matrix_B[row + column * ldb];
             }
         }
     }
@@ -213,36 +239,36 @@ __global__ void kernel_cuda_blas_gemm_TT(const int m, const int n, const int k,
     }
 
 
-    C[threadIdx.x + threadIdx.y * ldc] = alpha * result
-                                       + beta * C[threadIdx.x + threadIdx.y * ldc];
+  matrix_C[threadIdx.x + threadIdx.y * ldc] = alpha * result
+                                              + beta * matrix_C[threadIdx.x + threadIdx.y * ldc];
 }
 
 
 // TODO: generalize for execution with multible blocks
 // (transa == CblasTrans) && (transb == CblasNoTrans)
-template <typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
 __global__ void kernel_cuda_blas_gemm_TN(const int m, const int n, const int k,
-                                         const real alpha, const real *A, const int lda,
-                                         const real *B, const int ldb,
-                                         const real beta, real *C, const int ldc,
-                                         T stride_A = 0,
-                                         D stride_B = 0,
-                                         F stride_C = 0)
+                                         const real alpha, const AT *A, const int lda,
+                                         const BT *B, const int ldb,
+                                         const real beta, CT *C, const int ldc,
+                                         T offsets_A = 0,
+                                         D offsets_B = 0,
+                                         F offsets_C = 0)
 {
 
-    A += get_stride(stride_A, blockIdx.x);
-    B += get_stride(stride_B, blockIdx.x);
-    C += get_stride(stride_C, blockIdx.x);
+  const real *matrix_A = find_data(A, offsets_A, blockIdx.x);
+  const real *matrix_B = find_data(B, offsets_B, blockIdx.x);
+  real *matrix_C = find_data(C, offsets_C, blockIdx.x);
 
-    // declare a pointer to array A within shared memery
+    // declare a pointer to array matrix_A within shared memery
     extern __shared__ real sm_A[];
 
-    // declare a pointer to array B within shared memery
+    // declare a pointer to array matrix_B within shared memery
     // NOTE: sm_B and sm_A points into the same chunch of memory
     //       However, sm_B is shifted from sm_A into m * k elements
     real *sm_B = sm_A + m * k;
 
-    // load matrix A to shared memory
+    // load matrix matrix_A to shared memory
     // slide along matrix columns
     int column_repeats = (m + n - 1) / n;
     for (int column_shift = 0; column_shift < column_repeats; ++column_shift) {
@@ -253,18 +279,18 @@ __global__ void kernel_cuda_blas_gemm_TN(const int m, const int n, const int k,
         for (int row_shift = 0; row_shift < row_repeats; ++row_shift) {
             int row = threadIdx.x + row_shift * blockDim.x;
             if ((row < k) && (column < m)) {
-                sm_A[row + column * k] = A[row + column * lda];
+                sm_A[row + column * k] = matrix_A[row + column * lda];
             }
         }
     }
 
-    // load matrix B to shared memory
+    // load matrix matrix_B to shared memory
     // slide along matrix rows
     int row_repeats = (k + m - 1) / m;
     for (int row_shift = 0; row_shift < row_repeats; ++row_shift) {
         int row = threadIdx.x + row_shift * blockDim.x;
         if (row < k)
-            sm_B[row + threadIdx.y * k] = B[row + threadIdx.y * ldb];
+            sm_B[row + threadIdx.y * k] = matrix_B[row + threadIdx.y * ldb];
     }
 
     __syncthreads();
@@ -275,46 +301,47 @@ __global__ void kernel_cuda_blas_gemm_TN(const int m, const int n, const int k,
     }
 
 
-    C[threadIdx.x + threadIdx.y * ldc] = alpha * result
-                                       + beta * C[threadIdx.x + threadIdx.y * ldc];
+  matrix_C[threadIdx.x + threadIdx.y * ldc] = alpha * result
+                                              + beta * matrix_C[threadIdx.x + threadIdx.y * ldc];
 }
 
 
 
 // TODO: generalize for execution with multible blocks
 // (transa == CblasNoTrans) && (transb == CblasTrans)
-template <typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
 __global__ void kernel_cuda_blas_gemm_NT(const int m, const int n, const int k,
-                                         const real alpha, const real *A, const int lda,
-                                         const real *B, const int ldb,
-                                         const real beta, real *C, const int ldc,
-                                         T stride_A = 0,
-                                         D stride_B = 0,
-                                         F stride_C = 0)
+                                         const real alpha, const AT *A, const int lda,
+                                         const BT *B, const int ldb,
+                                         const real beta, CT *C, const int ldc,
+                                         T offsets_A = 0,
+                                         D offsets_B = 0,
+                                         F offsets_C = 0)
 {
-    A += get_stride(stride_A, blockIdx.x);
-    B += get_stride(stride_B, blockIdx.x);
-    C += get_stride(stride_C, blockIdx.x);
 
-    // declare a pointer to array A within shared memery
+  const real *matrix_A = find_data(A, offsets_A, blockIdx.x);
+  const real *matrix_B = find_data(B, offsets_B, blockIdx.x);
+  real *matrix_C = find_data(C, offsets_C, blockIdx.x);
+
+    // declare a pointer to array matrix_A within shared memery
     extern __shared__ real sm_A[];
 
-    // declare a pointer to array B within shared memery
+    // declare a pointer to array matrix_B within shared memery
     // NOTE: sm_B and sm_A points into the same chunch of memory
     //       However, sm_B is shifted from sm_A into m * k elements
     real *sm_B = sm_A + m * k;
 
-   // load matrix A to shared memory
+   // load matrix matrix_A to shared memory
     // slide along matrix columns
     int column_repeats = (k + n - 1) / n;
     for (int column_shift = 0; column_shift < column_repeats; ++column_shift) {
         int column = threadIdx.y + column_shift * blockDim.y;
         if (column < k)
-            sm_A[threadIdx.x + column * m] = A[threadIdx.x + column * lda];
+            sm_A[threadIdx.x + column * m] = matrix_A[threadIdx.x + column * lda];
     }
 
 
-    // load matrix B to shared memory
+    // load matrix matrix_B to shared memory
     // slide along matrix columns
     column_repeats = (k + n - 1) / n;
     for (int column_shift = 0; column_shift < column_repeats; ++column_shift) {
@@ -325,7 +352,7 @@ __global__ void kernel_cuda_blas_gemm_NT(const int m, const int n, const int k,
         for (int row_shift = 0; row_shift < row_repeats; ++row_shift) {
             int row = threadIdx.x + row_shift * blockDim.x;
             if ((row < n) && (column < k)) {
-                sm_B[row + column * n] = B[row + column * ldb];
+                sm_B[row + column * n] = matrix_B[row + column * ldb];
             }
         }
     }
@@ -338,8 +365,8 @@ __global__ void kernel_cuda_blas_gemm_NT(const int m, const int n, const int k,
     }
 
 
-    C[threadIdx.x + threadIdx.y * ldc] = alpha * result
-                                       + beta * C[threadIdx.x + threadIdx.y * ldc];
+  matrix_C[threadIdx.x + threadIdx.y * ldc] = alpha * result
+                                              + beta * matrix_C[threadIdx.x + threadIdx.y * ldc];
 }
 
 
@@ -364,18 +391,17 @@ __global__ void kernel_cuda_blas_gemm_NT(const int m, const int n, const int k,
  *  |___|           |_____|                  |___|
  *
  * */
-#include <iostream>  // DEBUGGING
-template <typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
 void device_gemm(const CBLAS_LAYOUT Layout,
                  const CBLAS_TRANSPOSE transa,
                  const CBLAS_TRANSPOSE transb,
                  const int m, const int n, const int k,
-                 const real alpha, const real *A_base, const int lda,
-                 const real *B_base, const int ldb,
-                 const real beta, real *C_base, const int ldc,
-                 T stride_A,
-                 D stride_B,
-                 F stride_C,
+                 const real alpha, const AT *A_base, const int lda,
+                 const BT *B_base, const int ldb,
+                 const real beta, CT *C_base, const int ldc,
+                 T offsets_A,
+                 D offsets_B,
+                 F offsets_C,
                  const unsigned num_elements) {
     dim3 block(m, n, 1); // block(x, y, z)
     dim3 grid (num_elements, 1, 1); // grid(x, y, z)
@@ -401,9 +427,9 @@ void device_gemm(const CBLAS_LAYOUT Layout,
                                                                        alpha, A_base, lda,
                                                                        B_base, ldb,
                                                                        beta, C_base, ldc,
-                                                                       stride_A,
-                                                                       stride_B,
-                                                                       stride_C);
+                                                                       offsets_A,
+                                                                       offsets_B,
+                                                                       offsets_C);
             CUDA_CHECK;
         }
         else if ((transa == CblasTrans) && (transb == CblasTrans)) {
@@ -411,9 +437,9 @@ void device_gemm(const CBLAS_LAYOUT Layout,
                                                                        alpha, A_base, lda,
                                                                        B_base, ldb,
                                                                        beta, C_base, ldc,
-                                                                       stride_A,
-                                                                       stride_B,
-                                                                       stride_C);
+                                                                       offsets_A,
+                                                                       offsets_B,
+                                                                       offsets_C);
             CUDA_CHECK;
         }
         else if ((transa == CblasNoTrans) && (transb == CblasTrans)) {
@@ -421,9 +447,9 @@ void device_gemm(const CBLAS_LAYOUT Layout,
                                                                        alpha, A_base, lda,
                                                                        B_base, ldb,
                                                                        beta, C_base, ldc,
-                                                                       stride_A,
-                                                                       stride_B,
-                                                                       stride_C);
+                                                                       offsets_A,
+                                                                       offsets_B,
+                                                                       offsets_C);
             CUDA_CHECK;
         }
         else if ((transa == CblasTrans) && (transb == CblasNoTrans)) {
@@ -431,9 +457,9 @@ void device_gemm(const CBLAS_LAYOUT Layout,
                                                                        alpha, A_base, lda,
                                                                        B_base, ldb,
                                                                        beta, C_base, ldc,
-                                                                       stride_A,
-                                                                       stride_B,
-                                                                       stride_C);
+                                                                       offsets_A,
+                                                                       offsets_B,
+                                                                       offsets_C);
             CUDA_CHECK;
         }
         else if ((transa == CblasConjTrans) || (transb == CblasConjTrans)) {
@@ -470,9 +496,9 @@ void device_gemm(const CBLAS_LAYOUT Layout,
 void instantiate() {
     unsigned int integer = 0;
     unsigned int *uint_ptr = 0;
-    real *real_ptr = 0;
     real *data = 0;
 
+    //------------------------------------------------------------------------------------------------------------------
     #pragma noinline
     device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, integer, integer, 0);
 
@@ -497,15 +523,57 @@ void instantiate() {
     #pragma noinline
     device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, uint_ptr, uint_ptr, uint_ptr, 0);
 
-    #pragma noinline
-    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, integer, 0);
+
+    //------------------------------------------------------------------------------------------------------------------
+    real **data_array = nullptr;
 
     #pragma noinline
-    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, uint_ptr, integer, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data_array, 0, data, 0, 0.0, data, 0, integer, integer, integer, 0);
 
     #pragma noinline
-    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, uint_ptr, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data_array, 0, 0.0, data, 0, integer, integer, integer, 0);
 
     #pragma noinline
-    device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, uint_ptr, uint_ptr, 0);
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data_array, 0, integer, integer, integer, 0);
+
+    #pragma noinline
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data_array, 0, data_array, 0, 0.0, data, 0, integer, integer, integer, 0);
+
+    #pragma noinline
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data_array, 0, data, 0, 0.0, data_array, 0, integer, integer, integer, 0);
+
+    #pragma noinline
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data_array, 0, 0.0, data_array, 0, integer, integer, integer, 0);
+
+    #pragma noinline
+    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data_array, 0, data_array, 0, 0.0, data_array, 0, integer, integer, integer, 0);
+
+
+#pragma noinline
+  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, integer, 0);
+
+  #pragma noinline
+  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, uint_ptr, integer, 0);
+
+  #pragma noinline
+  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, uint_ptr, 0);
+
+  #pragma noinline
+  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, uint_ptr, uint_ptr, 0);
+
+  //--------------------------------------------------------------------------------------------------------------------
+
+#pragma noinline
+  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, integer, 0);
+
+#pragma noinline
+  device_copy_add_scale(0, 0, 0.0, data_array, 0, 0.0, data, 0, integer, integer, 0);
+
+#pragma noinline
+  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data_array, 0, integer, integer, 0);
+
+#pragma noinline
+  device_copy_add_scale(0, 0, 0.0, data_array, 0, 0.0, data_array, 0, integer, integer, 0);
+
+
 }

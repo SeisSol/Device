@@ -90,26 +90,26 @@ void device_touch_variables(real* base_ptr, unsigned *indices, unsigned var_size
 #endif
 
 
-template <typename T, typename D>
+template <typename AT, typename BT, typename T, typename D>
 void device_copy_add_scale(const int m, const int n,
-                           const real alpha, const real *A, const int lda,
-                           const real beta, real *B, const int ldb,
-                           T stride_A,
-                           D stride_B,
+                           const real alpha, const AT *A, const int lda,
+                           const real beta, BT *B, const int ldb,
+                           T offsets_A,
+                           D offsets_B,
                            const unsigned num_elements);
 
 
-template <typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
 void device_gemm(const CBLAS_LAYOUT Layout,
                  const CBLAS_TRANSPOSE transa,
                  const CBLAS_TRANSPOSE transb,
                  const int m, const int n, const int k,
-                 const real alpha, const real *A_base, const int lda,
-                 const real *B_base, const int ldb,
-                 const real beta, real *C_base, const int ldc,
-                 T stride_A,
-                 D stride_B,
-                 F stride_C,
+                 const real alpha, const AT *A_base, const int lda,
+                 const BT *B_base, const int ldb,
+                 const real beta, CT *C_base, const int ldc,
+                 T offsets_A,
+                 D offsets_B,
+                 F offsets_C,
                  const unsigned num_elements = 1);
 
 #endif  // CUDA_UTILS_CUH_
