@@ -72,13 +72,15 @@ void device_scale_array(const unsigned scale, const size_t num_elements, unsigne
 void device_init_array(const unsigned value, const size_t num_elements, unsigned *output);
 void device_vector_copy_add(unsigned* dst_ptr, unsigned* src_ptr, unsigned scalar, size_t num_elements);
 
-void device_stream_data(real *base_src, unsigned *src_indices,
-                        real *base_dst, unsigned *dst_indices,
-                        unsigned element_size, unsigned num_elements);
+void device_stream_data(real **base_src,
+                        real **base_dst,
+                        unsigned element_size,
+                        unsigned num_elements);
 
-void device_accumulate_data(real *base_src, unsigned *src_indices,
-                            real *base_dst, unsigned *dst_indices,
-                            unsigned element_size, unsigned num_elements);
+void device_accumulate_data(real **base_src,
+                            real **base_dst,
+                            unsigned element_size,
+                            unsigned num_elements);
 
 
 void device_touch_variables(real* base_ptr, unsigned *indices, unsigned var_size, size_t num_vatiables);
@@ -90,26 +92,26 @@ void device_touch_variables(real* base_ptr, unsigned *indices, unsigned var_size
 #endif
 
 
-template <typename AT, typename BT, typename T, typename D>
+template <typename AT, typename BT>
 void device_copy_add_scale(const int m, const int n,
-                           const real alpha, const AT *A, const int lda,
-                           const real beta, BT *B, const int ldb,
-                           T offsets_A,
-                           D offsets_B,
+                           const real alpha, AT A, const int lda,
+                           const real beta, BT B, const int ldb,
+                           unsigned offsets_A,
+                           unsigned offsets_B,
                            const unsigned num_elements);
 
 
-template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT>
 void device_gemm(const CBLAS_LAYOUT Layout,
                  const CBLAS_TRANSPOSE transa,
                  const CBLAS_TRANSPOSE transb,
                  const int m, const int n, const int k,
-                 const real alpha, const AT *A_base, const int lda,
-                 const BT *B_base, const int ldb,
-                 const real beta, CT *C_base, const int ldc,
-                 T offsets_A,
-                 D offsets_B,
-                 F offsets_C,
+                 const real alpha, AT A_base, const int lda,
+                 BT B_base, const int ldb,
+                 const real beta, CT C_base, const int ldc,
+                 unsigned offsets_A,
+                 unsigned offsets_B,
+                 unsigned offsets_C,
                  const unsigned num_elements = 1);
 
 #endif  // CUDA_UTILS_CUH_

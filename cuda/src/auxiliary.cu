@@ -185,48 +185,50 @@ void device_touch_variables(real* base_ptr, unsigned *indices, unsigned var_size
 }
 
 // ------------------------------------------------------------------------------
-__global__ void kernel_stream_data(real *base_src, unsigned *src_indices,
-                                   real *base_dst, unsigned *dst_indices,
+__global__ void kernel_stream_data(real **base_src,
+                                   real **base_dst,
                                    unsigned element_size) {
 
-    real *src_element = base_src + src_indices[blockIdx.x];
-    real *dst_element = base_dst + dst_indices[blockIdx.x];
+    real *src_element = base_src[blockIdx.x];
+    real *dst_element = base_dst[blockIdx.x];
 
     if (threadIdx.x < element_size) {
-        dst_element[threadIdx.x] = src_element[threadIdx.x];
+      dst_element[threadIdx.x] = src_element[threadIdx.x];
     }
 }
 
 
-void device_stream_data(real *base_src, unsigned *src_indices,
-                        real *base_dst, unsigned *dst_indices,
-                        unsigned element_size, unsigned num_elements) {
+void device_stream_data(real **base_src,
+                        real **base_dst,
+                        unsigned element_size,
+                        unsigned num_elements) {
 
   dim3 block(element_size, 1, 1);
   dim3 grid (num_elements, 1, 1); // grid(x, y, z)
-  kernel_stream_data<<<grid, block>>>(base_src, src_indices, base_dst, dst_indices, element_size); CUDA_CHECK;
+  kernel_stream_data<<<grid, block>>>(base_src, base_dst, element_size); CUDA_CHECK;
 }
 
 
 
 // ------------------------------------------------------------------------------
-__global__ void kernel_accumulate_data(real *base_src, unsigned *src_indices,
-                                       real *base_dst, unsigned *dst_indices,
+__global__ void kernel_accumulate_data(real **base_src,
+                                       real **base_dst,
                                        unsigned element_size) {
 
-    real *src_element = base_src + src_indices[blockIdx.x];
-    real *dst_element = base_dst + dst_indices[blockIdx.x];
+  real *src_element = base_src[blockIdx.x];
+  real *dst_element = base_dst[blockIdx.x];
 
-    if (threadIdx.x < element_size) {
-        dst_element[threadIdx.x] += src_element[threadIdx.x];
-    }
+  if (threadIdx.x < element_size) {
+    dst_element[threadIdx.x] += src_element[threadIdx.x];
+  }
 }
 
-void device_accumulate_data(real *base_src, unsigned *src_indices,
-                            real *base_dst, unsigned *dst_indices,
-                            unsigned element_size, unsigned num_elements) {
+void device_accumulate_data(real **base_src,
+                            real **base_dst,
+                            unsigned element_size,
+                            unsigned num_elements) {
 
   dim3 block(element_size, 1, 1);
   dim3 grid (num_elements, 1, 1); // grid(x, y, z)
-  kernel_accumulate_data<<<grid, block>>>(base_src, src_indices, base_dst, dst_indices, element_size); CUDA_CHECK;
+  kernel_accumulate_data<<<grid, block>>>(base_src, base_dst, element_size); CUDA_CHECK;
 }

@@ -19,27 +19,22 @@ extern dim3 compute_grid_1D(const dim3 &block, const int size);
 
 
 // in case of a base array and offsets
-template <typename T>
 __device__
-typename std::enable_if<std::is_floating_point<T>::value, T*>::type
-find_data(T *data, unsigned *stride, unsigned blockId) {
-  return &data[stride[blockId]];
+real* find_data(real *data, unsigned stride, unsigned blockId) {
+  return &data[blockId * stride];
 }
-
-
-// in case of a base array and offsets
-template <typename T>
 __device__
-typename std::enable_if<std::is_floating_point<T>::value, T*>::type
-find_data(T *data, unsigned stride, unsigned blockId) {
+const real* find_data(const real *data, unsigned stride, unsigned blockId) {
   return &data[blockId * stride];
 }
 
 
-// in case of an array of pointers, i.e. real**
-template <typename T>
 __device__
-typename std::remove_pointer<T>::type find_data(T data, unsigned stride, unsigned blockId) {
+real* find_data(real** data, unsigned stride, unsigned blockId) {
+  return &(data[blockId][stride]);
+}
+__device__
+const real* find_data(const real** data, unsigned stride, unsigned blockId) {
   return &(data[blockId][stride]);
 }
 
@@ -47,12 +42,12 @@ typename std::remove_pointer<T>::type find_data(T data, unsigned stride, unsigne
 // ------------------------------------------------------------------------------
 //                          CUDA COPY-ADD-SCALE KERNELS
 // ------------------------------------------------------------------------------
-template <typename AT, typename BT, typename T, typename D>
+template <typename AT, typename BT>
 __global__ void kernel_cuda_copy_add_scale(const int m, const int n,
-                                           const real alpha, const AT *A, const int lda,
-                                           const real beta, BT *B, const int ldb,
-                                           T offsets_A,
-                                           D offsets_B) {
+                                           const real alpha, AT A, const int lda,
+                                           const real beta, BT B, const int ldb,
+                                           unsigned offsets_A,
+                                           unsigned offsets_B) {
 
   const real *matrix_A = find_data(A, offsets_A, blockIdx.x);
   real *matrix_B =  find_data(B, offsets_B, blockIdx.x);
@@ -79,12 +74,12 @@ __global__ void kernel_cuda_copy_add_scale(const int m, const int n,
  *  |______|            |______|
  *
  * */
-template <typename AT, typename BT, typename T, typename D>
+template <typename AT, typename BT>
 void device_copy_add_scale(const int m, const int n,
-                           const real alpha, const AT *A, const int lda,
-                           const real beta, BT *B, const int ldb,
-                           T offsets_A,
-                           D offsets_B,
+                           const real alpha, AT A, const int lda,
+                           const real beta, BT B, const int ldb,
+                           unsigned offsets_A,
+                           unsigned offsets_B,
                            const unsigned num_elements)
 {
 
@@ -113,14 +108,14 @@ void device_copy_add_scale(const int m, const int n,
 
 // TODO: generalize for execution with multible blocks
 // transa == CblasNoTrans) && (transb == CblasNoTrans)
-template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT>
 __global__ void kernel_cuda_blas_gemm_NN(const int m, const int n, const int k,
-                                         const real alpha, const AT *A, const int lda,
-                                         const BT *B, const int ldb,
-                                         const real beta, CT *C, const int ldc,
-                                         T offsets_A = 0,
-                                         D offsets_B = 0,
-                                         F offsets_C = 0)
+                                         const real alpha, AT A, const int lda,
+                                         BT B, const int ldb,
+                                         const real beta, CT C, const int ldc,
+                                         unsigned offsets_A = 0,
+                                         unsigned offsets_B = 0,
+                                         unsigned offsets_C = 0)
 {
 
     const real *matrix_A = find_data(A, offsets_A, blockIdx.x);
@@ -168,14 +163,14 @@ __global__ void kernel_cuda_blas_gemm_NN(const int m, const int n, const int k,
 
 // TODO: generalize for execution with multible blocks
 // (transa == CblasTrans) && (transb == CblasTrans)
-template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT>
 __global__ void kernel_cuda_blas_gemm_TT(const int m, const int n, const int k,
-                                         const real alpha, const AT *A, const int lda,
-                                         const BT *B, const int ldb,
-                                         const real beta, CT *C, const int ldc,
-                                         T offsets_A = 0,
-                                         D offsets_B = 0,
-                                         F offsets_C = 0)
+                                         const real alpha, AT A, const int lda,
+                                         BT B, const int ldb,
+                                         const real beta, CT C, const int ldc,
+                                         unsigned offsets_A = 0,
+                                         unsigned offsets_B = 0,
+                                         unsigned offsets_C = 0)
 {
 
   const real *matrix_A = find_data(A, offsets_A, blockIdx.x);
@@ -238,14 +233,14 @@ __global__ void kernel_cuda_blas_gemm_TT(const int m, const int n, const int k,
 
 // TODO: generalize for execution with multible blocks
 // (transa == CblasTrans) && (transb == CblasNoTrans)
-template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT>
 __global__ void kernel_cuda_blas_gemm_TN(const int m, const int n, const int k,
-                                         const real alpha, const AT *A, const int lda,
-                                         const BT *B, const int ldb,
-                                         const real beta, CT *C, const int ldc,
-                                         T offsets_A = 0,
-                                         D offsets_B = 0,
-                                         F offsets_C = 0)
+                                         const real alpha, AT A, const int lda,
+                                         BT B, const int ldb,
+                                         const real beta, CT C, const int ldc,
+                                         unsigned offsets_A = 0,
+                                         unsigned offsets_B = 0,
+                                         unsigned offsets_C = 0)
 {
 
   const real *matrix_A = find_data(A, offsets_A, blockIdx.x);
@@ -301,14 +296,14 @@ __global__ void kernel_cuda_blas_gemm_TN(const int m, const int n, const int k,
 
 // TODO: generalize for execution with multible blocks
 // (transa == CblasNoTrans) && (transb == CblasTrans)
-template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT>
 __global__ void kernel_cuda_blas_gemm_NT(const int m, const int n, const int k,
-                                         const real alpha, const AT *A, const int lda,
-                                         const BT *B, const int ldb,
-                                         const real beta, CT *C, const int ldc,
-                                         T offsets_A = 0,
-                                         D offsets_B = 0,
-                                         F offsets_C = 0)
+                                         const real alpha, AT A, const int lda,
+                                         BT B, const int ldb,
+                                         const real beta, CT C, const int ldc,
+                                         unsigned offsets_A = 0,
+                                         unsigned offsets_B = 0,
+                                         unsigned offsets_C = 0)
 {
 
   const real *matrix_A = find_data(A, offsets_A, blockIdx.x);
@@ -383,17 +378,17 @@ __global__ void kernel_cuda_blas_gemm_NT(const int m, const int n, const int k,
  *  |___|           |_____|                  |___|
  *
  * */
-template <typename AT, typename BT, typename CT, typename T, typename D, typename F>
+template <typename AT, typename BT, typename CT>
 void device_gemm(const CBLAS_LAYOUT Layout,
                  const CBLAS_TRANSPOSE transa,
                  const CBLAS_TRANSPOSE transb,
                  const int m, const int n, const int k,
-                 const real alpha, const AT *A_base, const int lda,
-                 const BT *B_base, const int ldb,
-                 const real beta, CT *C_base, const int ldc,
-                 T offsets_A,
-                 D offsets_B,
-                 F offsets_C,
+                 const real alpha, AT A_base, const int lda,
+                 BT B_base, const int ldb,
+                 const real beta, CT C_base, const int ldc,
+                 unsigned offsets_A,
+                 unsigned offsets_B,
+                 unsigned offsets_C,
                  const unsigned num_elements) {
     dim3 block(m, n, 1); // block(x, y, z)
     dim3 grid (num_elements, 1, 1); // grid(x, y, z)
@@ -472,100 +467,103 @@ void device_gemm(const CBLAS_LAYOUT Layout,
 
 
 
+#define gemm(IN1, IN2, OUT) device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, IN1, 0, IN2, 0, 0.0, OUT, 0, 0, 0, 0, 0)
+#define add_scale(IN, OUT) device_copy_add_scale(0, 0, 0.0, IN, 0, 0.0, OUT, 0, 0, 0, 0)
+
+
+
 /** The function is used by the compiler to instantiate specific GEMM implementations
 * NOTE: it is not callable
 * NOTE: we use pragma noinline to prevent inlining during a code optimization i.e. -O2.
 *   if compiler inlines a function then the corresponding template specification is not going to appear
 *   as a symbol in a static library
 */
-
-
-
-#include <tuple>
-#include <array>
-#include <type_traits>
-
 void instantiate() {
-    unsigned int integer = 0;
-    unsigned int *uint_ptr = 0;
-    real *data = 0;
 
-    //------------------------------------------------------------------------------------------------------------------
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, integer, integer, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, uint_ptr, integer, integer, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, uint_ptr, integer, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, integer, uint_ptr, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, uint_ptr, uint_ptr, integer, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, uint_ptr, integer, uint_ptr, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, integer, uint_ptr, uint_ptr, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data, 0, uint_ptr, uint_ptr, uint_ptr, 0);
-
-
-    //------------------------------------------------------------------------------------------------------------------
-    real **data_array = nullptr;
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data_array, 0, data, 0, 0.0, data, 0, integer, integer, integer, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data_array, 0, 0.0, data, 0, integer, integer, integer, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data, 0, 0.0, data_array, 0, integer, integer, integer, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data_array, 0, data_array, 0, 0.0, data, 0, integer, integer, integer, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data_array, 0, data, 0, 0.0, data_array, 0, integer, integer, integer, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data, 0, data_array, 0, 0.0, data_array, 0, integer, integer, integer, 0);
-
-    #pragma noinline
-    device_gemm(CblasColMajor, CblasTrans, CblasTrans, 0, 0, 0, 0.0, data_array, 0, data_array, 0, 0.0, data_array, 0, integer, integer, integer, 0);
-
+  real const ** zero{};
+  real const* one{};
+  real** two{};
+  real * three{};
 
 #pragma noinline
-  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, integer, 0);
-
-  #pragma noinline
-  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, uint_ptr, integer, 0);
-
-  #pragma noinline
-  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, uint_ptr, 0);
-
-  #pragma noinline
-  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, uint_ptr, uint_ptr, 0);
-
-  //--------------------------------------------------------------------------------------------------------------------
+  gemm(zero 	,zero 	,two);
+#pragma noinline
+  gemm(zero 	,zero 	,three);
+#pragma noinline
+  gemm(zero 	,one 	,two);
+#pragma noinline
+  gemm(zero 	,one 	,three);
+#pragma noinline
+  gemm(zero 	,two 	,two);
+#pragma noinline
+  gemm(zero 	,two 	,three);
+#pragma noinline
+  gemm(zero 	,three 	,two);
+#pragma noinline
+  gemm(zero 	,three 	,three);
+#pragma noinline
+  gemm(one 	,zero 	,two);
+#pragma noinline
+  gemm(one 	,zero 	,three);
+#pragma noinline
+  gemm(one 	,one 	,two);
+#pragma noinline
+  gemm(one 	,one 	,three);
+#pragma noinline
+  gemm(one 	,two 	,two);
+#pragma noinline
+  gemm(one 	,two 	,three);
+#pragma noinline
+  gemm(one 	,three 	,two);
+#pragma noinline
+  gemm(one 	,three 	,three);
+#pragma noinline
+  gemm(two 	,zero 	,two);
+#pragma noinline
+  gemm(two 	,zero 	,three);
+#pragma noinline
+  gemm(two 	,one 	,two);
+#pragma noinline
+  gemm(two 	,one 	,three);
+#pragma noinline
+  gemm(two 	,two 	,two);
+#pragma noinline
+  gemm(two 	,two 	,three);
+#pragma noinline
+  gemm(two 	,three 	,two);
+#pragma noinline
+  gemm(two 	,three 	,three);
+#pragma noinline
+  gemm(three 	,zero 	,two);
+#pragma noinline
+  gemm(three 	,zero 	,three);
+#pragma noinline
+  gemm(three 	,one 	,two);
+#pragma noinline
+  gemm(three 	,one 	,three);
+#pragma noinline
+  gemm(three 	,two 	,two);
+#pragma noinline
+  gemm(three 	,two 	,three);
+#pragma noinline
+  gemm(three 	,three 	,two);
+#pragma noinline
+  gemm(three 	,three 	,three);
 
 #pragma noinline
-  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data, 0, integer, integer, 0);
-
+  add_scale(zero 	,two);
 #pragma noinline
-  device_copy_add_scale(0, 0, 0.0, data_array, 0, 0.0, data, 0, integer, integer, 0);
-
+  add_scale(zero 	,three);
 #pragma noinline
-  device_copy_add_scale(0, 0, 0.0, data, 0, 0.0, data_array, 0, integer, integer, 0);
-
+  add_scale(one 	,two);
 #pragma noinline
-  device_copy_add_scale(0, 0, 0.0, data_array, 0, 0.0, data_array, 0, integer, integer, 0);
-
-
+  add_scale(one 	,three);
+#pragma noinline
+  add_scale(two 	,two);
+#pragma noinline
+  add_scale(two 	,three);
+#pragma noinline
+  add_scale(three 	,two);
+#pragma noinline
+  add_scale(three 	,three);
 }
