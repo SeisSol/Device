@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 
 # handle the user's input
-set(PRECISION 8 CACHE STRING "num of bytes for floating point representation")
+set(PRECISION 4 CACHE STRING "num of bytes for floating point representation")
 set(PRECISION_OPTIONS 4 8)
 set_property(CACHE PRECISION PROPERTY STRINGS ${PRECISION_OPTIONS})
 

@@ -4,6 +4,7 @@
 #include <string>
 #include "common.h"
 #include "temporary_mem_menager.h"
+/*
 #include "nvToolsExt.h"
 
 const uint32_t colors[] = { 0xff00ff00, 0xff0000ff, 0xffffff00, 0xffff00ff, 0xff00ffff, 0xffff0000, 0xffffffff };
@@ -22,8 +23,15 @@ const int num_colors = sizeof(colors)/sizeof(uint32_t);
         nvtxRangePushEx(&eventAttrib); \
 }
 #define POP_RANGE nvtxRangePop();
+*/
 
-
+namespace device {
+  namespace query {
+    void init();
+    int getNumDevices();
+    void setDevice(int device_id);
+  }
+}
 
 // memory menagment:
 void check_device_operation();
