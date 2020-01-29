@@ -14,9 +14,10 @@ find_package(CUDA REQUIRED)
 
 
 if (NOT DEFINED HARDWARE_DEFINITIONS)
-    set(HARDWARE_DEFINITIONS "REAL_SIZE=4" "ALIGNMENT=128")
+    set(FATAL_ERROR "HARDWARE_DEFINITIONS variable is not set. \
+        It is a list that must contain the following: REAL_SIZE, ALIGNMENT")
 endif()
-
+message("HARDWARE_DEFINITIONS: ${HARDWARE_DEFINITIONS}")
 add_cuda_defenitions("${HARDWARE_DEFINITIONS}")  # returns:  AUX_FLAGS
 
 #set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -O3; -std=c++11; --use_fast_math; -arch=sm_61; -Xptxas -v; ${AUX_FLAGS})
