@@ -478,6 +478,8 @@ void device_gemm(const CBLAS_LAYOUT Layout,
 *   if compiler inlines a function then the corresponding template specification is not going to appear
 *   as a symbol in a static library
 */
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
 void instantiate() {
 
   real const ** zero{};
@@ -567,3 +569,4 @@ void instantiate() {
 #pragma noinline
   add_scale(three 	,three);
 }
+#pragma GCC pop_options

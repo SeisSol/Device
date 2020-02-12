@@ -29,4 +29,5 @@ cuda_add_library(custom_blas STATIC "src/auxiliary.cu"
                                     "src/temporary_mem_menager.cu"
                                     "src/device_query.cu")
 
-target_link_libraries(custom_blas -lnvToolsExt -lcuda)
+#target_link_libraries(custom_blas -lnvToolsExt -lcuda)
+target_link_libraries(custom_blas -lcuda)
