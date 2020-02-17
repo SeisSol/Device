@@ -1,5 +1,5 @@
-#ifndef SEISSOL_ABSTRACT_INTERFACE_H
-#define SEISSOL_ABSTRACT_INTERFACE_H
+#ifndef DEVICE_ABSTRACT_INTERFACE_H
+#define DEVICE_ABSTRACT_INTERFACE_H
 
 #include <stdlib.h>
 #include <string>
@@ -26,10 +26,10 @@ namespace device {
     virtual void* allocGlobMem(size_t Size) = 0;
     virtual void* allocUnifiedMem(size_t Size) = 0;
     virtual void* allocPinnedMem(size_t Size) = 0;
-    virtual char* getTempMemory() = 0;
+    virtual char* getStackMemory(unsigned RequestedBytes) = 0;
     virtual void freeMem(void *DevPtr) = 0;
     virtual void freePinnedMem(void *DevPtr) = 0;
-    virtual void freeTempMemory() = 0;
+    virtual void popStackMemory() = 0;
 
     virtual void copyTo(void* Dst, const void* Src, size_t Count) = 0;
     virtual void copyFrom(void* Dst, const void* Src, size_t Count) = 0;
@@ -39,10 +39,20 @@ namespace device {
     virtual void streamBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements) = 0;
     virtual void accumulateBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements) = 0;
 
+    virtual unsigned createStream() = 0;
+    virtual void deleteStream(unsigned StreamId) = 0;
+    virtual void deleteAllCreatedStreams() = 0;
+    virtual void setComputeStream(unsigned StreamId) = 0;
+    virtual void setDefaultComputeStream() = 0;
+    virtual void synchAllStreams() = 0;
+
     virtual void compareDataWithHost(const real *HostPtr,
                                      const real *DevPtr,
                                      const size_t NumElements,
                                      const char *ArrayName = nullptr) = 0;
+
+    virtual void touchMemory(real *Ptr, size_t Size, bool Clean) = 0;
+    virtual void touchBatchedMemory(real **BasePtr, unsigned ElementSize, unsigned NumElements, bool Clean) = 0;
 
     virtual void initialize() = 0;
     virtual void finalize() = 0;
@@ -53,4 +63,4 @@ namespace device {
   };
 }
 
-#endif //SEISSOL_ABSTRACT_INTERFACE_H
+#endif //DEVICE_ABSTRACT_INTERFACE_H

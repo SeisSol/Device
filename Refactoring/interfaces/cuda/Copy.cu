@@ -6,11 +6,13 @@ using namespace device;
 
 void ConcreteInterface::copyTo(void* Dst, const void* Src, size_t Count) {
   cudaMemcpy(Dst, Src, Count, cudaMemcpyHostToDevice); CHECK_ERR;
+  m_Statistics.ExplicitlyTransferredDataToDeviceBytes += Count;
 }
 
 
 void ConcreteInterface::copyFrom(void* Dst, const void* Src, size_t Count) {
   cudaMemcpy(Dst, Src, Count, cudaMemcpyDeviceToHost); CHECK_ERR;
+  m_Statistics.ExplicitlyTransferredDataToHostBytes += Count;
 }
 
 
@@ -26,6 +28,7 @@ void ConcreteInterface::copy2dArrayTo(void *Dst,
                                       size_t Width,
                                       size_t Height) {
   cudaMemcpy2D(Dst, Dpitch, Src, Spitch, Width, Height, cudaMemcpyHostToDevice); CHECK_ERR;
+  m_Statistics.ExplicitlyTransferredDataToDeviceBytes += Width * Height;
 }
 
 
@@ -36,6 +39,7 @@ void ConcreteInterface::copy2dArrayFrom(void *Dst,
                                         size_t Width,
                                         size_t Height) {
   cudaMemcpy2D(Dst, Dpitch, Src, Spitch, Width, Height, cudaMemcpyDeviceToHost); CHECK_ERR;
+  m_Statistics.ExplicitlyTransferredDataToHostBytes += Width * Height;
 }
 
 

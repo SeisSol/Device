@@ -1,5 +1,5 @@
-#ifndef SEISSOL_DEVICE_H
-#define SEISSOL_DEVICE_H
+#ifndef DEVICE_H
+#define DEVICE_H
 
 #include <iostream>
 

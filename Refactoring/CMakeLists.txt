@@ -48,6 +48,7 @@ elseif(${INTERFACE} STREQUAL "CUDA")
                                    interfaces/cuda/Aux.cu
                                    interfaces/cuda/Memory.cu
                                    interfaces/cuda/Copy.cu
+                                   interfaces/cuda/Streams.cu
                                    interfaces/cuda/Internals.cu)
 
     target_link_libraries(device -lcuda)

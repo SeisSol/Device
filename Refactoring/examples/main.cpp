@@ -25,6 +25,13 @@ int main(int argc, char* argv[]) {
 
   device.api->checkOffloading();
 
+  /*
+  real *ScratchMem = reinterpret_cast<real*>(device.api->getTempMemory(1024 * sizeof(real)));
+  device.api->freeTempMemory();
+  */
+  unsigned StreamId = device.api->createStream();
+  std::cout << "given stream id: " << StreamId << std::endl;
+
   // allocate mem. on a device
   real *d_InputArray = static_cast<real*>(device.api->allocGlobMem(sizeof(real) * Size));
   real *d_OutputArray = static_cast<real*>(device.api->allocGlobMem(sizeof(real) * Size));
