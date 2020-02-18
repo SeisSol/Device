@@ -6,11 +6,12 @@
 
 using namespace device;
 
-unsigned ConcreteInterface::createStream() {
+unsigned ConcreteInterface::createStream(StreamType Type) {
   static size_t StreamIdCounter = 1;
 
   cudaStream_t* Stream = new cudaStream_t;
-  cudaStreamCreate(Stream); CHECK_ERR;
+  cudaStreamCreateWithFlags(Stream,
+                            Type == StreamType::Blocking ? cudaStreamDefault : cudaStreamNonBlocking); CHECK_ERR;
   unsigned StreamId = StreamIdCounter;
 
   assert((m_IdToStreamMap.find(StreamId) == m_IdToStreamMap.end())

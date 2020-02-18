@@ -15,6 +15,10 @@ typedef float real;
 
 
 namespace device {
+
+  enum class Destination {Host, CurrentDevice};
+  enum class StreamType {Blocking, NonBlocking};
+
   struct AbstractInterface {
 
     virtual void setDevice(int DeviceId) = 0;
@@ -26,7 +30,7 @@ namespace device {
     virtual void* allocGlobMem(size_t Size) = 0;
     virtual void* allocUnifiedMem(size_t Size) = 0;
     virtual void* allocPinnedMem(size_t Size) = 0;
-    virtual char* getStackMemory(unsigned RequestedBytes) = 0;
+    virtual char* getStackMemory(size_t RequestedBytes) = 0;
     virtual void freeMem(void *DevPtr) = 0;
     virtual void freePinnedMem(void *DevPtr) = 0;
     virtual void popStackMemory() = 0;
@@ -38,8 +42,9 @@ namespace device {
     virtual void copy2dArrayFrom(void *Dst, size_t Dpitch, const void *Src, size_t Spitch, size_t Width, size_t Height) = 0;
     virtual void streamBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements) = 0;
     virtual void accumulateBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements) = 0;
+    virtual void prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, int StreamId = 0) = 0;
 
-    virtual unsigned createStream() = 0;
+    virtual unsigned createStream(StreamType Type = StreamType::Blocking) = 0;
     virtual void deleteStream(unsigned StreamId) = 0;
     virtual void deleteAllCreatedStreams() = 0;
     virtual void setComputeStream(unsigned StreamId) = 0;

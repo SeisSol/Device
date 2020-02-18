@@ -49,7 +49,7 @@ void ConcreteInterface::freePinnedMem(void *DevPtr) {
 }
 
 
-char* ConcreteInterface::getStackMemory(unsigned RequestedBytes) {
+char* ConcreteInterface::getStackMemory(size_t RequestedBytes) {
   assert(((m_StackMemByteCounter + RequestedBytes) < m_MaxStackMem) && "DEVICE:: run out of a device stack memory");
   char *Mem = &m_StackMemory[m_StackMemByteCounter];
   m_StackMemByteCounter += RequestedBytes;

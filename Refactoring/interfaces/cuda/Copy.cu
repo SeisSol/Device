@@ -1,3 +1,5 @@
+#include <assert.h>
+
 #include "CudaInterface.h"
 #include "Internals.h"
 
@@ -79,4 +81,19 @@ void ConcreteInterface::accumulateBatchedData(real **BaseSrcPtr,
   dim3 Block(ElementSize, 1, 1);
   dim3 Grid(NumElements, 1, 1);
   kernel_streamBatchedData<<<Grid, Block>>>(BaseSrcPtr, BaseDstPtr, ElementSize, true); CHECK_ERR;
+}
+
+
+void ConcreteInterface::prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, int StreamId) {
+  cudaStream_t Stream = StreamId == 0 ? 0 : *m_IdToStreamMap[StreamId];
+#ifndef NDEBUG
+  if (Stream != 0) {
+    assert((m_IdToStreamMap.find(StreamId) != m_IdToStreamMap.end())
+           && "DEVICE: stream doesn't exist. cannot prefetch memory");
+  }
+#endif
+  cudaMemPrefetchAsync(DevPtr,
+                       Count,
+                       Type == Destination::CurrentDevice ? m_CurrentDeviceId : cudaCpuDeviceId,
+                       Stream); CHECK_ERR;
 }

@@ -19,7 +19,7 @@ namespace device {
     void* allocGlobMem(size_t Size);
     void* allocUnifiedMem(size_t Size);
     void* allocPinnedMem(size_t Size);
-    char* getStackMemory(unsigned RequestedBytes);
+    char* getStackMemory(size_t RequestedBytes);
     void freeMem(void *DevPtr);
     void freePinnedMem(void *DevPtr);
     void popStackMemory();
@@ -31,9 +31,9 @@ namespace device {
     void copy2dArrayFrom(void *Dst, size_t Dpitch, const void *Src, size_t Spitch, size_t Width, size_t Height);
     void streamBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements);
     void accumulateBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements);
+    void prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, int StreamId = 0);
 
-
-    unsigned createStream();
+    unsigned createStream(StreamType Type = StreamType::Blocking);
     void deleteStream(unsigned StreamId);
     void deleteAllCreatedStreams();
     void setComputeStream(unsigned StreamId);
@@ -53,6 +53,8 @@ namespace device {
     void initialize();
     void finalize();
   private:
+    int m_CurrentDeviceId = 0;
+
     cudaStream_t m_CurrentComputeStream;
     cudaStream_t m_DefaultStream = 0;
     std::unordered_map<int, cudaStream_t*> m_IdToStreamMap{};

@@ -52,7 +52,8 @@ void ConcreteInterface::finalize() {
 
 
 void ConcreteInterface::setDevice(int DeviceId) {
-  cudaSetDevice(DeviceId); CHECK_ERR;
+  m_CurrentDeviceId = DeviceId;
+  cudaSetDevice(m_CurrentDeviceId); CHECK_ERR;
 }
 
 
