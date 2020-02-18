@@ -49,7 +49,9 @@ elseif(${INTERFACE} STREQUAL "CUDA")
                                    interfaces/cuda/Memory.cu
                                    interfaces/cuda/Copy.cu
                                    interfaces/cuda/Streams.cu
-                                   interfaces/cuda/Internals.cu)
+                                   interfaces/cuda/Internals.cu
+                                   interfaces/cuda/Gemm.cu
+                                   interfaces/cuda/CopyAddScale.cu)
 
     target_link_libraries(device -lcuda)
     target_include_directories(device PRIVATE ${CUDA_INCLUDE_DIRS})

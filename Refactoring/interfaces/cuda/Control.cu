@@ -3,12 +3,12 @@
 #include <sstream>
 #include <cuda.h>
 
-#include "CudaInterface.h"
+#include "CudaWrappedAPI.h"
 #include "Internals.h"
 
 using namespace device;
 
-void ConcreteInterface::initialize() {
+void ConcreteAPI::initialize() {
   cuInit(0); CHECK_ERR;
 
   // try to detect the amount of temp. memory from the environment
@@ -45,31 +45,45 @@ void ConcreteInterface::initialize() {
 };
 
 
-void ConcreteInterface::finalize() {
+void ConcreteAPI::finalize() {
   freeMem(m_StackMemory); CHECK_ERR;
   m_StackMemory = nullptr;
 };
 
 
-void ConcreteInterface::setDevice(int DeviceId) {
+void ConcreteAPI::setDevice(int DeviceId) {
   m_CurrentDeviceId = DeviceId;
   cudaSetDevice(m_CurrentDeviceId); CHECK_ERR;
 }
 
 
-int ConcreteInterface::getNumDevices() {
+int ConcreteAPI::getNumDevices() {
   int numDevices{};
   cudaGetDeviceCount(&numDevices); CHECK_ERR;
   return numDevices;
 }
 
 
-void ConcreteInterface::synchDevice() {
+unsigned ConcreteAPI::getMaxThreadBlockSize() {
+  int BlockSize{};
+  cudaDeviceGetAttribute(&BlockSize, cudaDevAttrMaxThreadsPerBlock, m_CurrentDeviceId); CHECK_ERR;
+  return static_cast<unsigned>(BlockSize);
+}
+
+
+unsigned ConcreteAPI::getMaxSharedMemSize() {
+  int SharedMemSize{};
+  cudaDeviceGetAttribute(&SharedMemSize, cudaDevAttrMaxSharedMemoryPerBlock, m_CurrentDeviceId); CHECK_ERR;
+  return static_cast<unsigned>(SharedMemSize);
+}
+
+
+void ConcreteAPI::synchDevice() {
   cudaDeviceSynchronize(); CHECK_ERR;
 }
 
 
-std::string ConcreteInterface::getDeviceInfoAsText(int DeviceId) {
+std::string ConcreteAPI::getDeviceInfoAsText(int DeviceId) {
   cudaDeviceProp Property;
   cudaGetDeviceProperties(&Property, DeviceId); CHECK_ERR;
 

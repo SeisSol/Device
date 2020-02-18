@@ -4,14 +4,16 @@
 #include <stack>
 #include <unordered_map>
 
-#include "AbstractInterface.h"
+#include "AbstractAPI.h"
 #include "Statistics.h"
 
 namespace device {
-  class ConcreteInterface : public AbstractInterface {
+  class ConcreteAPI : public AbstractAPI {
   public:
     void setDevice(int DeviceId);
     int getNumDevices();
+    unsigned getMaxThreadBlockSize();
+    unsigned getMaxSharedMemSize();
     std::string getDeviceInfoAsText(int DeviceId);
     void synchDevice();
     void checkOffloading();
@@ -37,6 +39,7 @@ namespace device {
     void deleteStream(unsigned StreamId);
     void deleteAllCreatedStreams();
     void setComputeStream(unsigned StreamId);
+    void* getRawCurrentComputeStream() { return static_cast<void*>(&m_CurrentComputeStream);}
     void setDefaultComputeStream();
     void synchAllStreams();
 
@@ -45,17 +48,17 @@ namespace device {
                              const real *DevPtr,
                              const size_t NumElements,
                              const char *ArrayName = nullptr);
+    void scaleArray(real *DevArray, const real Scalar, const size_t NumElements);
 
     void touchMemory(real *Ptr, size_t Size, bool Clean);
     void touchBatchedMemory(real **BasePtr, unsigned ElementSize, unsigned NumElements, bool Clean);
-
 
     void initialize();
     void finalize();
   private:
     int m_CurrentDeviceId = 0;
 
-    cudaStream_t m_CurrentComputeStream;
+    cudaStream_t m_CurrentComputeStream = 0;
     cudaStream_t m_DefaultStream = 0;
     std::unordered_map<int, cudaStream_t*> m_IdToStreamMap{};
 
@@ -68,6 +71,5 @@ namespace device {
     std::unordered_map<void*, size_t> m_MemToSizeMap{{nullptr, 0}};
   };
 }
-
 
 #endif //DEVICE_CUDAINTERFACE_H

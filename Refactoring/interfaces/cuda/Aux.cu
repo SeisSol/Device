@@ -2,15 +2,15 @@
 #include <string>
 #include <cuda.h>
 
-#include "CudaInterface.h"
+#include "CudaWrappedAPI.h"
 #include "Internals.h"
 
 using namespace device;
 
-void ConcreteInterface::compareDataWithHost(const real *HostPtr,
-                                            const real *DevPtr,
-                                            const size_t NumElements,
-                                            const char *ArrayName) {
+void ConcreteAPI::compareDataWithHost(const real *HostPtr,
+                                      const real *DevPtr,
+                                      const size_t NumElements,
+                                      const char *ArrayName) {
   if (ArrayName) {
     std::cout << "DEVICE:: comparing array: " << ArrayName << "\n";
   }
@@ -46,7 +46,21 @@ __global__ void kernel_checkOffloading() {
 }
 
 
-void ConcreteInterface::checkOffloading() {
+void ConcreteAPI::checkOffloading() {
   kernel_checkOffloading<<<1,1>>>(); CHECK_ERR;
   cudaDeviceSynchronize();
+}
+
+
+__global__ void kernel_scaleArray(real *Array, const real Scalar, const size_t NumElements) {
+  unsigned Index = threadIdx.x + blockIdx.x * blockDim.x;
+  if (Index < NumElements) {
+    Array[Index] *= Scalar;
+  }
+}
+
+void ConcreteAPI::scaleArray(real *DevArray, const real Scalar, const size_t NumElements) {
+  dim3 Block(32, 1, 1);
+  dim3 Grid = internals::computeGrid1D(Block,  NumElements);
+  kernel_scaleArray<<<Block, Grid>>>(DevArray, Scalar, NumElements); CHECK_ERR;
 }

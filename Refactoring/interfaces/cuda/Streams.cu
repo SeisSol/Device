@@ -1,12 +1,11 @@
 #include "assert.h"
 
-#include "CudaInterface.h"
+#include "CudaWrappedAPI.h"
 #include "Internals.h"
-#include <iostream>
 
 using namespace device;
 
-unsigned ConcreteInterface::createStream(StreamType Type) {
+unsigned ConcreteAPI::createStream(StreamType Type) {
   static size_t StreamIdCounter = 1;
 
   cudaStream_t* Stream = new cudaStream_t;
@@ -25,14 +24,14 @@ unsigned ConcreteInterface::createStream(StreamType Type) {
 }
 
 
-void ConcreteInterface::deleteStream(unsigned StreamId) {
+void ConcreteAPI::deleteStream(unsigned StreamId) {
   assert((m_IdToStreamMap.find(StreamId) != m_IdToStreamMap.end()) && "DEVICE: a stream doesn't exist");
   cudaStreamDestroy(*m_IdToStreamMap[StreamId]);
   m_IdToStreamMap.erase(StreamId);
 }
 
 
-void ConcreteInterface::deleteAllCreatedStreams() {
+void ConcreteAPI::deleteAllCreatedStreams() {
   for (auto& Stream: m_IdToStreamMap) {
     cudaStreamDestroy(*(Stream.second)); CHECK_ERR;
   }
@@ -41,22 +40,22 @@ void ConcreteInterface::deleteAllCreatedStreams() {
 }
 
 
-void ConcreteInterface::setComputeStream(unsigned StreamId) {
+void ConcreteAPI::setComputeStream(unsigned StreamId) {
   assert((m_IdToStreamMap.find(StreamId) != m_IdToStreamMap.end()) && "DEVICE: a stream doesn't exist");
   m_CurrentComputeStream = *m_IdToStreamMap[StreamId];
 }
 
 
-void ConcreteInterface::setDefaultComputeStream() {
+void ConcreteAPI::setDefaultComputeStream() {
   m_CurrentComputeStream = m_DefaultStream;
 }
+
 
 __global__ void kernel_synchAllStreams() {
   // NOTE: an empty stream. It is supposed to get called with Cuda default stream. It is going to force all
   // other streams to finish their tasks
 }
 
-
-void ConcreteInterface::synchAllStreams() {
+void ConcreteAPI::synchAllStreams() {
   kernel_synchAllStreams<<<1,1>>>();
 }
