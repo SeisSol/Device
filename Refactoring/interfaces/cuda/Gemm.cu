@@ -278,6 +278,10 @@ void Device::gemm(const MATRIX_LAYOUT Layout,
   assert((m * n) <= m_MaxBlockSize);
   assert(SharedMemSize <= m_MaxSharedMemSize);
 
+  /*
+    cudaStream_t *Stream = static_cast<cudaStream_t*>(api->getRawCurrentComputeStream());
+  */
+
   if (Layout == ColMajor) {
 
     // perform initial check: similar to netlib blas

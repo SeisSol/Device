@@ -18,6 +18,15 @@ namespace device {
 
   enum class Destination {Host, CurrentDevice};
   enum class StreamType {Blocking, NonBlocking};
+  enum class ProfilingColors : uint32_t {Black = 0x000000,
+                                         White = 0xFFFFFF,
+                                         Red = 0xFF0000,
+                                         Lime = 0x00FF00,
+                                         Blue = 0x0000FF,
+                                         Yellow = 0xFFFF00,
+                                         Cyan = 0x00FFFF,
+                                         Magenta = 0xFF00FF,
+                                         Count = 8};
 
   struct AbstractAPI {
 
@@ -36,6 +45,7 @@ namespace device {
     virtual void freeMem(void *DevPtr) = 0;
     virtual void freePinnedMem(void *DevPtr) = 0;
     virtual void popStackMemory() = 0;
+    virtual std::string getMemLeaksReport() = 0;
 
     virtual void copyTo(void* Dst, const void* Src, size_t Count) = 0;
     virtual void copyFrom(void* Dst, const void* Src, size_t Count) = 0;
@@ -65,6 +75,8 @@ namespace device {
 
     virtual void initialize() = 0;
     virtual void finalize() = 0;
+    virtual void putProfilingMark(const std::string &Name, ProfilingColors Color) = 0;
+    virtual void popLastProfilingMark() = 0;
 
     bool hasFinalized() { return m_HasFinalized; }
   protected:

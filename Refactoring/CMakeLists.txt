@@ -2,17 +2,17 @@ cmake_minimum_required(VERSION 3.5)
 project(device_submodule)
 
 # check INTERFACE
-if (NOT DEFINED INTERFACE)
-    message(FATAL_ERROR "INTERFACE variable has not been provided into the submodule")
+if (NOT DEFINED DEVICE_BACKEND)
+    message(FATAL_ERROR "DEVICE_BACKEND variable has not been provided into the submodule")
 else()
     set(FOUND OFF)
     foreach(VARIANT CUDA DUMMY)
-        if (${INTERFACE} STREQUAL ${VARIANT})
+        if (${DEVICE_BACKEND} STREQUAL ${VARIANT})
             set(FOUND ON)
         endif()
     endforeach()
     if (NOT FOUND)
-        message(FATAL_ERROR "INTERFACE must be either CUDA or DUMMY. Given: ${INTERFACE}")
+        message(FATAL_ERROR "DEVICE_BACKEND must be either CUDA or DUMMY. Given: ${DEVICE_BACKEND}")
     endif()
 endif()
 
@@ -32,16 +32,27 @@ else()
     endif()
 endif()
 
-string(TOLOWER ${INTERFACE} INTERFACE_FODER)
+string(TOLOWER ${DEVICE_BACKEND} BACKEND_FODER)
 
-if (${INTERFACE} STREQUAL "DUMMY")
+if (${DEVICE_BACKEND} STREQUAL "DUMMY")
     add_library(device STATIC device.cpp
                               interfaces/dummy/DummyInterface.cpp)
 
-elseif(${INTERFACE} STREQUAL "CUDA")
+elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
     find_package(CUDA REQUIRED)
-    set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -std=c++11; -arch=sm_50; -Xptxas -v; -D${INTERFACE}; -DREAL_SIZE=${REAL_SIZE})
+    find_package(NVToolsExt QUIET)
+    if (NVToolsExt_FOUND)
+        set(EXTRA_FLAGS -DPROFILING_ENABLED)
+    endif()
+
     set_source_files_properties(device.cpp PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
+    set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};
+                        -std=c++11;
+                        -arch=sm_50;
+                        -Xptxas -v;
+                        -D${DEVICE_BACKEND};
+                        -DREAL_SIZE=${REAL_SIZE}
+                        ${EXTRA_FLAGS})
 
     cuda_add_library(device STATIC device.cpp
                                    interfaces/cuda/Control.cu
@@ -53,11 +64,12 @@ elseif(${INTERFACE} STREQUAL "CUDA")
                                    interfaces/cuda/Gemm.cu
                                    interfaces/cuda/CopyAddScale.cu)
 
-    target_link_libraries(device -lcuda)
-    target_include_directories(device PRIVATE ${CUDA_INCLUDE_DIRS})
+    target_link_libraries(device -lcuda ${NVToolsExt_LIBRARIES})
+    target_include_directories(device PRIVATE ${CUDA_INCLUDE_DIRS} ${NVToolsExt_INCLUDE_DIRS})
+
 endif()
 
-target_compile_definitions(device PUBLIC ${INTERFACE} REAL_SIZE=${REAL_SIZE})
-target_include_directories(device PUBLIC . interfaces/${INTERFACE_FODER})
+target_compile_definitions(device PUBLIC ${DEVICE_BACKEND} REAL_SIZE=${REAL_SIZE})
+target_include_directories(device PUBLIC . interfaces/${BACKEND_FODER})
 target_compile_options(device PUBLIC "-std=c++11")
 

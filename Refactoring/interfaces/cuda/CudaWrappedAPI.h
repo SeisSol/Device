@@ -25,6 +25,7 @@ namespace device {
     void freeMem(void *DevPtr);
     void freePinnedMem(void *DevPtr);
     void popStackMemory();
+    virtual std::string getMemLeaksReport();
 
     void copyTo(void* Dst, const void* Src, size_t Count);
     void copyFrom(void* Dst, const void* Src, size_t Count);
@@ -55,6 +56,9 @@ namespace device {
 
     void initialize();
     void finalize();
+    void putProfilingMark(const std::string &Name, ProfilingColors Color);
+    void popLastProfilingMark();
+
   private:
     int m_CurrentDeviceId = 0;
 

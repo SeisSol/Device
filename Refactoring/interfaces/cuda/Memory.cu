@@ -1,4 +1,6 @@
 #include <assert.h>
+#include <sstream>
+#include <iostream>
 
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
@@ -61,6 +63,13 @@ char* ConcreteAPI::getStackMemory(size_t RequestedBytes) {
 void ConcreteAPI::popStackMemory() {
   m_StackMemByteCounter -= m_StackMemMeter.top();
   m_StackMemMeter.pop();
+}
+
+std::string ConcreteAPI::getMemLeaksReport() {
+  std::ostringstream Report{};
+  Report << "Memory Leaks, bytes: " << (m_Statistics.AllocatedMemBytes - m_Statistics.DeallocatedMemBytes) << '\n';
+  Report << "Stack Memory Leaks, bytes: " << m_StackMemByteCounter << '\n';
+  return Report.str();
 }
 
 

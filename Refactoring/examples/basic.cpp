@@ -23,16 +23,6 @@ int main(int argc, char* argv[]) {
   std::string DeviceInfo(device.api->getDeviceInfoAsText(0));
   std::cout << DeviceInfo << std::endl;
 
-  device.api->checkOffloading();
-
-  /*
-  real *ScratchMem = reinterpret_cast<real*>(device.api->getTempMemory(1024 * sizeof(real)));
-  device.api->freeTempMemory();
-
-  unsigned StreamId = device.api->createStream();
-  std::cout << "given stream id: " << StreamId << std::endl;
-  */
-
   // allocate mem. on a device
   real *d_InputArray = static_cast<real*>(device.api->allocGlobMem(sizeof(real) * Size));
   real *d_OutputArray = static_cast<real*>(device.api->allocGlobMem(sizeof(real) * Size));
@@ -41,6 +31,7 @@ int main(int argc, char* argv[]) {
   device.api->copyTo(d_InputArray, InputArray, sizeof(real) * Size);
 
   // call a kernel
+  device.api->checkOffloading();
   device.api->synchDevice();
 
   // copy data from a device

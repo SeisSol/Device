@@ -3,6 +3,10 @@
 #include <sstream>
 #include <cuda.h>
 
+#ifdef PROFILING_ENABLED
+#include <nvToolsExt.h>
+#endif
+
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
 
@@ -40,13 +44,12 @@ void ConcreteAPI::initialize() {
 
   //TODO: move info into SeisSol logger
   std::cout << Info.str() << std::endl;
-
-  m_StackMemory = (char*)allocGlobMem(m_MaxStackMem); CHECK_ERR;
+  cudaMalloc(&m_StackMemory, m_MaxStackMem); CHECK_ERR;
 };
 
 
 void ConcreteAPI::finalize() {
-  freeMem(m_StackMemory); CHECK_ERR;
+  cudaFree(m_StackMemory); CHECK_ERR;
   m_StackMemory = nullptr;
 };
 
@@ -106,4 +109,24 @@ std::string ConcreteAPI::getDeviceInfoAsText(int DeviceId) {
   Info << "pciDeviceID: " << Property.pciDeviceID << '\n';
 
   return Info.str();
+}
+
+void ConcreteAPI::putProfilingMark(const std::string &Name, ProfilingColors Color) {
+#ifdef PROFILING_ENABLED
+  nvtxEventAttributes_t eventAttrib = {0};
+  eventAttrib.version = NVTX_VERSION;
+  eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+  eventAttrib.colorType = NVTX_COLOR_ARGB;
+  eventAttrib.color = static_cast<uint32_t>(Color);
+  eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
+  eventAttrib.message.ascii = Name.c_str();
+  nvtxRangePushEx(&eventAttrib);
+#endif
+}
+
+
+void ConcreteAPI::popLastProfilingMark() {
+#ifdef PROFILING_ENABLED
+  nvtxRangePop();
+#endif
 }
