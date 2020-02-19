@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string>
 
-// TODO: needs to be removed from here or masked. It is defined in Seissol
+// TODO: needs to get removed from here or masked. It is defined in Seissol
 #if REAL_SIZE == 8
 typedef double real;
 #elif REAL_SIZE == 4
@@ -60,7 +60,7 @@ namespace device {
     virtual void deleteStream(unsigned StreamId) = 0;
     virtual void deleteAllCreatedStreams() = 0;
     virtual void setComputeStream(unsigned StreamId) = 0;
-    virtual void* getRawCurrentComputeStream() = 0;
+    virtual void* getRawCurrentComputeStream() = 0;  // TODO: must be protected
     virtual void setDefaultComputeStream() = 0;
     virtual void synchAllStreams() = 0;
 

@@ -166,6 +166,4 @@ int main() {
   delete [] DeviceResults;
 
   device.finalize();
-
-
 }
