@@ -20,9 +20,9 @@ __global__ void kernel_gemmNN(const int m, const int n, const int k,
                               unsigned Offsets_B = 0,
                               unsigned Offsets_C = 0) {
 
-  const real *Matrix_A = device::addressing::findData(A, Offsets_A, blockIdx.x);
-  const real *Matrix_B = device::addressing::findData(B, Offsets_B, blockIdx.x);
-  real *Matrix_C = device::addressing::findData(C, Offsets_C, blockIdx.x);
+  const real *Matrix_A = addressing::findData(A, Offsets_A, blockIdx.x);
+  const real *Matrix_B = addressing::findData(B, Offsets_B, blockIdx.x);
+  real *Matrix_C = addressing::findData(C, Offsets_C, blockIdx.x);
 
   // declare a pointer to array Matrix_A within shared memery
   extern __shared__ real sm_A[];
@@ -72,9 +72,9 @@ __global__ void kernel_gemmTT(const int m, const int n, const int k,
                                          unsigned Offsets_B = 0,
                                          unsigned Offsets_C = 0) {
 
-  const real *Matrix_A = device::addressing::findData(A, Offsets_A, blockIdx.x);
-  const real *Matrix_B = device::addressing::findData(B, Offsets_B, blockIdx.x);
-  real *Matrix_C = device::addressing::findData(C, Offsets_C, blockIdx.x);
+  const real *Matrix_A = addressing::findData(A, Offsets_A, blockIdx.x);
+  const real *Matrix_B = addressing::findData(B, Offsets_B, blockIdx.x);
+  real *Matrix_C = addressing::findData(C, Offsets_C, blockIdx.x);
 
   // declare a pointer to array Matrix_A within shared memery
   extern __shared__ real sm_A[];
@@ -137,9 +137,9 @@ __global__ void kernel_gemmNT(const int m, const int n, const int k,
                               unsigned Offsets_B = 0,
                               unsigned Offsets_C = 0) {
 
-  const real *Matrix_A = device::addressing::findData(A, Offsets_A, blockIdx.x);
-  const real *Matrix_B = device::addressing::findData(B, Offsets_B, blockIdx.x);
-  real *Matrix_C = device::addressing::findData(C, Offsets_C, blockIdx.x);
+  const real *Matrix_A = addressing::findData(A, Offsets_A, blockIdx.x);
+  const real *Matrix_B = addressing::findData(B, Offsets_B, blockIdx.x);
+  real *Matrix_C = addressing::findData(C, Offsets_C, blockIdx.x);
 
   // declare a pointer to array Matrix_A within shared memery
   extern __shared__ real sm_A[];
@@ -197,9 +197,9 @@ __global__ void kernel_gemmTN(const int m, const int n, const int k,
                               unsigned Offsets_B = 0,
                               unsigned Offsets_C = 0) {
 
-  const real *Matrix_A = device::addressing::findData(A, Offsets_A, blockIdx.x);
-  const real *Matrix_B = device::addressing::findData(B, Offsets_B, blockIdx.x);
-  real *Matrix_C = device::addressing::findData(C, Offsets_C, blockIdx.x);
+  const real *Matrix_A = addressing::findData(A, Offsets_A, blockIdx.x);
+  const real *Matrix_B = addressing::findData(B, Offsets_B, blockIdx.x);
+  real *Matrix_C = addressing::findData(C, Offsets_C, blockIdx.x);
 
   // declare a pointer to array Matrix_A within shared memery
   extern __shared__ real sm_A[];

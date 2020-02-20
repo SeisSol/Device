@@ -14,8 +14,8 @@ __global__ void kernel_copyAddScale(const int m, const int n,
                                     const real Beta, BT B, const int ldb,
                                     unsigned Offsets_A,
                                     unsigned Offsets_B) {
-  const real *Element_A = device::addressing::findData(A, Offsets_A, blockIdx.x);
-  real *Element_B =  device::addressing::findData(B, Offsets_B, blockIdx.x);
+  const real *Element_A = addressing::findData(A, Offsets_A, blockIdx.x);
+  real *Element_B = addressing::findData(B, Offsets_B, blockIdx.x);
 
   Element_B[threadIdx.x + threadIdx.y * ldb] = Beta * Element_B[threadIdx.x + threadIdx.y * ldb]
                                              + Alpha * Element_A[threadIdx.x + threadIdx.y * lda];
@@ -72,21 +72,20 @@ void Device::copyAddScale(const int m, const int n,
 void instantiateCopyAddScaleTemplates() {
   Device& device = Device::getInstance();
   real const ** zero{}; real const* one{}; real** two{}; real * three{};
-#pragma noinline
+  #pragma noinline
   add_scale(zero, two);
-#pragma noinline
+  #pragma noinline
   add_scale(zero, three);
-#pragma noinline
+  #pragma noinline
   add_scale(one, two);
-#pragma noinline
+  #pragma noinline
   add_scale(one, three);
-#pragma noinline
+  #pragma noinline
   add_scale(two, two);
-#pragma noinline
+  #pragma noinline
   add_scale(two, three);
-#pragma noinline
+  #pragma noinline
   add_scale(three, two);
-#pragma noinline
 }
 #pragma pop
 

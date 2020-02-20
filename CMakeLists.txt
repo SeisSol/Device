@@ -1,89 +1,77 @@
-cmake_minimum_required (VERSION 2.6)
-project (utests-yateto-gpu)
+cmake_minimum_required(VERSION 3.5)
+project(device_submodule)
 
-set(CMAKE_CXX_STANDARD 11)
-
-
-# handle the user's input
-set(PRECISION 4 CACHE STRING "num of bytes for floating point representation")
-set(PRECISION_OPTIONS 4 8)
-set_property(CACHE PRECISION PROPERTY STRINGS ${PRECISION_OPTIONS})
-
-set(ALIGNMENT 64 CACHE STRING "num of bytes for floating point representation")
-set(ALIGNMENT_OPTIONS 32 64)
-set_property(CACHE ALIGNMENT PROPERTY STRINGS ${ALIGNMENT_OPTIONS})
-
-message(STATUS "PRECISION: ${PRECISION}")
-message(STATUS "ALIGNMENT: ${ALIGNMENT}")
-
-set(HARDWARE_DEFINITIONS "ALIGNMENT={ALIGNMENT}"
-                         "REAL_SIZE=${PRECISION}")
-
-option(FAST_COMPARISON "compare floats without checking bits" ON)
-if (${FAST_COMPARISON} STREQUAL ON)
-    set(UNITE_TESTS_DEFINITIONS "FAST_COMPARISON")
-    message(STATUS "FAST_COMPARISON: ON")
+# check INTERFACE
+if (NOT DEFINED DEVICE_BACKEND)
+    message(FATAL_ERROR "DEVICE_BACKEND variable has not been provided into the submodule")
 else()
-    message(STATUS "FAST_COMPARISON: OFF")
+    set(FOUND OFF)
+    foreach(VARIANT CUDA DUMMY)
+        if (${DEVICE_BACKEND} STREQUAL ${VARIANT})
+            set(FOUND ON)
+        endif()
+    endforeach()
+    if (NOT FOUND)
+        message(FATAL_ERROR "DEVICE_BACKEND must be either CUDA or DUMMY. Given: ${DEVICE_BACKEND}")
+    endif()
 endif()
 
 
-# generate custom cuda gemm library
-include_directories("cuda/src")
-add_subdirectory(cuda) # compiles 'custom_blas' library
+#check REAL_SIZE
+if (NOT DEFINED REAL_SIZE_IN_BYTES)
+    message(FATAL_ERROR "REAL_SIZE_IN_BYTES variable has not been provided into the submodule")
+else()
+    set(FOUND OFF)
+    foreach(VARIANT 4 8)
+        if (${REAL_SIZE_IN_BYTES} EQUAL ${VARIANT})
+            set(FOUND ON)
+        endif()
+    endforeach()
+    if (NOT FOUND)
+        message(FATAL_ERROR "REAL_SIZE_IN_BYTES must be either 4 or 8. Given: ${REAL_SIZE}")
+    endif()
+endif()
 
+string(TOLOWER ${DEVICE_BACKEND} BACKEND_FODER)
 
-#===============================================================================
-#                              UNIT TESTS
-#===============================================================================
-# collect unit tests source files
-file(GLOB utest_host_src "tests/unit_tests/main.cpp"
-                         "tests/aux/helper.cpp"
-                         "tests/unit_tests/copy_add_scale/*.cpp"
-                         "tests/unit_tests/single_gemms/*.cpp" 
-                         "tests/unit_tests/multiple_gemms/*.cpp")
-                  
-# add and compile host side of tests
-set(utest_target unit_tests)
-add_executable(${utest_target} ${utest_host_src})
-target_compile_options(${utest_target} PRIVATE "-g")
-target_compile_definitions(${utest_target} PRIVATE ${HARDWARE_DEFINITIONS}
-                                                   ${UNITE_TESTS_DEFINITIONS})
-target_include_directories(${utest_target} PRIVATE "tests/aux")
+if (${DEVICE_BACKEND} STREQUAL "DUMMY")
+    add_library(device STATIC device.cpp
+                              interfaces/dummy/DummyInterface.cpp)
 
+elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
+    find_package(CUDA REQUIRED)
+    find_package(NVToolsExt QUIET)
+    if (NVToolsExt_FOUND)
+        set(EXTRA_FLAGS -DPROFILING_ENABLED)
+    endif()
+    set(CUDA_SEPARABLE_COMPILATION ON)
 
-# link all together
-target_link_libraries(${utest_target} custom_blas
-                                      -L${MKLROOT}/lib/intel64 
-                                      -lmkl_intel_ilp64 
-                                      -lmkl_intel_thread 
-                                      -lmkl_core 
-                                      -liomp5 
-                                      -lpthread 
-                                      -lm 
-                                      -ldl)                                      
+    set_source_files_properties(device.cpp PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
+    set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};
+                        -std=c++11;
+                        -arch=sm_50;
+                        -Xptxas -v;
+                        -D${DEVICE_BACKEND};
+                        -DREAL_SIZE=${REAL_SIZE_IN_BYTES}
+                        ${EXTRA_FLAGS})
 
-#===============================================================================
-#                             PERFORMANCE TESTS
-#===============================================================================
-# collect performance tests source files
-file(GLOB perf_host_src "tests/performance/*.cpp"
-                        "tests/aux/helper.cpp")
+    cuda_add_library(device STATIC device.cpp
+                                   interfaces/cuda/Control.cu
+                                   interfaces/cuda/Aux.cu
+                                   interfaces/cuda/Memory.cu
+                                   interfaces/cuda/Copy.cu
+                                   interfaces/cuda/Streams.cu
+                                   interfaces/cuda/Internals.cu
+                                   interfaces/cuda/ComputeAddressing.cu
+                                   interfaces/cuda/Gemm.cu
+                                   interfaces/cuda/CopyAddScale.cu)
 
-set(perf_target performance_tests)
-add_executable(${perf_target} ${perf_host_src})
-target_compile_options(${perf_target} PRIVATE "-O2" "-fopenmp")
-target_include_directories(${perf_target} PRIVATE "tests/aux")
-target_compile_definitions(${perf_target} PRIVATE ${HARDWARE_DEFINITIONS})
+    target_link_libraries(device -lcuda ${NVToolsExt_LIBRARIES})
+    target_include_directories(device PRIVATE ${CUDA_INCLUDE_DIRS} ${NVToolsExt_INCLUDE_DIRS})
 
-# link all together
-target_link_libraries(${perf_target} custom_blas
-                                     -L${MKLROOT}/lib/intel64 
-                                     -lmkl_intel_ilp64 
-                                     -lmkl_intel_thread 
-                                     -lmkl_core 
-                                     -liomp5 
-                                     -lpthread 
-                                     -lm 
-                                     -ldl
-                                     -fopenmp)  
+endif()
+
+target_compile_definitions(device PUBLIC ${DEVICE_BACKEND} REAL_SIZE=${REAL_SIZE_IN_BYTES})
+target_include_directories(device PUBLIC . interfaces/${BACKEND_FODER})
+target_compile_options(device PUBLIC "-std=c++11")
+
