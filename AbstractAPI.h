@@ -34,6 +34,7 @@ namespace device {
     virtual int getNumDevices() = 0;
     virtual unsigned getMaxThreadBlockSize() = 0;
     virtual unsigned getMaxSharedMemSize() = 0;
+    virtual unsigned getGlobMemAlignment() = 0;
     virtual std::string getDeviceInfoAsText(int DeviceId) = 0;
     virtual void synchDevice() = 0;
     virtual void checkOffloading() = 0;
@@ -67,7 +68,7 @@ namespace device {
     virtual void compareDataWithHost(const real *HostPtr,
                                      const real *DevPtr,
                                      const size_t NumElements,
-                                     const char *ArrayName = nullptr) = 0;
+                                     const std::string& DataName) = 0;
     virtual void scaleArray(real *DevArray, const real Scalar, const size_t NumElements) = 0;
 
     virtual void touchMemory(real *Ptr, size_t Size, bool Clean) = 0;

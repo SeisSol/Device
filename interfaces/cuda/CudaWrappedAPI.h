@@ -3,6 +3,7 @@
 
 #include <stack>
 #include <unordered_map>
+#include <string>
 
 #include "AbstractAPI.h"
 #include "Statistics.h"
@@ -14,6 +15,7 @@ namespace device {
     int getNumDevices();
     unsigned getMaxThreadBlockSize();
     unsigned getMaxSharedMemSize();
+    unsigned getGlobMemAlignment();
     std::string getDeviceInfoAsText(int DeviceId);
     void synchDevice();
     void checkOffloading();
@@ -48,7 +50,7 @@ namespace device {
     void compareDataWithHost(const real *HostPtr,
                              const real *DevPtr,
                              const size_t NumElements,
-                             const char *ArrayName = nullptr);
+                             const std::string& DataName);
     void scaleArray(real *DevArray, const real Scalar, const size_t NumElements);
 
     void touchMemory(real *Ptr, size_t Size, bool Clean);

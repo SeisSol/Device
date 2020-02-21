@@ -10,10 +10,9 @@ using namespace device;
 void ConcreteAPI::compareDataWithHost(const real *HostPtr,
                                       const real *DevPtr,
                                       const size_t NumElements,
-                                      const char *ArrayName) {
-  if (ArrayName) {
-    std::cout << "DEVICE:: comparing array: " << ArrayName << "\n";
-  }
+                                      const std::string& DataName) {
+
+  std::cout << "DEVICE:: comparing array: " << DataName << '\n';
 
   real* Temp = new real[NumElements];
   cudaMemcpy(Temp, DevPtr, NumElements * sizeof(real), cudaMemcpyDeviceToHost); CHECK_ERR;
@@ -36,7 +35,7 @@ void ConcreteAPI::compareDataWithHost(const real *HostPtr,
       throw;
     }
   }
-  std::cout << "DEVICE: host and device arrays are the same\n";
+  std::cout << "DEVICE:: host and device arrays are the same\n";
   delete [] Temp;
 };
 

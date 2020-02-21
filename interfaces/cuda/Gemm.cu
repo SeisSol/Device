@@ -6,6 +6,7 @@
 #include "ComputeAddressing.h"
 
 #include <device.h>
+#include <driver_types.h>
 
 using namespace device;
 
@@ -278,10 +279,12 @@ void Device::gemm(const MATRIX_LAYOUT Layout,
   assert((m * n) <= m_MaxBlockSize);
   assert(SharedMemSize <= m_MaxSharedMemSize);
 
-  /*
-    cudaStream_t *Stream = static_cast<cudaStream_t*>(api->getRawCurrentComputeStream());
-  */
+  cudaStream_t *Stream = static_cast<cudaStream_t*>(api->getRawCurrentComputeStream());
 
+  /*
+  cudaStream_t NullStream = 0;
+  cudaStream_t *Stream = &NullStream;
+  */
   if (Layout == ColMajor) {
 
     // perform initial check: similar to netlib blas
@@ -294,43 +297,43 @@ void Device::gemm(const MATRIX_LAYOUT Layout,
     assert(ldb >= std::max(1, NumRows_B));
 
     if ((Transa == NoTrans) && (Transb == NoTrans)) {
-      kernel_gemmNN<<<Grid, Block, SharedMemSize, 0>>>(m, n, k,
-                                                       Alpha, A_base, lda,
-                                                       B_base, ldb,
-                                                       Beta, C_base, ldc,
-                                                       Offsets_A,
-                                                       Offsets_B,
-                                                       Offsets_C);
+      kernel_gemmNN<<<Grid, Block, SharedMemSize, *Stream>>>(m, n, k,
+                                                             Alpha, A_base, lda,
+                                                             B_base, ldb,
+                                                             Beta, C_base, ldc,
+                                                             Offsets_A,
+                                                             Offsets_B,
+                                                             Offsets_C);
       CHECK_ERR;
     }
     else if ((Transa == Trans) && (Transb == Trans)) {
-      kernel_gemmTT<<<Grid, Block, SharedMemSize, 0>>>(m, n, k,
-                                                       Alpha, A_base, lda,
-                                                       B_base, ldb,
-                                                       Beta, C_base, ldc,
-                                                       Offsets_A,
-                                                       Offsets_B,
-                                                       Offsets_C);
+      kernel_gemmTT<<<Grid, Block, SharedMemSize, *Stream>>>(m, n, k,
+                                                             Alpha, A_base, lda,
+                                                             B_base, ldb,
+                                                             Beta, C_base, ldc,
+                                                             Offsets_A,
+                                                             Offsets_B,
+                                                             Offsets_C);
       CHECK_ERR;
     }
     else if ((Transa == NoTrans) && (Transb == Trans)) {
-      kernel_gemmNT<<<Grid, Block, SharedMemSize, 0>>>(m, n, k,
-                                                       Alpha, A_base, lda,
-                                                       B_base, ldb,
-                                                       Beta, C_base, ldc,
-                                                       Offsets_A,
-                                                       Offsets_B,
-                                                       Offsets_C);
+      kernel_gemmNT<<<Grid, Block, SharedMemSize, *Stream>>>(m, n, k,
+                                                             Alpha, A_base, lda,
+                                                             B_base, ldb,
+                                                             Beta, C_base, ldc,
+                                                             Offsets_A,
+                                                             Offsets_B,
+                                                             Offsets_C);
       CHECK_ERR;
     }
     else if ((Transa == Trans) && (Transb == NoTrans)) {
-      kernel_gemmTN<<<Grid, Block, SharedMemSize, 0>>>(m, n, k,
-                                                       Alpha, A_base, lda,
-                                                       B_base, ldb,
-                                                       Beta, C_base, ldc,
-                                                       Offsets_A,
-                                                       Offsets_B,
-                                                       Offsets_C);
+      kernel_gemmTN<<<Grid, Block, SharedMemSize, *Stream>>>(m, n, k,
+                                                             Alpha, A_base, lda,
+                                                             B_base, ldb,
+                                                             Beta, C_base, ldc,
+                                                             Offsets_A,
+                                                             Offsets_B,
+                                                             Offsets_C);
       CHECK_ERR;
     }
   }

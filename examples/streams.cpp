@@ -1,17 +1,30 @@
 #include <iostream>
-#include <cmath>
+#include <array>
 #include <vector>
-#include <algorithm>
-
 #include <cblas.h>
+
+#include <algorithm>
 #include "device.h"
 #include "Common.h"
+
+
 using namespace device;
 
-int main() {
+int main(int argc, char *argv[]) {
+
+  // define a problem size
+  const unsigned NumStreams = 8;
+  const unsigned NumElementsPerStream = 1024 * 16;
+  const unsigned NumElements = NumStreams * NumElementsPerStream;
+
+  // allocate streams
+  Device& device = Device::getInstance();
+  std::array<int, NumStreams> StreamIds;
+  std::for_each(StreamIds.begin(), StreamIds.end(), [&device](int &StreamId) {StreamId = device.api->createStream();});
+
+
 
   // define parameters for a batched gemm
-  const unsigned NumElements = 100;
   int m = 56, n = 9, k = 9;
   real Alpha = 1.0, Beta = 1.0;
 
@@ -39,8 +52,6 @@ int main() {
       B[i + e * B_SIZE] = getRandom();
     }
   }
-
-  Device& device = Device::getInstance();
 
   // allocate data on a device
   real *d_C = static_cast<real*>(device.api->allocGlobMem(C_SIZE * NumElements * sizeof(real)));
@@ -90,13 +101,26 @@ int main() {
   device.api->copyTo(d_PtrA, PtrA.data(), NumElements * sizeof(real*));
   device.api->copyTo(d_PtrB, PtrB.data(), NumElements * sizeof(real*));
 
-  // call device gemm
+  /*
   device.gemm(ColMajor, NoTrans, NoTrans,
               m, n, k,
               Alpha, d_PtrA, m,
               d_PtrB, k,
               Beta, d_PtrC, m,
               0, 0, 0, NumElements);
+  */
+  // call device gemm
+  for (unsigned StreamCounter = 0; StreamCounter < NumStreams; ++StreamCounter) {
+    device.api->setComputeStream(StreamIds[StreamCounter]);
+    device.gemm(ColMajor, NoTrans, NoTrans,
+                m, n, k,
+                Alpha, &d_PtrA[StreamCounter * NumElementsPerStream], m,
+                &d_PtrB[StreamCounter * NumElementsPerStream], k,
+                Beta, &d_PtrC[StreamCounter * NumElementsPerStream], m,
+                0, 0, 0, NumElementsPerStream);
+
+  }
+  device.api->setDefaultComputeStream();
 
   // compare results
   real *DeviceResults = new real[C_SIZE * NumElements];
@@ -114,6 +138,9 @@ int main() {
 
   // print report from device
   std::cout << device.api->getMemLeaksReport() << std::endl;
+
+  // delete streams
+  std::for_each(StreamIds.begin(), StreamIds.end(), [&device](int &StreamId) {device.api->deleteStream(StreamId);});
 
   // deallocate data from the host
   delete [] C;

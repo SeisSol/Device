@@ -81,6 +81,12 @@ unsigned ConcreteAPI::getMaxSharedMemSize() {
 }
 
 
+unsigned ConcreteAPI::getGlobMemAlignment() {
+  // TODO: use cuDeviceGetAttribute
+  return 256;
+}
+
+
 void ConcreteAPI::synchDevice() {
   cudaDeviceSynchronize(); CHECK_ERR;
 }
