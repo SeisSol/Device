@@ -32,6 +32,7 @@ else()
     endif()
 endif()
 
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 string(TOLOWER ${DEVICE_BACKEND} BACKEND_FODER)
 
 if (${DEVICE_BACKEND} STREQUAL "DUMMY")
@@ -40,7 +41,7 @@ if (${DEVICE_BACKEND} STREQUAL "DUMMY")
 
 elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
     find_package(CUDA REQUIRED)
-    find_package(NVToolsExt QUIET)
+    find_package(NVToolsExt)
     if (NVToolsExt_FOUND)
         set(EXTRA_FLAGS -DPROFILING_ENABLED)
     endif()
@@ -66,8 +67,8 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
                                    interfaces/cuda/Gemm.cu
                                    interfaces/cuda/CopyAddScale.cu)
 
-    target_link_libraries(device -lcuda ${NVToolsExt_LIBRARIES})
-    target_include_directories(device PRIVATE ${CUDA_INCLUDE_DIRS} ${NVToolsExt_INCLUDE_DIRS})
+    target_link_libraries(device -lcuda ${CUDA_LIBRARIES} ${NVToolsExt_LIBRARIES})
+    target_include_directories( device PRIVATE ${CUDA_INCLUDE_DIRS} ${NVToolsExt_INCLUDE_DIRS})
 
 endif()
 
