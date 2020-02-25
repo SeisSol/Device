@@ -23,6 +23,7 @@ __global__ void kernel_saveFirstMode(real **ModalStressTensors,
   FirsModes[threadIdx.x + blockDim.x * blockIdx.x] = FirstModeValue;
 }
 
+#include <iostream>
 void Plasticity::saveFirstModes(real **ModalStressTensors,
                                 real *FirsModes,
                                 unsigned NumNodesPerElement,
@@ -30,9 +31,9 @@ void Plasticity::saveFirstModes(real **ModalStressTensors,
 
   dim3 Block(6, 1, 1);
   dim3 Grid(NumElements, 1, 1);
-  kernel_saveFirstMode<<<Block, Grid>>>(ModalStressTensors,
-                                        FirsModes,
-                                        NumNodesPerElement);
+  kernel_saveFirstMode<<<Grid, Block>>>(ModalStressTensors,
+                                            FirsModes,
+                                            NumNodesPerElement);
   CHECK_ERR;
 }
 
@@ -135,7 +136,7 @@ void Plasticity::adjustDeviatoricTensors(real **NodalStressTensors,
                                          unsigned NumElements) {
   dim3 Block(NumNodesPerElement, 1, 1);
   dim3 Grid(NumElements, 1, 1);
-  kernel_adjustDeviatoricTensors<<<Block, Grid>>>(NodalStressTensors,
+  kernel_adjustDeviatoricTensors<<<Grid, Block>>>(NodalStressTensors,
                                                   Plasticity,
                                                   MeanStresses,
                                                   Invariants,
@@ -160,7 +161,7 @@ __global__ void kernel_adjustModalStresses(unsigned* AdjustFlags,
 
     dim3 Block(m, n, 1);
     size_t SharedMemSize = (m * k + k * n) * sizeof(real);
-    kernel_gemmNN<<<Block, 1, SharedMemSize>>>(m, n, k,
+    kernel_gemmNN<<<1, Block, SharedMemSize>>>(m, n, k,
                                                1.0, InverseVandermondeMatrix, m,
                                                NodalStressTensors[blockDim.x], k,
                                                1.0, ModalStressTensors[blockDim.x], m,
@@ -179,7 +180,7 @@ void Plasticity::adjustModalStresses(unsigned *AdjustFlags,
                                      unsigned NumElements) {
   dim3 Block(1, 1, 1);
   dim3 Grid(NumElements, 1, 1);
-  kernel_adjustModalStresses<<<Block, Grid>>>(AdjustFlags,
+  kernel_adjustModalStresses<<<Grid, Block>>>(AdjustFlags,
                                               NodalStressTensors,
                                               ModalStressTensors,
                                               InverseVandermondeMatrix,
@@ -224,7 +225,7 @@ __global__ void kernel_computePstrainsSelector(unsigned* AdjustFlags,
                                                double TimeStepWidth,
                                                unsigned NumNodesPerElement) {
   if (AdjustFlags[blockIdx.x] != 0) {
-    kernel_computePstrains<<<6, 1>>>(ModalStressTensors[blockIdx.x],
+    kernel_computePstrains<<<1, 6>>>(ModalStressTensors[blockIdx.x],
                                      &FirsModes[NUM_STREESS_COMPONENTS * blockIdx.x],
                                      &Plasticity[blockIdx.x],
                                      Pstrains[blockIdx.x],
@@ -243,7 +244,7 @@ void Plasticity::computePstrains(unsigned* AdjustFlags,
                                  unsigned NumElements) {
   dim3 Block(1, 1, 1);
   dim3 Grid(NumElements, 1, 1);
-  kernel_computePstrainsSelector<<<Block, Grid>>>(AdjustFlags,
+  kernel_computePstrainsSelector<<<Grid, Block>>>(AdjustFlags,
                                                   ModalStressTensors,
                                                   FirsModes,
                                                   Plasticity,
