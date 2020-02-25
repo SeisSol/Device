@@ -9,21 +9,24 @@ set_property(CACHE REAL_SIZE_IN_BYTES PROPERTY STRINGS "8" "4")
 
 add_subdirectory(root)
 
+set(SEISSOL_SRC ../../../src)
+
 add_executable(basic basic.cpp)
-target_include_directories(basic PUBLIC root)
+target_include_directories(basic PUBLIC root ${SEISSOL_SRC})
 target_link_libraries(basic device)
 
 find_package(OpenBLAS QUIET)
 if (OpenBLAS_FOUND)
     add_executable(gemm gemm.cpp)
-    target_include_directories(gemm PUBLIC root ${OpenBLAS_INCLUDE_DIRS})
+    target_include_directories(gemm PUBLIC root ${OpenBLAS_INCLUDE_DIRS} ${SEISSOL_SRC})
     target_link_libraries(gemm device ${OpenBLAS_LIBRARIES})
     target_compile_definitions(gemm PRIVATE REAL_SIZE=${REAL_SIZE_IN_BYTES})
 
     add_executable(streams streams.cpp)
-    target_include_directories(streams PUBLIC root ${OpenBLAS_INCLUDE_DIRS})
+    target_include_directories(streams PUBLIC root ${OpenBLAS_INCLUDE_DIRS} ${SEISSOL_SRC})
     target_link_libraries(streams device ${OpenBLAS_LIBRARIES})
-    target_compile_definitions(streams PRIVATE REAL_SIZE=${REAL_SIZE_IN_BYTES})
+    target_compile_definitions(streams PRIVATE REAL_SIZE=${REAL_SIZE_IN_BYTES} )
+
 else()
     message(STATUS "OpenBLAS has not been found. Cannot build GEMM example")
 endif()

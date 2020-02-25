@@ -2,6 +2,7 @@
 #define DEVICE_H
 
 #include "AbstractAPI.h"
+#include "Plasticity.h"
 
 namespace device {
 
@@ -47,6 +48,7 @@ namespace device {
     void finalize();
 
     AbstractAPI *api = nullptr;
+    device::Plasticity PlasticityLaunchers;
 
   private:
     Device();

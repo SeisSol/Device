@@ -50,7 +50,7 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
     set_source_files_properties(device.cpp PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
     set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};
                         -std=c++11;
-                        -arch=sm_50;
+                        -arch=sm_61;
                         -Xptxas -v;
                         -D${DEVICE_BACKEND};
                         -DREAL_SIZE=${REAL_SIZE_IN_BYTES}
@@ -64,11 +64,15 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
                                    interfaces/cuda/Streams.cu
                                    interfaces/cuda/Internals.cu
                                    interfaces/cuda/ComputeAddressing.cu
-                                   interfaces/cuda/Gemm.cu
-                                   interfaces/cuda/CopyAddScale.cu)
+                                   interfaces/cuda/GemmLauncher.cu
+                                   interfaces/cuda/CopyAddScale.cu
+                                   kernels/cuda/Plasticity.cu)
 
     target_link_libraries(device -lcuda ${CUDA_LIBRARIES} ${NVToolsExt_LIBRARIES})
-    target_include_directories( device PRIVATE ${CUDA_INCLUDE_DIRS} ${NVToolsExt_INCLUDE_DIRS})
+    target_include_directories(device PRIVATE ${CUDA_INCLUDE_DIRS}
+                                              ${NVToolsExt_INCLUDE_DIRS}
+                                              ../../src)
+    target_include_directories(device PUBLIC kernels/cuda)
 
 endif()
 

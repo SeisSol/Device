@@ -4,15 +4,7 @@
 #include <stdlib.h>
 #include <string>
 
-// TODO: needs to get removed from here or masked. It is defined in Seissol
-#if REAL_SIZE == 8
-typedef double real;
-#elif REAL_SIZE == 4
-typedef float real;
-#else
-#  error REAL_SIZE not supported.
-#endif
-
+#include "DataTypes.h"
 
 namespace device {
 
