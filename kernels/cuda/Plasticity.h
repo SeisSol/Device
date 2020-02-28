@@ -7,39 +7,34 @@
 namespace device {
 
   struct Plasticity {
-    void saveFirstModes(real **ModalStressTensors,
-                        real *FirsModes,
-                        unsigned NumNodesPerElement,
-                        unsigned NumElements);
+    void saveFirstModes(real *FirsModes,
+                        const real **ModalStressTensors,
+                        const unsigned NumNodesPerElement,
+                        const unsigned NumElements);
 
     void adjustDeviatoricTensors(real **NodalStressTensors,
-                                 PlasticityData *Plasticity,
-                                 real *MeanStresses,
-                                 real *Invariants,
-                                 real *YieldFactor,
                                  unsigned *AdjustFlags,
-                                 double RelaxTime,
-                                 unsigned NumNodesPerElement,
-                                 unsigned NumElements);
+                                 const PlasticityData *Plasticity,
+                                 const double RelaxTime,
+                                 const unsigned NumNodesPerElement,
+                                 const unsigned NumElements);
 
 
-    void adjustModalStresses(unsigned* AdjustFlags,
-                             real** NodalStressTensors,
-                             real** ModalStressTensors,
-                             real const* InverseVandermondeMatrix,
-                             real* YieldFactor,
-                             real* MeanStresses,
-                             unsigned NumNodesPerElement,
-                             unsigned NumElements);
+    void adjustModalStresses(real** ModalStressTensors,
+                             const real** NodalStressTensors,
+                             const real* InverseVandermondeMatrix,
+                             const unsigned* AdjustFlags,
+                             const unsigned NumNodesPerElement,
+                             const unsigned NumElements);
 
-    void computePstrains(unsigned* AdjustFlags,
-                         real** ModalStressTensors,
-                         real* FirsModes,
-                         PlasticityData* Plasticity,
-                         real (*Pstrains)[7],
-                         double TimeStepWidth,
-                         unsigned NumNodesPerElement,
-                         unsigned NumElements);
+    void computePstrains(real **Pstrains,
+                         const unsigned* AdjustFlags,
+                         const real** ModalStressTensors,
+                         const real* FirsModes,
+                         const PlasticityData* Plasticity,
+                         const double TimeStepWidth,
+                         const unsigned NumNodesPerElement,
+                         const unsigned NumElements);
 
     unsigned computeNumAdjustedDofs(unsigned* AdjustFlags,
                                     unsigned NumElements);
