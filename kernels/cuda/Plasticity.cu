@@ -240,3 +240,69 @@ void Plasticity::computePstrains(real **Pstrains,
                                           NumElements);
   CHECK_ERR;
 }
+
+
+
+/*
+__global__ void kernel_computePstrains(real *Pstrains,
+                                       const real* ModalStressTensors,
+                                       const real* FirsModes,
+                                       const PlasticityData *Plasticity,
+                                       const double TimeStepWidth,
+                                       const unsigned NumNodesPerElement) {
+
+  real DuDt_Pstrain = Plasticity->mufactor * (FirsModes[threadIdx.x]
+                                              - ModalStressTensors[threadIdx.x * NumNodesPerElement]);
+  Pstrains[threadIdx.x] += DuDt_Pstrain;
+
+  __shared__ real Squared_DuDt_Pstrains[NUM_STREESS_COMPONENTS];
+  real Factor = threadIdx.x < 3 ? 0.5f : 1.0f;
+  Squared_DuDt_Pstrains[threadIdx.x] = Factor * DuDt_Pstrain * DuDt_Pstrain;
+  __syncthreads();
+
+  if (threadIdx.x == 0) {
+    real Sum = 0.0;
+    for (int i = 0; i < NUM_STREESS_COMPONENTS; ++i) {
+      Sum += Squared_DuDt_Pstrains[i];
+    }
+    Pstrains[6] += (TimeStepWidth * SQRT(DuDt_Pstrain));
+  }
+}
+
+__global__ void kernel_computePstrainsSelector(real **Pstrains,
+                                               const int* AdjustIndices,
+                                               const real** ModalStressTensors,
+                                               const real* FirsModes,
+                                               const PlasticityData* Plasticity,
+                                               const double TimeStepWidth,
+                                               const unsigned NumNodesPerElement) {
+
+  int Index = AdjustIndices[blockIdx.x];
+  kernel_computePstrains<<<1, NUM_STREESS_COMPONENTS>>>(Pstrains[Index],
+                                                        ModalStressTensors[blockIdx.x],
+                                                        &FirsModes[NUM_STREESS_COMPONENTS * Index],
+                                                        &Plasticity[Index],
+                                                        TimeStepWidth,
+                                                        NumNodesPerElement);
+}
+
+void Plasticity::computePstrains(real **Pstrains,
+                                 const int* AdjustIndices,
+                                 const real** ModalStressTensors,
+                                 const real* FirsModes,
+                                 const PlasticityData* Plasticity,
+                                 const double TimeStepWidth,
+                                 const unsigned NumNodesPerElement,
+                                 const unsigned NumElements) {
+  dim3 Block(1, 1, 1);
+  dim3 Grid(NumElements, 1, 1);
+  kernel_computePstrainsSelector<<<Grid, Block>>>(Pstrains,
+                                                  AdjustIndices,
+                                                  ModalStressTensors,
+                                                  FirsModes,
+                                                  Plasticity,
+                                                  TimeStepWidth,
+                                                  NumNodesPerElement);
+  CHECK_ERR;
+}
+*/
