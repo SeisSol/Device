@@ -11,6 +11,11 @@ namespace device {
       int NumBlocks = (Size + Block.x - 1) / Block.x;
       return dim3(NumBlocks, 1, 1);
     }
+
+    inline dim3 computeGrid1D(const int &OtherLeadingDim, const size_t Size) {
+      int NumBlocks = (Size + OtherLeadingDim - 1) / OtherLeadingDim;
+      return dim3(NumBlocks, 1, 1);
+    }
   }
 }
 

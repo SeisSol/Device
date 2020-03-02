@@ -13,31 +13,31 @@ namespace device {
                         const unsigned NumElements);
 
     void adjustDeviatoricTensors(real **NodalStressTensors,
-                                 unsigned *AdjustFlags,
+                                 int *Indices,
                                  const PlasticityData *Plasticity,
                                  const double RelaxTime,
                                  const unsigned NumNodesPerElement,
                                  const unsigned NumElements);
 
+    unsigned getAdjustedIndices(int *Indices,
+                                int *AdjustedIndices,
+                                const unsigned NumElements);
 
     void adjustModalStresses(real** ModalStressTensors,
                              const real** NodalStressTensors,
                              const real* InverseVandermondeMatrix,
-                             const unsigned* AdjustFlags,
+                             const int* AdjustedIndices,
                              const unsigned NumNodesPerElement,
                              const unsigned NumElements);
 
     void computePstrains(real **Pstrains,
-                         const unsigned* AdjustFlags,
+                         const int* AdjustedIndices,
                          const real** ModalStressTensors,
                          const real* FirsModes,
                          const PlasticityData* Plasticity,
                          const double TimeStepWidth,
                          const unsigned NumNodesPerElement,
                          const unsigned NumElements);
-
-    unsigned computeNumAdjustedDofs(unsigned* AdjustFlags,
-                                    unsigned NumElements);
   };
 }
 
