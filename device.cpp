@@ -10,7 +10,7 @@
 
 using namespace device;
 
-Device::Device() {
+DeviceInstance::DeviceInstance() {
   // NOTE: all headers inside of macros define their unique ConcreteInterface.
   // Make sure to not include multiple different interfaces at the same time.
   // Only one interface is allowed per program because of issues of unique compilers, etc.
@@ -21,7 +21,7 @@ Device::Device() {
   m_MaxSharedMemSize = api->getMaxSharedMemSize();
 }
 
-void Device::finalize() {
+void DeviceInstance::finalize() {
   if (!(api->hasFinalized())) {
     api->finalize();
   }

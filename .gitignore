@@ -1,2 +1,5 @@
 build
 cuda/build
+.vscode
+*.swo
+*.swp

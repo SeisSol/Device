@@ -23,17 +23,17 @@ using namespace device;
  *  |___|           |_____|                  |___|
   * */
 template <typename AT, typename BT, typename CT>
-void Device::gemm(const MATRIX_LAYOUT Layout,
-                  const MATRIX_TRANSPOSE Transa,
-                  const MATRIX_TRANSPOSE Transb,
-                  const int m, const int n, const int k,
-                  const real Alpha, AT A_base, const int lda,
-                  BT B_base, const int ldb,
-                  const real Beta, CT C_base, const int ldc,
-                  unsigned Offsets_A,
-                  unsigned Offsets_B,
-                  unsigned Offsets_C,
-                  const unsigned NumElements) {
+void DeviceInstance::gemm(const MATRIX_LAYOUT Layout,
+                          const MATRIX_TRANSPOSE Transa,
+                          const MATRIX_TRANSPOSE Transb,
+                          const int m, const int n, const int k,
+                          const real Alpha, AT A_base, const int lda,
+                          BT B_base, const int ldb,
+                          const real Beta, CT C_base, const int ldc,
+                          unsigned Offsets_A,
+                          unsigned Offsets_B,
+                          unsigned Offsets_C,
+                          const unsigned NumElements) {
   dim3 Block(m, n, 1);
   dim3 Grid (NumElements, 1, 1);
   size_t SharedMemSize = (m * k + k * n) * sizeof(real);
@@ -111,7 +111,7 @@ void Device::gemm(const MATRIX_LAYOUT Layout,
 #pragma push
 #pragma O0
 void instantiateGemmTemplates() {
-  Device& device = Device::getInstance();
+  DeviceInstance& device = DeviceInstance::getInstance();
   real const ** zero{}; real const* one{}; real** two{}; real * three{};
 #pragma noinline
   gemm(zero, zero ,two);

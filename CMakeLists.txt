@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(device_submodule)
 
+set(CMAKE_CXX_CLANG_TIDY clang-tidy)
+
 # check INTERFACE
 if (NOT DEFINED DEVICE_BACKEND)
     message(FATAL_ERROR "DEVICE_BACKEND variable has not been provided into the submodule")

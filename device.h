@@ -9,14 +9,14 @@ namespace device {
   enum MATRIX_LAYOUT{RowMajor, ColMajor};
   enum MATRIX_TRANSPOSE {NoTrans, Trans};
 
-  // Device -> Singleton
-  class Device {
+  // DeviceInstance -> Singleton
+  class DeviceInstance {
   public:
-    Device(const Device&) = delete;
-    Device &operator=(const Device&) = delete;
+    DeviceInstance(const DeviceInstance&) = delete;
+    DeviceInstance &operator=(const DeviceInstance&) = delete;
 
-    static Device& getInstance() {
-      static Device Instance;
+    static DeviceInstance& getInstance() {
+      static DeviceInstance Instance;
       return Instance;
     }
 
@@ -41,7 +41,7 @@ namespace device {
               unsigned Offsets_C,
               const unsigned NumElements = 1);
 
-    ~Device() {
+    ~DeviceInstance() {
       this->finalize();
     }
 
@@ -51,7 +51,7 @@ namespace device {
     device::Plasticity PlasticityLaunchers;
 
   private:
-    Device();
+    DeviceInstance();
     unsigned m_MaxBlockSize{};
     unsigned m_MaxSharedMemSize{};
   };

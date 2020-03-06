@@ -23,12 +23,12 @@ __global__ void kernel_copyAddScale(const int m, const int n,
 
 
 template <typename AT, typename BT>
-void Device::copyAddScale(const int m, const int n,
-                          const real Alpha, AT A, const int lda,
-                          const real Beta, BT B, const int ldb,
-                          unsigned Offsets_A,
-                          unsigned Offsets_B,
-                          const unsigned NumElements) {
+void DeviceInstance::copyAddScale(const int m, const int n,
+                                  const real Alpha, AT A, const int lda,
+                                  const real Beta, BT B, const int ldb,
+                                  unsigned Offsets_A,
+                                  unsigned Offsets_B,
+                                  const unsigned NumElements) {
   dim3 Block(m, n, 1);
   dim3 Grid(NumElements, 1, 1);
 
@@ -70,7 +70,7 @@ void Device::copyAddScale(const int m, const int n,
 #pragma push
 #pragma O0
 void instantiateCopyAddScaleTemplates() {
-  Device& device = Device::getInstance();
+  DeviceInstance& device = DeviceInstance::getInstance();
   real const ** zero{}; real const* one{}; real** two{}; real * three{};
   #pragma noinline
   add_scale(zero, two);

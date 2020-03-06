@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(examples)
 
+set(CMAKE_CXX_CLANG_TIDY clang-tidy)
+
 set(DEVICE_BACKEND "CUDA" CACHE STRING "type of an interface")
 set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "DUMMY" "CUDA")
 

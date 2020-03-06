@@ -5,43 +5,43 @@
 
 using namespace device;
 
-int main(int argc, char* argv[]) {
-  const size_t Size = 1024;
-  real *InputArray = new real[Size];
-  real *OutputArray = new real[Size];
+int main(int Argc, char *Argv[]) {
+  const size_t SIZE = 1024;
+  real *InputArray = new real[SIZE];
+  real *OutputArray = new real[SIZE];
 
+  DeviceInstance &Device = DeviceInstance::getInstance();
 
-  Device& device = Device::getInstance();
   // set up the first device
-  const int NumDevices = device.api->getNumDevices();
-  std::cout << "Num. devices available: " << NumDevices << '\n';
-  if (NumDevices > 0) {
-    device.api->setDevice(0);
+  const int NUM_DEVICES = Device.api->getNumDevices();
+  std::cout << "Num. devices available: " << NUM_DEVICES << '\n';
+  if (NUM_DEVICES > 0) {
+    Device.api->setDevice(0);
   }
 
   // print some device info
-  std::string DeviceInfo(device.api->getDeviceInfoAsText(0));
+  std::string DeviceInfo(Device.api->getDeviceInfoAsText(0));
   std::cout << DeviceInfo << std::endl;
 
   // allocate mem. on a device
-  real *d_InputArray = static_cast<real*>(device.api->allocGlobMem(sizeof(real) * Size));
-  real *d_OutputArray = static_cast<real*>(device.api->allocGlobMem(sizeof(real) * Size));
+  real *DInputArray = static_cast<real *>(Device.api->allocGlobMem(sizeof(real) * SIZE));
+  real *DOutputArray = static_cast<real *>(Device.api->allocGlobMem(sizeof(real) * SIZE));
 
   // copy data into a device
-  device.api->copyTo(d_InputArray, InputArray, sizeof(real) * Size);
+  Device.api->copyTo(DInputArray, InputArray, sizeof(real) * SIZE);
 
   // call a kernel
-  device.api->checkOffloading();
-  device.api->synchDevice();
+  Device.api->checkOffloading();
+  Device.api->synchDevice();
 
   // copy data from a device
-  device.api->copyFrom(OutputArray, d_OutputArray, sizeof(real) * Size);
+  Device.api->copyFrom(OutputArray, DOutputArray, sizeof(real) * SIZE);
 
   // deallocate mem. on a device
-  device.api->freeMem(d_InputArray);
-  device.api->freeMem(d_OutputArray);
-  device.finalize();
+  Device.api->freeMem(DInputArray);
+  Device.api->freeMem(DOutputArray);
+  Device.finalize();
 
-  delete [] OutputArray;
-  delete [] InputArray;
+  delete[] OutputArray;
+  delete[] InputArray;
 }

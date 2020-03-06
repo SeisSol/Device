@@ -2,27 +2,22 @@
 #define EXAMPLES_COMMON_H
 
 #include <cmath>
+#include <iostream>
 
 #if REAL_SIZE == 8
-#define GEMM(LAYOUT, TRANSA, TRANSB, M, N, K, ALPHA, A, LDA, B, LDB, BETA, C, LDC) \
+#define GEMM(LAYOUT, TRANSA, TRANSB, M, N, K, ALPHA, A, LDA, B, LDB, BETA, C, LDC)                 \
   cblas_dgemm(LAYOUT, TRANSA, TRANSB, M, N, K, ALPHA, A, LDA, B, LDB, BETA, C, LDC)
 #elif REAL_SIZE == 4
-#define GEMM(LAYOUT, TRANSA, TRANSB, M, N, K, ALPHA, A, LDA, B, LDB, BETA, C, LDC) \
+#define GEMM(LAYOUT, TRANSA, TRANSB, M, N, K, ALPHA, A, LDA, B, LDB, BETA, C, LDC)                 \
   cblas_sgemm(LAYOUT, TRANSA, TRANSB, M, N, K, ALPHA, A, LDA, B, LDB, BETA, C, LDC)
 #else
-#  error RealSize not supported.
+#error RealSize not supported.
 #endif
 
+real getRandom() { return static_cast<real>(std::rand()) / RAND_MAX; }
 
-
-real getRandom() {
-  return static_cast<real>(std::rand()) / RAND_MAX;
-}
-
-void compareResults(const real* DeviceSolution,
-                    const real* ReferenceSolution,
-                    const unsigned ElementSize,
-                    const unsigned NumElements) {
+void compareResults(const real *DeviceSolution, const real *ReferenceSolution,
+                    const unsigned ElementSize, const unsigned NumElements) {
   bool Equal = true;
   real MaxAbsDiff = 0.0;
   const real Esp = 1e-8;
@@ -40,12 +35,12 @@ void compareResults(const real* DeviceSolution,
   }
 
   if (!Equal) {
-    std::cout << "::" << "ERROR:: Results are nor equal. Max diff = " << MaxAbsDiff << std::endl;
-  }
-  else {
-    std::cout << "::" << "Results are correct. Max diff = " << MaxAbsDiff << std::endl;
+    std::cout << "::"
+              << "ERROR:: Results are nor equal. Max diff = " << MaxAbsDiff << std::endl;
+  } else {
+    std::cout << "::"
+              << "Results are correct. Max diff = " << MaxAbsDiff << std::endl;
   }
 }
 
-
-#endif //EXAMPLES_COMMON_H
+#endif // EXAMPLES_COMMON_H
