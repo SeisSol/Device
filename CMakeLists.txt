@@ -70,6 +70,7 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
                                    interfaces/cuda/CopyAddScale.cu
                                    kernels/cuda/Plasticity.cu)
 
+    target_link_directories(device PUBLIC ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs)
     target_link_libraries(device -lcuda ${CUDA_LIBRARIES} ${NVToolsExt_LIBRARIES})
     target_include_directories(device PRIVATE ${CUDA_INCLUDE_DIRS}
                                               ${NVToolsExt_INCLUDE_DIRS}
