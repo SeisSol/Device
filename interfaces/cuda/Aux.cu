@@ -61,5 +61,5 @@ __global__ void kernel_scaleArray(real *Array, const real Scalar, const size_t N
 void ConcreteAPI::scaleArray(real *DevArray, const real Scalar, const size_t NumElements) {
   dim3 Block(32, 1, 1);
   dim3 Grid = internals::computeGrid1D(Block,  NumElements);
-  kernel_scaleArray<<<Block, Grid>>>(DevArray, Scalar, NumElements); CHECK_ERR;
+  kernel_scaleArray<<<Grid, Block>>>(DevArray, Scalar, NumElements); CHECK_ERR;
 }
