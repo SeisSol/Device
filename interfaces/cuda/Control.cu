@@ -14,6 +14,9 @@ using namespace device;
 
 void ConcreteAPI::initialize() {
   cuInit(0); CHECK_ERR;
+}
+
+void ConcreteAPI::allocateStackMem() {
 
   // try to detect the amount of temp. memory from the environment
   const size_t Factor = 1024 * 1024 * 1024;  //!< bytes in 1 GB
@@ -55,6 +58,7 @@ void ConcreteAPI::finalize() {
 
 
 void ConcreteAPI::setDevice(int DeviceId) {
+  std::cout << DeviceId << std::endl;
   m_CurrentDeviceId = DeviceId;
   cudaSetDevice(m_CurrentDeviceId); CHECK_ERR;
 }

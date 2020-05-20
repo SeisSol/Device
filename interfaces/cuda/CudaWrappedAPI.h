@@ -20,6 +20,7 @@ namespace device {
     void synchDevice();
     void checkOffloading();
 
+    void allocateStackMem();
     void* allocGlobMem(size_t Size);
     void* allocUnifiedMem(size_t Size);
     void* allocPinnedMem(size_t Size);
@@ -27,7 +28,7 @@ namespace device {
     void freeMem(void *DevPtr);
     void freePinnedMem(void *DevPtr);
     void popStackMemory();
-    virtual std::string getMemLeaksReport();
+    std::string getMemLeaksReport();
 
     void copyTo(void* Dst, const void* Src, size_t Count);
     void copyFrom(void* Dst, const void* Src, size_t Count);

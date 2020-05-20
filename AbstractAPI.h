@@ -31,6 +31,7 @@ namespace device {
     virtual void synchDevice() = 0;
     virtual void checkOffloading() = 0;
 
+    virtual void allocateStackMem() = 0;
     virtual void* allocGlobMem(size_t Size) = 0;
     virtual void* allocUnifiedMem(size_t Size) = 0;
     virtual void* allocPinnedMem(size_t Size) = 0;
