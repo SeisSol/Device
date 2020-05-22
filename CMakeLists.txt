@@ -38,8 +38,8 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 string(TOLOWER ${DEVICE_BACKEND} BACKEND_FODER)
 
 if (${DEVICE_BACKEND} STREQUAL "DUMMY")
-    add_library(device STATIC device.cpp
-                              interfaces/dummy/DummyInterface.cpp)
+    add_library(device device.cpp
+                       interfaces/dummy/DummyInterface.cpp)
 
 elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
     find_package(CUDA REQUIRED)
@@ -58,17 +58,17 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
                         -DREAL_SIZE=${REAL_SIZE_IN_BYTES}
                         ${EXTRA_FLAGS})
 
-    cuda_add_library(device STATIC device.cpp
-                                   interfaces/cuda/Control.cu
-                                   interfaces/cuda/Aux.cu
-                                   interfaces/cuda/Memory.cu
-                                   interfaces/cuda/Copy.cu
-                                   interfaces/cuda/Streams.cu
-                                   interfaces/cuda/Internals.cu
-                                   interfaces/cuda/ComputeAddressing.cu
-                                   interfaces/cuda/GemmLauncher.cu
-                                   interfaces/cuda/CopyAddScale.cu
-                                   kernels/cuda/Plasticity.cu)
+    cuda_add_library(device device.cpp
+                            interfaces/cuda/Control.cu
+                            interfaces/cuda/Aux.cu
+                            interfaces/cuda/Memory.cu
+                            interfaces/cuda/Copy.cu
+                            interfaces/cuda/Streams.cu
+                            interfaces/cuda/Internals.cu
+                            interfaces/cuda/ComputeAddressing.cu
+                            interfaces/cuda/GemmLauncher.cu
+                            interfaces/cuda/CopyAddScale.cu
+                            kernels/cuda/Plasticity.cu)
 
     target_link_directories(device PUBLIC ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs)
     target_link_libraries(device -lcuda ${CUDA_LIBRARIES} ${NVToolsExt_LIBRARIES})
