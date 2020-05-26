@@ -12,10 +12,17 @@ namespace device {
       return dim3(NumBlocks, 1, 1);
     }
 
-    inline dim3 computeGrid1D(const int &OtherLeadingDim, const size_t Size) {
-      int NumBlocks = (Size + OtherLeadingDim - 1) / OtherLeadingDim;
+    inline dim3 computeGrid1D(const int &LeadingDim, const size_t Size) {
+      int NumBlocks = (Size + LeadingDim - 1) / LeadingDim;
       return dim3(NumBlocks, 1, 1);
     }
+
+    inline dim3 computeBlock1D(const int &LeadingDim, const size_t Size) {
+      int NumItems = ((Size + LeadingDim - 1) / LeadingDim) * LeadingDim;
+      return dim3(NumItems, 1, 1);
+    }
+
+    constexpr int WARP_SIZE = 32;
   }
 }
 

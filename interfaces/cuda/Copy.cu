@@ -47,20 +47,12 @@ void ConcreteAPI::copy2dArrayFrom(void *Dst,
 
 __global__ void kernel_streamBatchedData(real **BaseSrcPtr,
                                          real **BaseDstPtr,
-                                         unsigned ElementSize,
-                                         bool Accumulate) {
+                                         unsigned ElementSize) {
 
   real *SrcElement = BaseSrcPtr[blockIdx.x];
   real *DstElement = BaseDstPtr[blockIdx.x];
-
-  int Id = threadIdx.x;
-  while (Id < ElementSize) {
-    if (Accumulate) {
-      DstElement[Id] += SrcElement[Id];
-    } else {
-      DstElement[Id] = SrcElement[Id];
-    }
-    Id += blockDim.x;
+  if (threadIdx.x < ElementSize) {
+    DstElement[threadIdx.x] = SrcElement[threadIdx.x];
   }
 }
 
@@ -68,19 +60,29 @@ void ConcreteAPI::streamBatchedData(real **BaseSrcPtr,
                                     real **BaseDstPtr,
                                     unsigned ElementSize,
                                     unsigned NumElements) {
-  dim3 Block(256, 1, 1);
+  dim3 Block = internals::computeBlock1D(internals::WARP_SIZE, ElementSize);
   dim3 Grid(NumElements, 1, 1);
-  kernel_streamBatchedData<<<Grid, Block>>>(BaseSrcPtr, BaseDstPtr, ElementSize, false); CHECK_ERR;
+  kernel_streamBatchedData<<<Grid, Block>>>(BaseSrcPtr, BaseDstPtr, ElementSize); CHECK_ERR;
 }
 
+__global__ void kernel_accumulateBatchedData(real **BaseSrcPtr,
+                                             real **BaseDstPtr,
+                                             unsigned ElementSize) {
+
+  real *SrcElement = BaseSrcPtr[blockIdx.x];
+  real *DstElement = BaseDstPtr[blockIdx.x];
+  if (threadIdx.x < ElementSize) {
+    DstElement[threadIdx.x] += SrcElement[threadIdx.x];
+  }
+}
 
 void ConcreteAPI::accumulateBatchedData(real **BaseSrcPtr,
                                         real **BaseDstPtr,
                                         unsigned ElementSize,
                                         unsigned NumElements) {
-  dim3 Block(ElementSize, 1, 1);
+  dim3 Block = internals::computeBlock1D(internals::WARP_SIZE, ElementSize);
   dim3 Grid(NumElements, 1, 1);
-  kernel_streamBatchedData<<<Grid, Block>>>(BaseSrcPtr, BaseDstPtr, ElementSize, true); CHECK_ERR;
+  kernel_accumulateBatchedData<<<Grid, Block>>>(BaseSrcPtr, BaseDstPtr, ElementSize); CHECK_ERR;
 }
 
 
