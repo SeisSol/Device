@@ -51,8 +51,8 @@ __global__ void kernel_streamBatchedData(real **BaseSrcPtr,
 
   real *SrcElement = BaseSrcPtr[blockIdx.x];
   real *DstElement = BaseDstPtr[blockIdx.x];
-  if (threadIdx.x < ElementSize) {
-    DstElement[threadIdx.x] = SrcElement[threadIdx.x];
+  for (int Index = threadIdx.x; Index < ElementSize; Index += blockDim.x) {
+    DstElement[Index] = SrcElement[Index];
   }
 }
 
@@ -60,7 +60,7 @@ void ConcreteAPI::streamBatchedData(real **BaseSrcPtr,
                                     real **BaseDstPtr,
                                     unsigned ElementSize,
                                     unsigned NumElements) {
-  dim3 Block = internals::computeBlock1D(internals::WARP_SIZE, ElementSize);
+  dim3 Block(internals::WARP_SIZE, 1, 1);
   dim3 Grid(NumElements, 1, 1);
   kernel_streamBatchedData<<<Grid, Block>>>(BaseSrcPtr, BaseDstPtr, ElementSize); CHECK_ERR;
 }
@@ -71,8 +71,8 @@ __global__ void kernel_accumulateBatchedData(real **BaseSrcPtr,
 
   real *SrcElement = BaseSrcPtr[blockIdx.x];
   real *DstElement = BaseDstPtr[blockIdx.x];
-  if (threadIdx.x < ElementSize) {
-    DstElement[threadIdx.x] += SrcElement[threadIdx.x];
+  for (int Index = threadIdx.x; Index < ElementSize; Index += blockDim.x) {
+    DstElement[Index] += SrcElement[Index];
   }
 }
 
@@ -80,7 +80,7 @@ void ConcreteAPI::accumulateBatchedData(real **BaseSrcPtr,
                                         real **BaseDstPtr,
                                         unsigned ElementSize,
                                         unsigned NumElements) {
-  dim3 Block = internals::computeBlock1D(internals::WARP_SIZE, ElementSize);
+  dim3 Block(internals::WARP_SIZE, 1, 1);
   dim3 Grid(NumElements, 1, 1);
   kernel_accumulateBatchedData<<<Grid, Block>>>(BaseSrcPtr, BaseDstPtr, ElementSize); CHECK_ERR;
 }
