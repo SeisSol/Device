@@ -54,6 +54,7 @@ void ConcreteAPI::allocateStackMem() {
 void ConcreteAPI::finalize() {
   cudaFree(m_StackMemory); CHECK_ERR;
   m_StackMemory = nullptr;
+  m_HasFinalized = true;
 };
 
 

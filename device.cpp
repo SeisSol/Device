@@ -22,8 +22,10 @@ DeviceInstance::DeviceInstance() {
 }
 
 void DeviceInstance::finalize() {
-  if (!(api->hasFinalized())) {
+  if (api != nullptr) {
     api->finalize();
+    delete api;
+    api = nullptr;
   }
 }
 
