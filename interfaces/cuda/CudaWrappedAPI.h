@@ -39,6 +39,10 @@ namespace device {
     void accumulateBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements);
     void prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, int StreamId = 0);
 
+    size_t getMaxAvailableMem();
+    size_t getCurrentlyOccupiedMem();
+    size_t getCurrentlyOccupiedUnifiedMem();
+
     unsigned createStream(StreamType Type = StreamType::Blocking);
     void deleteStream(unsigned StreamId);
     void deleteAllCreatedStreams();

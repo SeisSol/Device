@@ -21,6 +21,7 @@ void* ConcreteAPI::allocUnifiedMem(size_t Size) {
   void *DevPtr;
   cudaMallocManaged(&DevPtr, Size, cudaMemAttachGlobal); CHECK_ERR;
   m_Statistics.AllocatedMemBytes += Size;
+  m_Statistics.AllocatedUnifiedMemBytes += Size;
   m_MemToSizeMap[DevPtr] = Size;
   return DevPtr;
 }
@@ -115,4 +116,18 @@ void ConcreteAPI::touchBatchedMemory(real **BasePtr, unsigned ElementSize, unsig
   dim3 Block(256, 1, 1);
   dim3 Grid(NumElements, 1, 1);
   kernel_touchBatchedMemory<<<Grid, Block>>>(BasePtr, ElementSize, Clean); CHECK_ERR;
+}
+
+size_t ConcreteAPI::getMaxAvailableMem() {
+  cudaDeviceProp Property;
+  cudaGetDeviceProperties(&Property, m_CurrentDeviceId); CHECK_ERR;
+  return Property.totalGlobalMem;
+}
+
+size_t ConcreteAPI::getCurrentlyOccupiedMem() {
+  return m_Statistics.AllocatedMemBytes;
+}
+
+size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
+  return m_Statistics.AllocatedUnifiedMemBytes;
 }

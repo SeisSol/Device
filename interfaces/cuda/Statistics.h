@@ -4,6 +4,7 @@
 namespace device {
   struct Statistics {
     size_t AllocatedMemBytes = 0;
+    size_t AllocatedUnifiedMemBytes = 0;
     size_t DeallocatedMemBytes = 0;
 
     size_t ExplicitlyTransferredDataToDeviceBytes = 0;
