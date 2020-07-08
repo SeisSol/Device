@@ -18,6 +18,10 @@ else()
     endif()
 endif()
 
+if (NOT DEFINED COMPUTE_SUB_ARCH)
+    message(FATAL_ERROR "COMPUTE_SUB_ARCH is not defined. Supported: sm_60, sm_61, sm_70, sm_71")
+endif()
+
 
 #check REAL_SIZE
 if (NOT DEFINED REAL_SIZE_IN_BYTES)
@@ -52,7 +56,7 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
     set_source_files_properties(device.cpp PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
     set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};
                         -std=c++11;
-                        -arch=sm_61;
+                        -arch=${COMPUTE_SUB_ARCH};
                         -Xptxas -v;
                         -D${DEVICE_BACKEND};
                         -DREAL_SIZE=${REAL_SIZE_IN_BYTES}
