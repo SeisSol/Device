@@ -3,6 +3,12 @@ project(examples)
 
 set(CMAKE_CXX_CLANG_TIDY clang-tidy)
 
+set(SM "sm_60" CACHE STRING "model of Nvidia Streaming Multiprocessor")
+set(SM_OPTIONS "sm_20" "sm_30" "sm_50" "sm_60" "sm_70")
+set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
+
+set(COMPUTE_SUB_ARCH ${SM})
+
 set(DEVICE_BACKEND "CUDA" CACHE STRING "type of an interface")
 set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "DUMMY" "CUDA")
 

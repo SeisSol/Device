@@ -99,6 +99,8 @@ int main(int Argc, char *Argv[]) {
     PtrB.push_back(&DB[Index * B_SIZE]);
   }
 
+  Device.api->allocateStackMem();
+
   // allocate pointers on device. use stack memory to store indices (just for testing)
   real **DPtrC =
       reinterpret_cast<real **>(Device.api->getStackMemory(NUM_ELEMENTS * sizeof(real *)));

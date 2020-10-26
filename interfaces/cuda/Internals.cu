@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cuda_runtime.h>
+#include <sstream>
 
 namespace device {
   namespace internals {
@@ -10,12 +11,14 @@ namespace device {
     void checkErr(const std::string &file, int line) {
       cudaError_t Error = cudaGetLastError();
       if (Error != cudaSuccess) {
-        std::cout << std::endl << file << ", line " << line
-                  << ": " << cudaGetErrorString(Error) << " (" << Error << ")" << std::endl;
-        if (PrevLine > 0)
-          std::cout << "Previous CUDA call:" << std::endl
+        std::stringstream stream;
+        stream << '\n' << file << ", line " << line
+                  << ": " << cudaGetErrorString(Error) << " (" << Error << ")\n";
+        if (PrevLine > 0) {
+          stream << "Previous CUDA call:" << std::endl
                     << PrevFile << ", line " << PrevLine << std::endl;
-        throw;
+        }
+        throw std::runtime_error(stream.str());
       }
       PrevFile = file;
       PrevLine = line;

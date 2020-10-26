@@ -1,6 +1,8 @@
 #ifndef DEVICE_PLASTICITY_H
 #define DEVICE_PLASTICITY_H
 
+#ifdef ACL_DEVICE
+
 #include "DataTypes.h"
 #include <Initializer/PlasticityDataType.h>
 
@@ -40,5 +42,7 @@ namespace device {
                          const unsigned NumElements);
   };
 }
+
+#endif //ACL_DEVICE
 
 #endif //DEVICE_PLASTICITY_H
