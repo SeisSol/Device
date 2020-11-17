@@ -1,1 +1,1 @@
-# DeviceInstance
+# CUDA/HIP API wrapper

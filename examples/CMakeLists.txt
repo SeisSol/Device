@@ -7,7 +7,7 @@ set(SM "sm_60" CACHE STRING "model of Nvidia Streaming Multiprocessor")
 set(SM_OPTIONS "sm_20" "sm_30" "sm_50" "sm_60" "sm_70")
 set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
 
-set(COMPUTE_SUB_ARCH ${SM})
+set(DEVICE_SUB_ARCH ${SM})
 
 set(DEVICE_BACKEND "CUDA" CACHE STRING "type of an interface")
 set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "DUMMY" "CUDA")
@@ -33,7 +33,7 @@ if (OpenBLAS_FOUND)
     add_executable(streams streams.cpp)
     target_include_directories(streams PUBLIC root ${OpenBLAS_INCLUDE_DIRS} ${SEISSOL_SRC})
     target_link_libraries(streams device ${OpenBLAS_LIBRARIES})
-    target_compile_definitions(streams PRIVATE REAL_SIZE=${REAL_SIZE_IN_BYTES} )
+    target_compile_definitions(streams PRIVATE REAL_SIZE=${REAL_SIZE_IN_BYTES})
 
 else()
     message(STATUS "OpenBLAS has not been found. Cannot build GEMM example")

@@ -18,8 +18,8 @@ else()
     endif()
 endif()
 
-if (NOT DEFINED COMPUTE_SUB_ARCH)
-    message(FATAL_ERROR "COMPUTE_SUB_ARCH is not defined. Supported: sm_60, sm_61, sm_70, sm_71")
+if (NOT DEFINED DEVICE_SUB_ARCH)
+    message(FATAL_ERROR "DEVICE_SUB_ARCH is not defined. Supported: sm_60, sm_61, sm_70, sm_71")
 endif()
 
 
@@ -39,7 +39,7 @@ else()
 endif()
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
-string(TOLOWER ${DEVICE_BACKEND} BACKEND_FODER)
+string(TOLOWER ${DEVICE_BACKEND} BACKEND_FOLDER)
 
 if (${DEVICE_BACKEND} STREQUAL "DUMMY")
     add_library(device device.cpp
@@ -51,15 +51,16 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
     if (NVToolsExt_FOUND)
         set(EXTRA_FLAGS -DPROFILING_ENABLED)
     endif()
-    set(CUDA_SEPARABLE_COMPILATION ON)
 
+    set(CUDA_SEPARABLE_COMPILATION ON)
     set_source_files_properties(device.cpp PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
-    set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};
-                        -std=c++11;
-                        -arch=${COMPUTE_SUB_ARCH};
+
+    # NOTE: cmake doesn't fully support $<$<COMPILE_LANGUAGE>:CUDA>:
+    set(CUDA_NVCC_FLAGS -std=c++11;
+                        -arch=${DEVICE_SUB_ARCH};
                         -Xptxas -v;
                         -D${DEVICE_BACKEND};
-                        -DREAL_SIZE=${REAL_SIZE_IN_BYTES}
+                        -DREAL_SIZE=${REAL_SIZE_IN_BYTES};
                         ${EXTRA_FLAGS})
 
     cuda_add_library(device device.cpp
@@ -74,16 +75,17 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
                             interfaces/cuda/CopyAddScale.cu
                             kernels/cuda/Plasticity.cu)
 
+
     target_link_directories(device PUBLIC ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs)
     target_link_libraries(device -lcuda ${CUDA_LIBRARIES} ${NVToolsExt_LIBRARIES})
-    target_include_directories(device PRIVATE ${CUDA_INCLUDE_DIRS}
-                                              ${NVToolsExt_INCLUDE_DIRS}
+    target_include_directories(device PUBLIC ${CUDA_INCLUDE_DIRS}
+                                             ${NVToolsExt_INCLUDE_DIRS}
                                               ../../src)
     target_include_directories(device PUBLIC kernels/cuda)
 
 endif()
 
-target_compile_definitions(device PUBLIC ${DEVICE_BACKEND} REAL_SIZE=${REAL_SIZE_IN_BYTES})
-target_include_directories(device PUBLIC . interfaces/${BACKEND_FODER})
-target_compile_options(device PUBLIC "-std=c++11")
+target_compile_definitions(device PRIVATE ${DEVICE_BACKEND} REAL_SIZE=${REAL_SIZE_IN_BYTES})
+target_include_directories(device PRIVATE . interfaces/${BACKEND_FOLDER})
+target_compile_options(device PRIVATE "-std=c++11")
 
