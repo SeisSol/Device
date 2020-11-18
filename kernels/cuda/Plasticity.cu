@@ -1,4 +1,4 @@
-#ifdef ACL_DEVICE
+#ifdef USE_PLASTICITY
 
 #include <device_launch_parameters.h>
 #include <thrust/reduce.h>
@@ -243,7 +243,7 @@ void Plasticity::computePstrains(real **Pstrains,
   CHECK_ERR;
 }
 
-#endif
+#endif // USE_PLASTICITY
 
 /*
 __global__ void kernel_computePstrains(real *Pstrains,

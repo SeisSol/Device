@@ -1,7 +1,7 @@
 #ifndef DEVICE_PLASTICITY_H
 #define DEVICE_PLASTICITY_H
 
-#ifdef ACL_DEVICE
+#ifdef USE_PLASTICITY
 
 #include "DataTypes.h"
 #include <Initializer/PlasticityDataType.h>
@@ -43,6 +43,6 @@ namespace device {
   };
 }
 
-#endif //ACL_DEVICE
+#endif //USE_PLASTICITY
 
 #endif //DEVICE_PLASTICITY_H

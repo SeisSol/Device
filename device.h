@@ -48,7 +48,7 @@ namespace device {
     void finalize();
 
     AbstractAPI *api = nullptr;
-#ifdef ACL_DEVICE
+#ifdef USE_PLASTICITY
     device::Plasticity PlasticityLaunchers;
 #endif
 
