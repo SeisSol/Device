@@ -1,3 +1,4 @@
+#include "utils/logger.h"
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -20,33 +21,29 @@ void ConcreteAPI::allocateStackMem() {
 
   // try to detect the amount of temp. memory from the environment
   const size_t Factor = 1024 * 1024 * 1024;  //!< bytes in 1 GB
-  std::ostringstream Info;
+
   try {
     char *ValueString = std::getenv("DEVICE_STACK_MEM_SIZE");
     if (!ValueString) {
-      Info << "DEVICE::INFO env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
-           << "The default amount of the device memory (1 GB) "
-           << "is going to be used to store temp. variables during execution of compute-kernels\n";
+      logInfo() << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
+                << "The default amount of the device memory (1 GB) "
+                << "is going to be used to store temp. variables during execution of compute-kernels.";
     }
     else {
       double RequestedStackMem = std::stod(std::string(ValueString));
       m_MaxStackMem = Factor * RequestedStackMem;
-      Info << "DEVICE::INFO: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
-           << RequestedStackMem << "GB of the device memory is going to be used "
-           << "to store temp. variables during execution of compute-kernels\n";
+      logInfo() << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
+                << RequestedStackMem << "GB of the device memory is going to be used "
+                << "to store temp. variables during execution of compute-kernels.";
     }
   }
   catch (const std::invalid_argument &Err) {
-    std::cout << "DEVICE::ERROR: " << Err.what() << ". File: " << __FILE__ << ", line: " << __LINE__ << '\n';
-    throw Err;
+    logError() << "DEVICE::ERROR: " << Err.what() << ". File: " << __FILE__ << ", line: " << __LINE__;
   }
   catch (const std::out_of_range& Err) {
-    std::cout << "DEVICE::ERROR: " << Err.what() << ". File: " << __FILE__ << ", line: " << __LINE__ << '\n';
-    throw Err;
+    logError() << "DEVICE::ERROR: " << Err.what() << ". File: " << __FILE__ << ", line: " << __LINE__;
   }
 
-  //TODO: move info into SeisSol logger
-  std::cout << Info.str() << std::endl;
   cudaMalloc(&m_StackMemory, m_MaxStackMem); CHECK_ERR;
 };
 
