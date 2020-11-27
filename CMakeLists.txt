@@ -56,7 +56,7 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
     set_source_files_properties(device.cpp PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
 
     # NOTE: cmake doesn't fully support $<$<COMPILE_LANGUAGE>:CUDA>:
-    set(CUDA_NVCC_FLAGS -std=c++11;
+    set(CUDA_NVCC_FLAGS -std=c++14;
                         -arch=${DEVICE_SUB_ARCH};
                         -Xptxas -v;
                         -D${DEVICE_BACKEND};

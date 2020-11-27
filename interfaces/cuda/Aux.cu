@@ -1,9 +1,7 @@
-#include <iostream>
-#include <string>
-#include <cuda.h>
-
+#include "utils/logger.h"
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
+#include <string>
 
 using namespace device;
 
@@ -12,7 +10,8 @@ void ConcreteAPI::compareDataWithHost(const real *HostPtr,
                                       const size_t NumElements,
                                       const std::string& DataName) {
 
-  std::cout << "DEVICE:: comparing array: " << DataName << '\n';
+  std::stringstream stream;
+  stream << "DEVICE:: comparing array: " << DataName << '\n';
 
   real* Temp = new real[NumElements];
   cudaMemcpy(Temp, DevPtr, NumElements * sizeof(real), cudaMemcpyDeviceToHost); CHECK_ERR;
@@ -20,22 +19,23 @@ void ConcreteAPI::compareDataWithHost(const real *HostPtr,
   for (unsigned i = 0; i < NumElements; ++i) {
     if (abs(HostPtr[i] - Temp[i]) > EPS) {
       if ((std::isnan(HostPtr[i])) || (std::isnan(Temp[i]))) {
-        std::cout << "DEVICE:: results is NAN. Cannot proceed\n";
-        throw;
+        stream << "DEVICE:: results is NAN. Cannot proceed\n";
+        logError() << stream.str();
       }
 
-      std::cout << "DEVICE::ERROR:: host and device arrays are different\n";
-      std::cout << "DEVICE::ERROR:: "
+      stream << "DEVICE::ERROR:: host and device arrays are different\n";
+      stream << "DEVICE::ERROR:: "
                 << "host value (" << HostPtr[i] << ") | "
                 << "device value (" << Temp[i] << ") "
                 << "at index " << i
                 << '\n';
-      std::cout << "DEVICE::ERROR:: Difference = " << (HostPtr[i] - Temp[i]) << std::endl;
+      stream << "DEVICE::ERROR:: Difference = " << (HostPtr[i] - Temp[i]) << std::endl;
       delete [] Temp;
-      throw;
+      logError() << stream.str();
     }
   }
-  std::cout << "DEVICE:: host and device arrays are the same\n";
+  stream << "DEVICE:: host and device arrays are the same\n";
+  logInfo() << stream.str();
   delete [] Temp;
 };
 

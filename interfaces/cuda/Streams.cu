@@ -1,61 +1,49 @@
-#include "assert.h"
-
+#include "utils/logger.h"
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
+#include <algorithm>
 
 using namespace device;
 
-unsigned ConcreteAPI::createStream(StreamType Type) {
-  static size_t StreamIdCounter = 1;
-
-  cudaStream_t* Stream = new cudaStream_t;
-  cudaStreamCreateWithFlags(Stream,
-                            Type == StreamType::Blocking ? cudaStreamDefault : cudaStreamNonBlocking); CHECK_ERR;
-  unsigned StreamId = StreamIdCounter;
-
-  assert((m_IdToStreamMap.find(StreamId) == m_IdToStreamMap.end())
-          && (m_IdToStreamMap.find(0) == m_IdToStreamMap.end())
-          && "DEVICE:: overflow w.r.t. the number of streams");
-
-  m_IdToStreamMap[StreamId] = Stream;
-
-  ++StreamIdCounter;
-  return StreamId;
-}
-
-
-void ConcreteAPI::deleteStream(unsigned StreamId) {
-  assert((m_IdToStreamMap.find(StreamId) != m_IdToStreamMap.end()) && "DEVICE: a stream doesn't exist");
-  cudaStreamDestroy(*m_IdToStreamMap[StreamId]);
-  m_IdToStreamMap.erase(StreamId);
-}
-
-
-void ConcreteAPI::deleteAllCreatedStreams() {
-  for (auto& Stream: m_IdToStreamMap) {
-    cudaStreamDestroy(*(Stream.second)); CHECK_ERR;
+void *ConcreteAPI::getNextCircularStream() {
+  void* returnStream = static_cast<void*>(m_circularStreamBuffer[m_circularStreamCounter]);
+   m_circularStreamCounter += 1;
+  if (m_circularStreamCounter >= m_circularStreamBuffer.size()) {
+    m_circularStreamCounter = 0;
   }
-  m_IdToStreamMap.erase(m_IdToStreamMap.begin(), m_IdToStreamMap.end());
-  m_CurrentComputeStream = m_DefaultStream;
+  return returnStream;
 }
 
-
-void ConcreteAPI::setComputeStream(unsigned StreamId) {
-  assert((m_IdToStreamMap.find(StreamId) != m_IdToStreamMap.end()) && "DEVICE: a stream doesn't exist");
-  m_CurrentComputeStream = *m_IdToStreamMap[StreamId];
+void ConcreteAPI::resetCircularStreamCounter() {
+  m_circularStreamCounter = 0;
 }
 
-
-void ConcreteAPI::setDefaultComputeStream() {
-  m_CurrentComputeStream = m_DefaultStream;
+size_t ConcreteAPI::getCircularStreamSize() {
+  return m_circularStreamBuffer.size();
 }
 
+void ConcreteAPI::syncStreamFromCircularBuffer(void* streamPtr) {
+  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+#ifndef NDEBUG
+  auto itr = std::find(m_circularStreamBuffer.begin(), m_circularStreamBuffer.end(), stream);
+  if (itr == m_circularStreamBuffer.end()) {
+    logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
+  }
+#endif
+    cudaStreamSynchronize(stream); CHECK_ERR;
+}
+
+void ConcreteAPI::syncCircularBuffer() {
+  for (auto& stream: m_circularStreamBuffer) {
+    cudaStreamSynchronize(stream); CHECK_ERR;
+  }
+}
 
 __global__ void kernel_synchAllStreams() {
   // NOTE: an empty stream. It is supposed to get called with Cuda default stream. It is going to force all
   // other streams to finish their tasks
 }
 
-void ConcreteAPI::synchAllStreams() {
+void ConcreteAPI::fastStreamsSync() {
   kernel_synchAllStreams<<<1,1>>>();
 }

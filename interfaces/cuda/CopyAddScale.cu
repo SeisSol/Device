@@ -1,9 +1,7 @@
-#include <assert.h>
-
 #include "AbstractAPI.h"
 #include "Internals.h"
 #include "ComputeAddressing.h"
-
+#include <assert.h>
 #include <device.h>
 
 using namespace device;

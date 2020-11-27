@@ -7,7 +7,6 @@
 
 using namespace device;
 
-
 void* ConcreteAPI::allocGlobMem(size_t Size) {
   void *DevPtr;
   cudaMalloc(&DevPtr, Size); CHECK_ERR;

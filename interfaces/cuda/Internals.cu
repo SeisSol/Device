@@ -1,5 +1,4 @@
-#include <iostream>
-#include <cuda_runtime.h>
+#include "utils/logger.h"
 #include <sstream>
 
 namespace device {
@@ -18,11 +17,11 @@ namespace device {
           stream << "Previous CUDA call:" << std::endl
                     << PrevFile << ", line " << PrevLine << std::endl;
         }
-        throw std::runtime_error(stream.str());
+        logError() << stream.str();
       }
       PrevFile = file;
       PrevLine = line;
     }
-  }
-}
+  } // namespace internals
+} // namespace device
 

@@ -1,7 +1,7 @@
-#include <assert.h>
-
+#include "utils/logger.h"
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
+#include <algorithm>
 
 using namespace device;
 
@@ -86,16 +86,16 @@ void ConcreteAPI::accumulateBatchedData(real **BaseSrcPtr,
 }
 
 
-void ConcreteAPI::prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, int StreamId) {
-  cudaStream_t Stream = StreamId == 0 ? 0 : *m_IdToStreamMap[StreamId];
+void ConcreteAPI::prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, void* streamPtr) {
+  cudaStream_t stream = (streamPtr == nullptr) ? 0 : *(static_cast<cudaStream_t*>(streamPtr));
 #ifndef NDEBUG
-  if (Stream != 0) {
-    assert((m_IdToStreamMap.find(StreamId) != m_IdToStreamMap.end())
-           && "DEVICE: stream doesn't exist. cannot prefetch memory");
+  auto itr = std::find(m_circularStreamBuffer.begin(), m_circularStreamBuffer.end(), stream);
+  if (itr == m_circularStreamBuffer.end()) {
+    logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
   }
 #endif
   cudaMemPrefetchAsync(DevPtr,
                        Count,
                        Type == Destination::CurrentDevice ? m_CurrentDeviceId : cudaCpuDeviceId,
-                       Stream); CHECK_ERR;
+                       stream); CHECK_ERR;
 }

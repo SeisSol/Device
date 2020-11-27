@@ -45,12 +45,22 @@ void ConcreteAPI::allocateStackMem() {
   }
 
   cudaMalloc(&m_StackMemory, m_MaxStackMem); CHECK_ERR;
+
+  constexpr size_t concurrencyLevel = 32;
+  m_circularStreamBuffer.resize(concurrencyLevel);
+  for (auto& stream: m_circularStreamBuffer) {
+    cudaStreamCreate(&stream); CHECK_ERR;
+  }
 };
 
 
 void ConcreteAPI::finalize() {
   cudaFree(m_StackMemory); CHECK_ERR;
   m_StackMemory = nullptr;
+  for (auto& stream: m_circularStreamBuffer) {
+    cudaStreamDestroy(stream); CHECK_ERR;
+  }
+  m_circularStreamBuffer.clear();
   m_HasFinalized = true;
 };
 

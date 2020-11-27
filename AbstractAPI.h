@@ -48,19 +48,20 @@ namespace device {
     virtual void copy2dArrayFrom(void *Dst, size_t Dpitch, const void *Src, size_t Spitch, size_t Width, size_t Height) = 0;
     virtual void streamBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements) = 0;
     virtual void accumulateBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements) = 0;
-    virtual void prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, int StreamId = 0) = 0;
+    virtual void prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, void* streamPtr) = 0;
 
     virtual size_t getMaxAvailableMem() = 0;
     virtual size_t getCurrentlyOccupiedMem() = 0;
     virtual size_t getCurrentlyOccupiedUnifiedMem() = 0;
 
-    virtual unsigned createStream(StreamType Type = StreamType::Blocking) = 0;
-    virtual void deleteStream(unsigned StreamId) = 0;
-    virtual void deleteAllCreatedStreams() = 0;
-    virtual void setComputeStream(unsigned StreamId) = 0;
     virtual void* getRawCurrentComputeStream() = 0;  // TODO: must be protected
-    virtual void setDefaultComputeStream() = 0;
-    virtual void synchAllStreams() = 0;
+    virtual void* getNextCircularStream() = 0;
+    virtual void resetCircularStreamCounter() = 0;
+    virtual size_t getCircularStreamSize() = 0;
+    virtual void syncStreamFromCircularBuffer(void* streamPtr) = 0;
+    virtual void syncCircularBuffer() = 0;
+    virtual void fastStreamsSync() = 0;
+
 
     virtual void compareDataWithHost(const real *HostPtr,
                                      const real *DevPtr,
