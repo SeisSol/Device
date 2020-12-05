@@ -28,14 +28,14 @@ void ConcreteAPI::allocateStackMem() {
     if (!ValueString) {
       logInfo(id) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
                   << "The default amount of the device memory (1 GB) "
-                  << "is going to be used to store temp. variables during execution of compute-kernels.";
+                  << "is going to be used to store temp. variables during execution of compute-algorithms.";
     }
     else {
       double RequestedStackMem = std::stod(std::string(ValueString));
       m_MaxStackMem = Factor * RequestedStackMem;
       logInfo(id) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
                   << RequestedStackMem << "GB of the device memory is going to be used "
-                  << "to store temp. variables during execution of compute-kernels.";
+                  << "to store temp. variables during execution of compute-algorithms.";
     }
   }
   catch (const std::invalid_argument &Err) {

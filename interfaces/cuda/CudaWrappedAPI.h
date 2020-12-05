@@ -36,31 +36,18 @@ namespace device {
     void copyBetween(void* Dst, const void* Src, size_t Count) override;
     void copy2dArrayTo(void *Dst, size_t Dpitch, const void *Src, size_t Spitch, size_t Width, size_t Height) override;
     void copy2dArrayFrom(void *Dst, size_t Dpitch, const void *Src, size_t Spitch, size_t Width, size_t Height) override;
-    void streamBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements) override;
-    void accumulateBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements) override;
     void prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, void* streamPtr) override;
 
     size_t getMaxAvailableMem() override;
     size_t getCurrentlyOccupiedMem() override;
     size_t getCurrentlyOccupiedUnifiedMem() override;
 
-    void* getRawCurrentComputeStream() override { return static_cast<void*>(&m_CurrentComputeStream);}
     void* getNextCircularStream() override;
     void resetCircularStreamCounter() override;
     size_t getCircularStreamSize() override;
     void syncStreamFromCircularBuffer(void* streamPtr) override;
     void syncCircularBuffer() override;
     void fastStreamsSync() override;
-
-
-    void compareDataWithHost(const real *HostPtr,
-                             const real *DevPtr,
-                             const size_t NumElements,
-                             const std::string& DataName) override;
-    void scaleArray(real *DevArray, const real Scalar, const size_t NumElements) override;
-
-    void touchMemory(real *Ptr, size_t Size, bool Clean) override;
-    void touchBatchedMemory(real **BasePtr, unsigned ElementSize, unsigned NumElements, bool Clean) override;
 
     void initialize() override;
     void finalize() override;
@@ -72,7 +59,6 @@ namespace device {
 
     std::vector<cudaStream_t> m_circularStreamBuffer{};
     size_t m_circularStreamCounter{0};
-    cudaStream_t m_CurrentComputeStream = 0;
 
     char* m_StackMemory = nullptr;
     size_t m_StackMemByteCounter = 0;

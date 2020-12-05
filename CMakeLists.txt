@@ -70,10 +70,10 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
                             interfaces/cuda/Copy.cu
                             interfaces/cuda/Streams.cu
                             interfaces/cuda/Internals.cu
-                            interfaces/cuda/ComputeAddressing.cu
-                            interfaces/cuda/GemmLauncher.cu
-                            interfaces/cuda/CopyAddScale.cu
-                            kernels/cuda/Plasticity.cu)
+                            algorithms/cuda/ArrayManip.cu
+                            algorithms/cuda/BatchManip.cu
+                            algorithms/cuda/Reduction.cu
+                            algorithms/cuda/Debugging.cu)
 
 
     target_link_directories(device PUBLIC ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs)
@@ -81,7 +81,6 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
     target_include_directories(device PUBLIC ${CUDA_INCLUDE_DIRS}
                                              ${NVToolsExt_INCLUDE_DIRS}
                                               ../../src)
-    target_include_directories(device PUBLIC kernels/cuda)
 
 endif()
 

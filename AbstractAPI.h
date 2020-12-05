@@ -1,9 +1,8 @@
 #ifndef DEVICE_ABSTRACT_API_H
 #define DEVICE_ABSTRACT_API_H
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <string>
-
 #include "DataTypes.h"
 
 namespace device {
@@ -19,7 +18,6 @@ namespace device {
                                          Cyan = 0x00FFFF,
                                          Magenta = 0xFF00FF,
                                          Count = 8};
-
   struct AbstractAPI {
 
     virtual void setDevice(int DeviceId) = 0;
@@ -46,31 +44,18 @@ namespace device {
     virtual void copyBetween(void* Dst, const void* Src, size_t Count) = 0;
     virtual void copy2dArrayTo(void *Dst, size_t Dpitch, const void *Src, size_t Spitch, size_t Width, size_t Height) = 0;
     virtual void copy2dArrayFrom(void *Dst, size_t Dpitch, const void *Src, size_t Spitch, size_t Width, size_t Height) = 0;
-    virtual void streamBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements) = 0;
-    virtual void accumulateBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements) = 0;
     virtual void prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, void* streamPtr) = 0;
 
     virtual size_t getMaxAvailableMem() = 0;
     virtual size_t getCurrentlyOccupiedMem() = 0;
     virtual size_t getCurrentlyOccupiedUnifiedMem() = 0;
 
-    virtual void* getRawCurrentComputeStream() = 0;  // TODO: must be protected
     virtual void* getNextCircularStream() = 0;
     virtual void resetCircularStreamCounter() = 0;
     virtual size_t getCircularStreamSize() = 0;
     virtual void syncStreamFromCircularBuffer(void* streamPtr) = 0;
     virtual void syncCircularBuffer() = 0;
     virtual void fastStreamsSync() = 0;
-
-
-    virtual void compareDataWithHost(const real *HostPtr,
-                                     const real *DevPtr,
-                                     const size_t NumElements,
-                                     const std::string& DataName) = 0;
-    virtual void scaleArray(real *DevArray, const real Scalar, const size_t NumElements) = 0;
-
-    virtual void touchMemory(real *Ptr, size_t Size, bool Clean) = 0;
-    virtual void touchBatchedMemory(real **BasePtr, unsigned ElementSize, unsigned NumElements, bool Clean) = 0;
 
     virtual void initialize() = 0;
     virtual void finalize() = 0;

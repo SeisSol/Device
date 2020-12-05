@@ -72,51 +72,6 @@ std::string ConcreteAPI::getMemLeaksReport() {
   return Report.str();
 }
 
-
-__global__ void kernel_touchMemory(real *Ptr, size_t Size, bool Clean) {
-  int Id = threadIdx.x + blockIdx.x * blockDim.x;
-  if (Id < Size) {
-    if (Clean) {
-      Ptr[Id] = 0.0;
-    }
-    else {
-      real Value = Ptr[Id];
-      // Do something dummy here. We just need to check the pointers point to valid memory locations.
-      // Avoid compiler optimization. Possibly, implement a dummy code with asm.
-      Value += 1.0;
-    }
-  }
-}
-
-void ConcreteAPI::touchMemory(real *Ptr, size_t Size, bool Clean) {
-  dim3 Block(256, 1, 1);
-  dim3 Grid = internals::computeGrid1D(Block, Size);
-  kernel_touchMemory<<<Grid, Block>>>(Ptr, Size, Clean); CHECK_ERR;
-}
-
-
-__global__ void kernel_touchBatchedMemory(real **BasePtr, unsigned ElementSize, bool Clean) {
-  real *Element = BasePtr[blockIdx.x];
-  int Id = threadIdx.x;
-  while (Id < ElementSize) {
-    if (Clean) {
-      Element[Id] = 0.0;
-    } else {
-      real Value = Element[Id];
-      // Do something dummy here. We just need to check the pointers point to valid memory locations.
-      // Avoid compiler optimization. Possibly, implement a dummy code with asm.
-      Value += 1.0;
-    }
-    Id += blockDim.x;
-  }
-}
-
-void ConcreteAPI::touchBatchedMemory(real **BasePtr, unsigned ElementSize, unsigned NumElements, bool Clean) {
-  dim3 Block(256, 1, 1);
-  dim3 Grid(NumElements, 1, 1);
-  kernel_touchBatchedMemory<<<Grid, Block>>>(BasePtr, ElementSize, Clean); CHECK_ERR;
-}
-
 size_t ConcreteAPI::getMaxAvailableMem() {
   cudaDeviceProp Property;
   cudaGetDeviceProperties(&Property, m_CurrentDeviceId); CHECK_ERR;
