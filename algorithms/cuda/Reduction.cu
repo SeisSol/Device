@@ -62,11 +62,10 @@ namespace device {
     T* buffer0 = &reductionBuffer[0];
     T* buffer1 = &reductionBuffer[adjustedSize];
 
-    dim3 block(internals::WARP_SIZE, 1, 1);
-    dim3 grid = internals::computeGrid1D(internals::WARP_SIZE, size);
-
     size_t swapCounter = 0;
     for (size_t reducedSize = adjustedSize; reducedSize > 0; reducedSize /= internals::WARP_SIZE) {
+      dim3 block(internals::WARP_SIZE, 1, 1);
+      dim3 grid = internals::computeGrid1D(internals::WARP_SIZE, reducedSize);
       switch(type) {
         case ReductionType::Add: {
           kernel_reduce<<<grid, block>>>(buffer1, buffer0, reducedSize, device::Sum<T>());
