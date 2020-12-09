@@ -61,6 +61,7 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
                         -Xptxas -v;
                         -D${DEVICE_BACKEND};
                         -DREAL_SIZE=${REAL_SIZE_IN_BYTES};
+                        --expt-relaxed-constexpr;
                         ${EXTRA_FLAGS})
 
     cuda_add_library(device device.cpp
