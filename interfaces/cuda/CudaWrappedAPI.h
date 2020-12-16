@@ -68,6 +68,6 @@ namespace device {
     Statistics m_Statistics{};
     std::unordered_map<void*, size_t> m_MemToSizeMap{{nullptr, 0}};
   };
-}
+} // namespace device
 
 #endif //DEVICE_CUDAINTERFACE_H
