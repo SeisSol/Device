@@ -50,6 +50,7 @@ endif()
 target_compile_definitions(device PRIVATE ${DEVICE_BACKEND} REAL_SIZE=${REAL_SIZE_IN_BYTES})
 target_include_directories(device PRIVATE .
                                           interfaces/${BACKEND_FOLDER}
+                                          algorithms/${BACKEND_FOLDER}
                                           submodules)
 target_compile_options(device PRIVATE "-std=c++11")
 

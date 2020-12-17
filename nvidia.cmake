@@ -5,7 +5,10 @@ if (NVToolsExt_FOUND)
 endif()
 
 set(CUDA_SEPARABLE_COMPILATION ON)
-set_source_files_properties(device.cpp PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT OBJ)
+set_source_files_properties(device.cpp
+                            algorithms/generic/Reduction.cpp
+                            PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT
+                            OBJ)
 
 # NOTE: cmake doesn't fully support $<$<COMPILE_LANGUAGE>:CUDA>:
 set(CUDA_NVCC_FLAGS -std=c++14;
@@ -24,8 +27,8 @@ cuda_add_library(device device.cpp
         interfaces/cuda/Internals.cu
         algorithms/cuda/ArrayManip.cu
         algorithms/cuda/BatchManip.cu
-        algorithms/cuda/Reduction.cu
-        algorithms/cuda/Debugging.cu)
+        algorithms/cuda/Debugging.cu
+        algorithms/generic/Reduction.cu)
 
 
 target_link_directories(device PUBLIC ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs)

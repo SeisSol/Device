@@ -29,16 +29,17 @@ if (${HIP_PLATFORM} STREQUAL "nvcc")
     set(MY_NVCC -arch=${COMPUTE_SUB_ARCH}; -dc;)
 endif()
 
-set(MY_SOURCE_FILES device.cpp;
-                    interfaces/hip/Control.cpp;
-                    interfaces/hip/Aux.cpp;
-                    interfaces/hip/Memory.cpp;
-                    interfaces/hip/Copy.cpp;
-                    interfaces/hip/Streams.cpp;
-                    interfaces/hip/Internals.cpp;)
-#interfaces/hip/ComputeAddressing.cpp;
-#interfaces/hip/GemmLauncher.cpp;
-#interfaces/hip/CopyAddScale.cpp;)
+set(MY_SOURCE_FILES device.cpp
+                    interfaces/hip/Aux.cpp
+                    interfaces/hip/Control.cpp
+                    interfaces/hip/Copy.cpp
+                    interfaces/hip/Internals.cpp
+                    interfaces/hip/Memory.cpp
+                    interfaces/hip/Streams.cpp
+                    algorithms/hip/ArrayManip.cpp
+                    algorithms/hip/BatchManip.cpp
+                    algorithms/hip/Reduction.cpp
+                    algorithms/hip/Debugging.cpp)
 
 set(CMAKE_HIP_CREATE_SHARED_LIBRARY "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HCC_PATH} <CMAKE_SHARED_LIBRARY_CXX_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS> -o <TARGET> <OBJECTS> <LINK_LIBRARIES>")
 

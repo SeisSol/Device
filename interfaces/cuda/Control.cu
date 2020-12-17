@@ -95,7 +95,7 @@ unsigned ConcreteAPI::getMaxSharedMemSize() {
 
 unsigned ConcreteAPI::getGlobMemAlignment() {
   // TODO: use cuDeviceGetAttribute
-  return 256;
+  return 128;
 }
 
 

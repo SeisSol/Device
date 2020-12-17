@@ -38,7 +38,7 @@ void* ConcreteAPI::allocPinnedMem(size_t Size) {
 void ConcreteAPI::freeMem(void *DevPtr) {
   assert((m_MemToSizeMap.find(DevPtr) != m_MemToSizeMap.end())
           && "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  m_Statistics.DeallocatedMemBytes += m_MemToSizeMap[DevPtr];
+  m_StatistWARPics.DeallocatedMemBytes += m_MemToSizeMap[DevPtr];
   cudaFree(DevPtr); CHECK_ERR;
 }
 
