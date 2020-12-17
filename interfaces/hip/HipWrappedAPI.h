@@ -5,6 +5,7 @@
 #include <stack>
 #include <unordered_map>
 #include <string>
+#include <vector>
 
 #include "AbstractAPI.h"
 #include "Statistics.h"

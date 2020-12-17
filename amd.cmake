@@ -23,33 +23,35 @@ endif()
 #Can set different FLAGS for the compilers via HCC_OPTIONS and NVCC_OPTIONS keywords; options for both via HIPCC_OPTIONS
 #Set the flags here, use them later
 #Only need NVCC at the time no AMD system to deploy to
-set(MY_HIPCC)
-set(MY_HCC)
-if (${HIP_PLATFORM} STREQUAL "nvcc")
-    set(MY_NVCC -arch=${COMPUTE_SUB_ARCH}; -dc;)
+set(DEVICE_HIPCC)
+set(DEVICE_HCC)
+if ($ENV{HIP_PLATFORM} STREQUAL "nvcc")
+    set(DEVICE_NVCC -arch=${DEVICE_SUB_ARCH}; -dc; --expt-relaxed-constexpr)
 endif()
 
-set(MY_SOURCE_FILES device.cpp
-                    interfaces/hip/Aux.cpp
-                    interfaces/hip/Control.cpp
-                    interfaces/hip/Copy.cpp
-                    interfaces/hip/Internals.cpp
-                    interfaces/hip/Memory.cpp
-                    interfaces/hip/Streams.cpp
-                    algorithms/hip/ArrayManip.cpp
-                    algorithms/hip/BatchManip.cpp
-                    algorithms/hip/Reduction.cpp
-                    algorithms/hip/Debugging.cpp)
+set(DEVICE_SOURCE_FILES device.cpp
+                        interfaces/hip/Aux.cpp
+                        interfaces/hip/Control.cpp
+                        interfaces/hip/Copy.cpp
+                        interfaces/hip/Internals.cpp
+                        interfaces/hip/Memory.cpp
+                        interfaces/hip/Streams.cpp
+                        algorithms/hip/ArrayManip.cpp
+                        algorithms/hip/BatchManip.cpp
+                        algorithms/hip/Debugging.cpp
+                        algorithms/generic/Reduction.cpp)
 
 set(CMAKE_HIP_CREATE_SHARED_LIBRARY "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HCC_PATH} <CMAKE_SHARED_LIBRARY_CXX_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS> -o <TARGET> <OBJECTS> <LINK_LIBRARIES>")
 
 
-set_source_files_properties(${MY_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+set_source_files_properties(${DEVICE_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+hip_add_library(device SHARED ${DEVICE_SOURCE_FILES}
+                       HIPCC_OPTIONS ${DEVICE_HIPCC}
+                       HCC_OPTIONS ${DEVICE_HCC}
+                       NVCC_OPTIONS ${DEVICE_NVCC})
 
-hip_add_library(device SHARED ${MY_SOURCE_FILES} HIPCC_OPTIONS ${MY_HIPCC} HCC_OPTIONS ${MY_HCC} NVCC_OPTIONS ${MY_NVCC})
 
-
-if (${HIP_PLATFORM} STREQUAL "nvcc")
+if ($ENV{HIP_PLATFORM} STREQUAL "nvcc")
     set_target_properties(device PROPERTIES LINKER_LANGUAGE HIP)
 else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)

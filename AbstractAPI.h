@@ -19,6 +19,7 @@ namespace device {
                                          Magenta = 0xFF00FF,
                                          Count = 8};
   struct AbstractAPI {
+    virtual ~AbstractAPI() = default;
 
     virtual void setDevice(int DeviceId) = 0;
     virtual int getNumDevices() = 0;

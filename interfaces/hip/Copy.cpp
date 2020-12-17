@@ -46,16 +46,17 @@ void ConcreteAPI::copy2dArrayFrom(void *Dst,
 
 
 void ConcreteAPI::prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, void* streamPtr) {
+  hipStream_t stream = (streamPtr == nullptr) ? 0 : (static_cast<hipStream_t>(streamPtr));
 #ifndef NDEBUG
-  auto itr = std::find(m_circularStreamBuffer.begin(), m_circularStreamBuffer.end(), stream);
+  auto itr = std::find(m_circularStreamBuffer.begin(), m_circularStreamBuffer.end(), streamPtr);
   if (itr == m_circularStreamBuffer.end()) {
     logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
   }
 #endif
   //cudaMemPrefetchAsync - Not supported by HIP
   if(Type == Destination::CurrentDevice){
-    hipMemcpyAsync((void*) DevPtr, DevPtr, Count, hipMemcpyHostToDevice, Stream);
+    hipMemcpyAsync((void*) DevPtr, DevPtr, Count, hipMemcpyHostToDevice, stream);
   }else{
-    hipMemcpyAsync((void*) DevPtr, DevPtr, Count, hipMemcpyDeviceToHost, Stream);
+    hipMemcpyAsync((void*) DevPtr, DevPtr, Count, hipMemcpyDeviceToHost, stream);
   }
 }

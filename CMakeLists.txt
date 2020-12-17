@@ -45,10 +45,9 @@ if (${DEVICE_BACKEND} STREQUAL "CUDA")
     include(nvidia.cmake)
 elseif(${DEVICE_BACKEND} STREQUAL "HIP")
     include(amd.cmake)
-                        --expt-relaxed-constexpr;
 endif()
 
-target_compile_definitions(device PRIVATE ${DEVICE_BACKEND} REAL_SIZE=${REAL_SIZE_IN_BYTES})
+target_compile_definitions(device PRIVATE DEVICE_${DEVICE_BACKEND}_LANG REAL_SIZE=${REAL_SIZE_IN_BYTES})
 target_include_directories(device PRIVATE .
                                           interfaces/${BACKEND_FOLDER}
                                           algorithms/${BACKEND_FOLDER}

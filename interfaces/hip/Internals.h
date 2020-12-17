@@ -1,6 +1,7 @@
 #ifndef DEVICE_INTERNALS_H
 #define DEVICE_INTERNALS_H
 
+#include "hip/hip_runtime.h"
 #include <string>
 
 #define CHECK_ERR device::internals::checkErr(__FILE__,__LINE__)
@@ -22,7 +23,7 @@ namespace device {
       return dim3(NumItems, 1, 1);
     }
 
-    constexpr int WAVEFRONT_SIZE = 64;
+    constexpr int WARP_SIZE = 64;
   }
 }
 

@@ -1,5 +1,5 @@
 #include "AbstractAPI.h"
-#include "../../interfaces/hip/Internals.h"
+#include "interfaces/hip/Internals.h"
 #include <device.h>
 #include <cassert>
 
@@ -39,7 +39,6 @@ namespace device {
     dim3 grid = internals::computeGrid1D(block,  numElements);
     hipLaunchKernelGGL(kernel_scaleArray, grid, block, 0, 0,
                        devArray, scalar, numElements); CHECK_ERR;
-    //kernel_scaleArray<<<grid, block>>>(devArray, scalar, numElements); CHECK_ERR;
   }
   template void Algorithms::fillArray(real *devArray, real scalar, const size_t numElements);
   template void Algorithms::fillArray(int *devArray, int scalar, const size_t numElements);

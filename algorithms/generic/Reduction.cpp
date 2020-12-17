@@ -1,9 +1,9 @@
 #include "AbstractAPI.h"
-#include "../../interfaces/cuda/Internals.h"
-#include "DeviceMacros.h"
 #include "Reduction.h"
+#include "DeviceMacros.h"
 #include <device.h>
 #include <cassert>
+#include <limits>
 
 namespace device {
   inline size_t getNearestPow2Number(size_t number) {
@@ -23,12 +23,22 @@ namespace device {
   };
 
   template<typename T>
-  struct Subtract {
+  struct Max {
     __device__ T getDefaultValue() {
-      return static_cast<T>(0);
+      return std::numeric_limits<T>::min();
     }
     __device__ T operator()(T op1, T op2) {
-      return op1 - op2;
+      return op1 > op2 ? op1 : op2;
+    }
+  };
+
+  template<typename T>
+  struct Min {
+    __device__ T getDefaultValue() {
+      return std::numeric_limits<T>::max();
+    }
+    __device__ T operator()(T op1, T op2) {
+      return op1 > op2 ? op2 : op1;
     }
   };
 
@@ -55,11 +65,15 @@ T Algorithms::reduceVector(T* buffer, size_t size, const ReductionType type) {
   for (size_t reducedSize = adjustedSize; reducedSize > 0; reducedSize /= internals::WARP_SIZE) {
     switch(type) {
       case ReductionType::Add: {
-        DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, 0, buffer0, reducedSize, device::Sum<T>());
+        DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, 0, buffer1, buffer0, reducedSize, device::Sum<T>());
         break;
       }
-      case ReductionType::Subtract: {
-        DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, 0, buffer0, reducedSize, device::Subtract<T>());
+      case ReductionType::Max: {
+        DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, 0, buffer1, buffer0, reducedSize, device::Max<T>());
+        break;
+      }
+      case ReductionType::Min: {
+        DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, 0, buffer1, buffer0, reducedSize, device::Min<T>());
         break;
       }
       default : {

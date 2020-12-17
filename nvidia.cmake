@@ -14,21 +14,22 @@ set_source_files_properties(device.cpp
 set(CUDA_NVCC_FLAGS -std=c++14;
         -arch=${DEVICE_SUB_ARCH};
         -Xptxas -v;
-        -D${DEVICE_BACKEND};
+        -DDEVICE_${DEVICE_BACKEND}_LANG;
         -DREAL_SIZE=${REAL_SIZE_IN_BYTES};
+        --expt-relaxed-constexpr;
         ${EXTRA_FLAGS})
 
 cuda_add_library(device device.cpp
-        interfaces/cuda/Control.cu
-        interfaces/cuda/Aux.cu
-        interfaces/cuda/Memory.cu
-        interfaces/cuda/Copy.cu
-        interfaces/cuda/Streams.cu
-        interfaces/cuda/Internals.cu
-        algorithms/cuda/ArrayManip.cu
-        algorithms/cuda/BatchManip.cu
-        algorithms/cuda/Debugging.cu
-        algorithms/generic/Reduction.cu)
+                        interfaces/cuda/Control.cu
+                        interfaces/cuda/Aux.cu
+                        interfaces/cuda/Memory.cu
+                        interfaces/cuda/Copy.cu
+                        interfaces/cuda/Streams.cu
+                        interfaces/cuda/Internals.cu
+                        algorithms/cuda/ArrayManip.cu
+                        algorithms/cuda/BatchManip.cu
+                        algorithms/cuda/Debugging.cu
+                        algorithms/generic/Reduction.cpp)
 
 
 target_link_directories(device PUBLIC ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs)

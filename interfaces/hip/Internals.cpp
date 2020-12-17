@@ -1,4 +1,5 @@
 #include "utils/logger.h"
+#include "Internals.h"
 #include <sstream>
 
 namespace device {

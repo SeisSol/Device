@@ -1,4 +1,4 @@
-#include "CudaWrappedAPI.h"
+#include "HipWrappedAPI.h"
 #include "Internals.h"
 
 namespace device {

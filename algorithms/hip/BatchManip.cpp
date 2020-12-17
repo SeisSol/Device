@@ -1,5 +1,5 @@
 #include "AbstractAPI.h"
-#include "../../interfaces/hip/Internals.h"
+#include "interfaces/hip/Internals.h"
 #include <device.h>
 #include <cassert>
 
@@ -19,7 +19,7 @@ namespace device {
                                      real **baseDstPtr,
                                      unsigned elementSize,
                                      unsigned numElements) {
-    dim3 block(internals::WAVEFRONT_SIZE, 1, 1);
+    dim3 block(internals::WARP_SIZE, 1, 1);
     dim3 grid(numElements, 1, 1);
     hipLaunchKernelGGL(kernel_streamBatchedData, grid, block, 0, 0,
                        baseSrcPtr, baseDstPtr, elementSize); CHECK_ERR;

@@ -45,7 +45,7 @@ void ConcreteAPI::copy2dArrayFrom(void *Dst,
 
 
 void ConcreteAPI::prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, void* streamPtr) {
-  cudaStream_t stream = (streamPtr == nullptr) ? 0 : *(static_cast<cudaStream_t*>(streamPtr));
+  cudaStream_t stream = (streamPtr == nullptr) ? 0 : (static_cast<cudaStream_t>(streamPtr));
 #ifndef NDEBUG
   auto itr = std::find(m_circularStreamBuffer.begin(), m_circularStreamBuffer.end(), stream);
   if (itr == m_circularStreamBuffer.end()) {

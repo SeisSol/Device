@@ -1,5 +1,5 @@
 #include "AbstractAPI.h"
-#include "../../interfaces/cuda/Internals.h"
+#include "interfaces/cuda/Internals.h"
 #include <device.h>
 #include "utils/logger.h"
 #include <cassert>

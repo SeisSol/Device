@@ -1,9 +1,9 @@
 #include "device.h"
 
-#ifdef CUDA
+#ifdef DEVICE_CUDA_LANG
 #include "CudaWrappedAPI.h"
-#elif DUMMY
-#include "DummyInterface.h"
+#elif DEVICE_HIP_LANG
+#include "HipWrappedAPI.h"
 #else
 #error "Unknown interface for the device wrapper"
 #endif
