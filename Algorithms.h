@@ -4,7 +4,7 @@
 #include "AbstractAPI.h"
 
 namespace device {
-  enum class ReductionType{Add, Subtract};
+  enum class ReductionType{Add, Max, Min};
   class DeviceInstance;
 
   class Algorithms {

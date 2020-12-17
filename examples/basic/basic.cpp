@@ -1,7 +1,6 @@
 #include "device.h"
 #include "DataTypes.h"
 #include <iostream>
-
 #include <stdlib.h>
 
 using namespace device;
