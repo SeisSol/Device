@@ -2,7 +2,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
-#include <cuda.h>
+#include "hip/hip_runtime.h"
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"

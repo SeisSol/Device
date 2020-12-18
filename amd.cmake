@@ -27,7 +27,7 @@ endif()
 #Only need NVCC at the time no AMD system to deploy to
 set(DEVICE_HIPCC)
 set(DEVICE_HCC)
-if ($ENV{HIP_PLATFORM} STREQUAL "nvcc")
+if (DEFINED $ENV{HIP_PLATFORM} AND $ENV{HIP_PLATFORM} STREQUAL "nvcc")
     set(DEVICE_NVCC -arch=${DEVICE_SUB_ARCH}; -dc; --expt-relaxed-constexpr)
 endif()
 
@@ -52,9 +52,12 @@ hip_add_library(device SHARED ${DEVICE_SOURCE_FILES}
                        HCC_OPTIONS ${DEVICE_HCC}
                        NVCC_OPTIONS ${DEVICE_NVCC})
 
-
-if ($ENV{HIP_PLATFORM} STREQUAL "nvcc")
-    set_target_properties(device PROPERTIES LINKER_LANGUAGE HIP)
+if (DEFINED $ENV{HIP_PLATFORM})
+    if ($ENV{HIP_PLATFORM} STREQUAL "nvcc")
+        set_target_properties(device PROPERTIES LINKER_LANGUAGE HIP)
+    else()
+        target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
+    endif()
 else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
 endif()
