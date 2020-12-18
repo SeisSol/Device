@@ -1,5 +1,5 @@
-#ifndef SEISSOL_ALGORITHMS_HPP
-#define SEISSOL_ALGORITHMS_HPP
+#ifndef DEVICE_ALGORITHMS_HPP
+#define DEVICE_ALGORITHMS_HPP
 
 #include "AbstractAPI.h"
 
@@ -12,9 +12,9 @@ public:
   friend DeviceInstance;
   template <typename T> T reduceVector(T *buffer, size_t size, ReductionType type);
 
-  template <typename T> void scaleArray(T *DevArray, T scalar, size_t numElements);
+  template <typename T> void scaleArray(T *devArray, T scalar, size_t numElements);
 
-  template <typename T> void fillArray(T *DevArray, T scalar, size_t numElements);
+  template <typename T> void fillArray(T *devArray, T scalar, size_t numElements);
 
   void touchMemory(real *ptr, size_t size, bool clean);
   void touchBatchedMemory(real **basePtr, unsigned elementSize, unsigned numElements, bool clean);
@@ -33,4 +33,4 @@ private:
 };
 } // namespace device
 
-#endif // SEISSOL_ALGORITHMS_HPP
+#endif // DEVICE_ALGORITHMS_HPP

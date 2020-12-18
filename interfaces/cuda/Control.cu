@@ -66,7 +66,7 @@ void ConcreteAPI::finalize() {
     CHECK_ERR;
   }
   m_circularStreamBuffer.clear();
-  m_hasFinalized = true;
+  m_isFinalized = true;
 };
 
 void ConcreteAPI::setDevice(int DeviceId) {

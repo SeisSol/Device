@@ -58,7 +58,7 @@ void ConcreteAPI::finalize() {
     hipStreamDestroy(stream); CHECK_ERR;
   }
   m_circularStreamBuffer.clear();
-  m_hasFinalized = true;
+  m_isFinalized = true;
 };
 
 

@@ -68,10 +68,10 @@ struct AbstractAPI {
   virtual void putProfilingMark(const std::string &name, ProfilingColors color) = 0;
   virtual void popLastProfilingMark() = 0;
 
-  bool hasFinalized() { return m_hasFinalized; }
+  bool hasFinalized() { return m_isFinalized; }
 
 protected:
-  bool m_hasFinalized = false;
+  bool m_isFinalized = false;
 };
 } // namespace device
 

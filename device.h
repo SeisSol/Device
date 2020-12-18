@@ -24,5 +24,5 @@ namespace device {
   private:
     DeviceInstance();
   };
-}
+} // namespace device
 #endif  //SEISSOL_DEVICE_H

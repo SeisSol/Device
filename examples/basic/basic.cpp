@@ -6,16 +6,16 @@
 using namespace device;
 
 int main(int argc, char *argv[]) {
-  const size_t SIZE = 1024;
-  real *inputArray = new real[SIZE];
-  real *outputArray = new real[SIZE];
+  const size_t size = 1024;
+  real *inputArray = new real[size];
+  real *outputArray = new real[size];
 
   DeviceInstance &device = DeviceInstance::getInstance();
 
   // set up the first device
-  const int NUM_DEVICES = device.api->getNumDevices();
-  std::cout << "Num. devices available: " << NUM_DEVICES << '\n';
-  if (NUM_DEVICES > 0) {
+  const int numDevices = device.api->getNumDevices();
+  std::cout << "Num. devices available: " << numDevices << '\n';
+  if (numDevices > 0) {
     device.api->setDevice(0);
   }
 
@@ -24,18 +24,18 @@ int main(int argc, char *argv[]) {
   std::cout << deviceInfo << std::endl;
 
   // allocate mem. on a device
-  real *dInputArray = static_cast<real *>(device.api->allocGlobMem(sizeof(real) * SIZE));
-  real *dOutputArray = static_cast<real *>(device.api->allocGlobMem(sizeof(real) * SIZE));
+  real *dInputArray = static_cast<real *>(device.api->allocGlobMem(sizeof(real) * size));
+  real *dOutputArray = static_cast<real *>(device.api->allocGlobMem(sizeof(real) * size));
 
   // copy data into a device
-  device.api->copyTo(dInputArray, inputArray, sizeof(real) * SIZE);
+  device.api->copyTo(dInputArray, inputArray, sizeof(real) * size);
 
   // call a kernel
   device.api->checkOffloading();
   device.api->synchDevice();
 
   // copy data from a device
-  device.api->copyFrom(outputArray, dOutputArray, sizeof(real) * SIZE);
+  device.api->copyFrom(outputArray, dOutputArray, sizeof(real) * size);
 
   // deallocate mem. on a device
   device.api->freeMem(dInputArray);
