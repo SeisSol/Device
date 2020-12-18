@@ -3,6 +3,7 @@
 
 #include "datatypes.hpp"
 #include <cstring>
+#include <device.h>
 #include <iostream>
 #include <limits>
 
@@ -68,18 +69,27 @@ public:
     recvCounts[ws.rank] = range.end - range.start;
     displs[ws.rank] = range.start;
 #ifdef USE_MPI
-    MPI_Allgather(&recvCounts[ws.rank], 1, MPI_INT, recvCounts.data(), 1, MPI_INT, ws.comm);
-    MPI_Allgather(&displs[ws.rank], 1, MPI_INT, displs.data(), 1, MPI_INT, ws.comm);
+    auto localRecvCount = recvCounts[ws.rank];
+    MPI_Allgather(&localRecvCount, 1, MPI_INT, recvCounts.data(), 1, MPI_INT, ws.comm);
+
+    auto localDispls = displs[ws.rank];
+    MPI_Allgather(&localDispls, 1, MPI_INT, displs.data(), 1, MPI_INT, ws.comm);
 #endif
   }
 
-  void assemble(real *src, real *dest) {
+  template <SystemType Type = SystemType::OnHost> void assemble(real *src, real *dest) {
+    assert(src != dest && "src and dest buffer cannot be the same");
 #ifdef USE_MPI
     MPI_Allgatherv(&src[displs[ws.rank]], recvCounts[ws.rank], MPI_CUSTOM_REAL, (void *)dest, recvCounts.data(),
                    displs.data(), MPI_CUSTOM_REAL, ws.comm);
 #else
-    if (src != dest) {
-      std::memcpy(reinterpret_cast<char*>(dest), reinterpret_cast<char*>(src), recvCounts[0] * sizeof(real));
+    if constexpr (Type == SystemType::OnHost) {
+      if (src != dest) {
+        std::memcpy(reinterpret_cast<char *>(dest), reinterpret_cast<char *>(src), recvCounts[0] * sizeof(real));
+      }
+    } else {
+      device::DeviceInstance &device = device::DeviceInstance::getInstance();
+      device.api->copyBetween(dest, src, recvCounts[0] * sizeof(real));
     }
 #endif
   }

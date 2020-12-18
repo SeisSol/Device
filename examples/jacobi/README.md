@@ -64,12 +64,3 @@ Do not use more than 3 MPI processes for testing. You can run tests as following
 ```console
 mpirun -n 3 ./tests
 ``` 
-
-## Minimal MPI Settings
-#### OpenMPI
-```console
-# for CPU:
-export OMPI_MCA_btl=vader,self
-
-# for GPU: make sure you have OpenMPI cinfigured with UCX
-``` 

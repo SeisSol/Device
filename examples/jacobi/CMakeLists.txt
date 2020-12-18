@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 project(jsolver)
+set(CMAKE_CXX_STANDARD 17)
 
 option(WITH_TIDY "turn on clang-tidy" OFF)
 

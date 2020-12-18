@@ -30,6 +30,7 @@ private:
   std::unique_ptr<GpuMatrixDataT> devLU{};
   real *devRhs{};
   real *devX{};
+  real *devTempX{};
   real *devTemp{};
   real *devDiag{};
   real *devInvDiag{};

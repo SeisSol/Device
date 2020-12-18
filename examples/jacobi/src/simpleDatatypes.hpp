@@ -15,4 +15,9 @@ struct RangeT {
   int end{};
 };
 
+enum SystemType{
+  OnHost,
+  OnDevice,
+};
+
 #endif // JSOLVER_SIMPLE_DATATYPES_HPP

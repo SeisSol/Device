@@ -8,7 +8,7 @@
 #include <iostream>
 #include <limits>
 
-void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix, const VectorT &rhs, VectorT &x) {
+void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix, const VectorT &inputRhs, VectorT &x) {
 
   std::cout << "Computation of X^k using the CPU" << std::endl;
 
@@ -23,7 +23,8 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
   unsigned currentIter{0};
 
   // assume that RHS is distributed. Thus, let's assemble it
-  assembler.assemble(const_cast<real*>(rhs.data()), const_cast<real*>(rhs.data()));
+  VectorT rhs(inputRhs.size(), 0.0);
+  assembler.assemble(const_cast<real*>(inputRhs.data()), const_cast<real*>(rhs.data()));
 
   // compute diag and LU matrices
   VectorT invDiag;
@@ -36,6 +37,7 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
     return 1.0 / diag;
   });
 
+  VectorT tempX(x.size(), 0.0);
   // start solver
   while ((infNorm > settings.eps) and (currentIter <= settings.maxNumIters)) {
 
@@ -44,15 +46,18 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
     manipVectors(range, rhs, temp, x, std::minus<real>());
     manipVectors(range, invDiag, x, x, std::multiplies<real>());
 
-    assembler.assemble(const_cast<real*>(x.data()), const_cast<real*>(x.data()));
+    assembler.assemble(const_cast<real*>(x.data()), const_cast<real*>(tempX.data()));
+    x.swap(tempX);
     // Compute residual and print output
     if ((currentIter % settings.printInfoNumIters) == 0) {
 
       multMatVec(matrix, x, temp);
       manipVectors(range, rhs, temp, residual, std::minus<real>());
-      infNorm = getInfNorm(range, residual);
+      auto localInfNorm = getInfNorm(range, residual);
 #ifdef USE_MPI
-      MPI_Allreduce(&infNorm, &infNorm, 1, MPI_CUSTOM_REAL, MPI_MAX, ws.comm);
+      MPI_Allreduce(&localInfNorm, &infNorm, 1, MPI_CUSTOM_REAL, MPI_MAX, ws.comm);
+#else
+      infNorm = localInfNorm;
 #endif
       std::stringstream stream;
       stream << "Current iter: " << currentIter << "; Residual: " << infNorm;

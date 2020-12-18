@@ -12,7 +12,7 @@
 #include <device.h>
 using namespace device;
 
-void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &matrix, const VectorT &rhs, VectorT &x) {
+void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &matrix, const VectorT &inputRhs, VectorT &x) {
 
   std::cout << "Computation of X^k using the GPU" << std::endl;
 
@@ -27,7 +27,8 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
   unsigned currentIter{0};
 
   // assume that RHS is distributed. Thus, let's assemble it
-  assembler.assemble(const_cast<real*>(rhs.data()), const_cast<real*>(rhs.data()));
+  VectorT rhs(inputRhs.size(), 0.0);
+  assembler.assemble(const_cast<real*>(inputRhs.data()), const_cast<real*>(rhs.data()));
 
   // compute diag and LU matrices
   VectorT invDiag;
@@ -47,7 +48,8 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
     launch_manipVectors(range, devInvDiag, devX, devX, VectorManipOps::Multiply);
 
     device.api->synchDevice();
-    assembler.assemble(devX, devX);
+    assembler.assemble<SystemType::OnDevice>(devX, devTempX);
+    std::swap(devX, devTempX);
 
     // Compute residual and print output
     if ((currentIter % settings.printInfoNumIters) == 0) {
@@ -58,9 +60,11 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
       launch_manipVectors(range, devRhs, devResidual, devResidual, VectorManipOps::Subtraction);
       device.api->copyFrom(const_cast<real *>(residual.data()), devResidual, residual.size() * sizeof(real));
 
-      infNorm = host::getInfNorm(range, residual);
+      auto localInfNorm = infNorm = host::getInfNorm(range, residual);
 #ifdef USE_MPI
-      MPI_Allreduce(&infNorm, &infNorm, 1, MPI_CUSTOM_REAL, MPI_MAX, ws.comm);
+      MPI_Allreduce(&localInfNorm, &infNorm, 1, MPI_CUSTOM_REAL, MPI_MAX, ws.comm);
+#else
+      infNorm = localInfNorm;
 #endif
       std::stringstream stream;
       stream << "Current iter: " << currentIter << "; Residual: " << infNorm;
@@ -70,8 +74,8 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
   }
 
   device.api->synchDevice();
-  assembler.assemble(devX, devX);
-  device.api->copyFrom(const_cast<real *>(x.data()), devX, x.size() * sizeof(real));
+  assembler.assemble<SystemType::OnDevice>(devX, devTempX);
+  device.api->copyFrom(const_cast<real *>(x.data()), devTempX, x.size() * sizeof(real));
 
   this->tearDown();
 }
@@ -85,6 +89,9 @@ void gpu::Solver::setUp(const CpuMatrixDataT &lu, const VectorT &rhs, const Vect
 
   devX = static_cast<real *>(device.api->allocGlobMem(x.size() * sizeof(real)));
   device.api->copyTo(devX, x.data(), x.size() * sizeof(real));
+
+  devTempX = static_cast<real *>(device.api->allocGlobMem(x.size() * sizeof(real)));
+  device.api->copyTo(devTempX, x.data(), x.size() * sizeof(real));
 
   devTemp = static_cast<real *>(device.api->allocGlobMem(x.size() * sizeof(real)));
 
@@ -120,6 +127,7 @@ void gpu::Solver::tearDown() {
   device.api->freeMem(devDiag);
   device.api->freeMem(devTemp);
   device.api->freeMem(devX);
+  device.api->freeMem(devTempX);
   device.api->freeMem(devRhs);
 
   device.api->freeMem(devLU->data);
