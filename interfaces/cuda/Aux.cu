@@ -2,14 +2,11 @@
 #include "Internals.h"
 
 namespace device {
-  __global__ void kernel_checkOffloading() {
-    printf("gpu offloading is working\n");
-  }
+__global__ void kernel_checkOffloading() { printf("gpu offloading is working\n"); }
 
-
-  void ConcreteAPI::checkOffloading() {
-    kernel_checkOffloading<<<1, 1>>>();
-    CHECK_ERR;
-    cudaDeviceSynchronize();
-  }
+void ConcreteAPI::checkOffloading() {
+  kernel_checkOffloading<<<1, 1>>>();
+  CHECK_ERR;
+  cudaDeviceSynchronize();
+}
 } // namespace device

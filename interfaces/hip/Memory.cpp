@@ -8,81 +8,81 @@
 
 using namespace device;
 
-void* ConcreteAPI::allocGlobMem(size_t Size) {
-  void *DevPtr;
-  hipMalloc(&DevPtr, Size); CHECK_ERR;
-  m_Statistics.AllocatedMemBytes += Size;
-  m_MemToSizeMap[DevPtr] = Size;
-  return DevPtr;
+void* ConcreteAPI::allocGlobMem(size_t size) {
+  void *devPtr;
+  hipMalloc(&devPtr, size); CHECK_ERR;
+  m_statistics.allocatedMemBytes += size;
+  m_memToSizeMap[devPtr] = size;
+  return devPtr;
 }
 
 
-void* ConcreteAPI::allocUnifiedMem(size_t Size) {
-  void *DevPtr;
-  hipMallocManaged(&DevPtr, Size, hipMemAttachGlobal); CHECK_ERR;
-  m_Statistics.AllocatedMemBytes += Size;
-  m_Statistics.AllocatedUnifiedMemBytes += Size;
-  m_MemToSizeMap[DevPtr] = Size;
-  return DevPtr;
+void* ConcreteAPI::allocUnifiedMem(size_t size) {
+  void *devPtr;
+  hipMallocManaged(&devPtr, size, hipMemAttachGlobal); CHECK_ERR;
+  m_statistics.allocatedMemBytes += size;
+  m_statistics.allocatedUnifiedMemBytes += size;
+  m_memToSizeMap[devPtr] = size;
+  return devPtr;
 }
 
 
-void* ConcreteAPI::allocPinnedMem(size_t Size) {
-  void *DevPtr;
-  hipHostMalloc(&DevPtr, Size); CHECK_ERR;
-  m_Statistics.AllocatedMemBytes += Size;
-  m_MemToSizeMap[DevPtr] = Size;
-  return DevPtr;
+void* ConcreteAPI::allocPinnedMem(size_t size) {
+  void *devPtr;
+  hipHostMalloc(&devPtr, size); CHECK_ERR;
+  m_statistics.allocatedMemBytes += size;
+  m_memToSizeMap[devPtr] = size;
+  return devPtr;
 }
 
 
-void ConcreteAPI::freeMem(void *DevPtr) {
-  assert((m_MemToSizeMap.find(DevPtr) != m_MemToSizeMap.end())
+void ConcreteAPI::freeMem(void *devPtr) {
+  assert((m_memToSizeMap.find(devPtr) != m_memToSizeMap.end())
          && "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  m_Statistics.DeallocatedMemBytes += m_MemToSizeMap[DevPtr];
-  hipFree(DevPtr); CHECK_ERR;
+  m_statistics.deallocatedMemBytes += m_memToSizeMap[devPtr];
+  hipFree(devPtr); CHECK_ERR;
 }
 
 
-void ConcreteAPI::freePinnedMem(void *DevPtr) {
-  assert((m_MemToSizeMap.find(DevPtr) != m_MemToSizeMap.end())
+void ConcreteAPI::freePinnedMem(void *devPtr) {
+  assert((m_memToSizeMap.find(devPtr) != m_memToSizeMap.end())
          && "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  m_Statistics.DeallocatedMemBytes += m_MemToSizeMap[DevPtr];
-  hipHostFree(DevPtr); CHECK_ERR;
+  m_statistics.deallocatedMemBytes += m_memToSizeMap[devPtr];
+  hipHostFree(devPtr); CHECK_ERR;
 }
 
 
-char* ConcreteAPI::getStackMemory(size_t RequestedBytes) {
-  assert(((m_StackMemByteCounter + RequestedBytes) < m_MaxStackMem) && "DEVICE:: run out of a device stack memory");
-  char *Mem = &m_StackMemory[m_StackMemByteCounter];
-  m_StackMemByteCounter += RequestedBytes;
-  m_StackMemMeter.push(RequestedBytes);
-  return Mem;
+char* ConcreteAPI::getStackMemory(size_t requestedBytes) {
+  assert(((m_stackMemByteCounter + requestedBytes) < m_maxStackMem) && "DEVICE:: run out of a device stack memory");
+  char *mem = &m_stackMemory[m_stackMemByteCounter];
+  m_stackMemByteCounter += requestedBytes;
+  m_stackMemMeter.push(requestedBytes);
+  return mem;
 }
 
 
 void ConcreteAPI::popStackMemory() {
-  m_StackMemByteCounter -= m_StackMemMeter.top();
-  m_StackMemMeter.pop();
+  m_stackMemByteCounter -= m_stackMemMeter.top();
+  m_stackMemMeter.pop();
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {
-  std::ostringstream Report{};
-  Report << "Memory Leaks, bytes: " << (m_Statistics.AllocatedMemBytes - m_Statistics.DeallocatedMemBytes) << '\n';
-  Report << "Stack Memory Leaks, bytes: " << m_StackMemByteCounter << '\n';
-  return Report.str();
+  std::ostringstream report{};
+  report << "Memory Leaks, bytes: " << (m_statistics.allocatedMemBytes - m_statistics.deallocatedMemBytes) << '\n';
+  report << "Stack Memory Leaks, bytes: " << m_stackMemByteCounter << '\n';
+  return report.str();
 }
 
 size_t ConcreteAPI::getMaxAvailableMem() {
-  hipDeviceProp_t Property;
-  hipGetDeviceProperties(&Property, m_CurrentDeviceId); CHECK_ERR;
-  return Property.totalGlobalMem;
+  hipDeviceProp_t property;
+  hipGetDeviceProperties(&property, m_currentDeviceId); CHECK_ERR;
+  return property.totalGlobalMem;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
-  return m_Statistics.AllocatedMemBytes;
+  return m_statistics.allocatedMemBytes;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
-  return m_Statistics.AllocatedUnifiedMemBytes;
+  return m_statistics.allocatedUnifiedMemBytes;
 }

@@ -6,46 +6,46 @@
 
 using namespace device;
 
-void ConcreteAPI::copyTo(void* Dst, const void* Src, size_t Count) {
-  hipMemcpy(Dst, Src, Count, hipMemcpyHostToDevice); CHECK_ERR;
-  m_Statistics.ExplicitlyTransferredDataToDeviceBytes += Count;
+void ConcreteAPI::copyTo(void* dst, const void* src, size_t count) {
+  hipMemcpy(dst, src, count, hipMemcpyHostToDevice); CHECK_ERR;
+  m_statistics.explicitlyTransferredDataToDeviceBytes += count;
 }
 
 
-void ConcreteAPI::copyFrom(void* Dst, const void* Src, size_t Count) {
-  hipMemcpy(Dst, Src, Count, hipMemcpyDeviceToHost); CHECK_ERR;
-  m_Statistics.ExplicitlyTransferredDataToHostBytes += Count;
+void ConcreteAPI::copyFrom(void* dst, const void* src, size_t count) {
+  hipMemcpy(dst, src, count, hipMemcpyDeviceToHost); CHECK_ERR;
+  m_statistics.explicitlyTransferredDataToHostBytes += count;
 }
 
 
-void ConcreteAPI::copyBetween(void* Dst, const void* Src, size_t Count) {
-  hipMemcpy(Dst, Src, Count, hipMemcpyDeviceToDevice); CHECK_ERR;
+void ConcreteAPI::copyBetween(void* dst, const void* src, size_t count) {
+  hipMemcpy(dst, src, count, hipMemcpyDeviceToDevice); CHECK_ERR;
 }
 
 
-void ConcreteAPI::copy2dArrayTo(void *Dst,
-                                size_t Dpitch,
-                                const void *Src,
-                                size_t Spitch,
-                                size_t Width,
-                                size_t Height) {
-  hipMemcpy2D(Dst, Dpitch, Src, Spitch, Width, Height, hipMemcpyHostToDevice); CHECK_ERR;
-  m_Statistics.ExplicitlyTransferredDataToDeviceBytes += Width * Height;
+void ConcreteAPI::copy2dArrayTo(void *dst,
+                                size_t dpitch,
+                                const void *src,
+                                size_t spitch,
+                                size_t width,
+                                size_t height) {
+  hipMemcpy2D(dst, dpitch, src, spitch, width, height, hipMemcpyHostToDevice); CHECK_ERR;
+  m_statistics.explicitlyTransferredDataToDeviceBytes += width * height;
 }
 
 
-void ConcreteAPI::copy2dArrayFrom(void *Dst,
-                                  size_t Dpitch,
-                                  const void *Src,
-                                  size_t Spitch,
-                                  size_t Width,
-                                  size_t Height) {
-  hipMemcpy2D(Dst, Dpitch, Src, Spitch, Width, Height, hipMemcpyDeviceToHost); CHECK_ERR;
-  m_Statistics.ExplicitlyTransferredDataToHostBytes += Width * Height;
+void ConcreteAPI::copy2dArrayFrom(void *dst,
+                                  size_t dpitch,
+                                  const void *src,
+                                  size_t spitch,
+                                  size_t width,
+                                  size_t height) {
+  hipMemcpy2D(dst, dpitch, src, spitch, width, height, hipMemcpyDeviceToHost); CHECK_ERR;
+  m_statistics.explicitlyTransferredDataToHostBytes += width * height;
 }
 
 
-void ConcreteAPI::prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, void* streamPtr) {
+void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void* devPtr, size_t count, void* streamPtr) {
   hipStream_t stream = (streamPtr == nullptr) ? 0 : (static_cast<hipStream_t>(streamPtr));
 #ifndef NDEBUG
   auto itr = std::find(m_circularStreamBuffer.begin(), m_circularStreamBuffer.end(), streamPtr);
@@ -54,9 +54,9 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination Type, const void* DevPtr, siz
   }
 #endif
   //cudaMemPrefetchAsync - Not supported by HIP
-  if(Type == Destination::CurrentDevice){
-    hipMemcpyAsync((void*) DevPtr, DevPtr, Count, hipMemcpyHostToDevice, stream);
+  if(type == Destination::CurrentDevice){
+    hipMemcpyAsync((void*) devPtr, devPtr, count, hipMemcpyHostToDevice, stream);
   }else{
-    hipMemcpyAsync((void*) DevPtr, DevPtr, Count, hipMemcpyDeviceToHost, stream);
+    hipMemcpyAsync((void*) devPtr, devPtr, count, hipMemcpyDeviceToHost, stream);
   }
 }

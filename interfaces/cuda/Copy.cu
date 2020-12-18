@@ -1,50 +1,43 @@
-#include "utils/logger.h"
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
+#include "utils/logger.h"
 #include <algorithm>
 
 using namespace device;
 
-void ConcreteAPI::copyTo(void* Dst, const void* Src, size_t Count) {
-  cudaMemcpy(Dst, Src, Count, cudaMemcpyHostToDevice); CHECK_ERR;
-  m_Statistics.ExplicitlyTransferredDataToDeviceBytes += Count;
+void ConcreteAPI::copyTo(void *dst, const void *src, size_t count) {
+  cudaMemcpy(dst, src, count, cudaMemcpyHostToDevice);
+  CHECK_ERR;
+  m_statistics.explicitlyTransferredDataToDeviceBytes += count;
 }
 
-
-void ConcreteAPI::copyFrom(void* Dst, const void* Src, size_t Count) {
-  cudaMemcpy(Dst, Src, Count, cudaMemcpyDeviceToHost); CHECK_ERR;
-  m_Statistics.ExplicitlyTransferredDataToHostBytes += Count;
+void ConcreteAPI::copyFrom(void *dst, const void *src, size_t count) {
+  cudaMemcpy(dst, src, count, cudaMemcpyDeviceToHost);
+  CHECK_ERR;
+  m_statistics.explicitlyTransferredDataToHostBytes += count;
 }
 
-
-void ConcreteAPI::copyBetween(void* Dst, const void* Src, size_t Count) {
-  cudaMemcpy(Dst, Src, Count, cudaMemcpyDeviceToDevice); CHECK_ERR;
+void ConcreteAPI::copyBetween(void *dst, const void *src, size_t count) {
+  cudaMemcpy(dst, src, count, cudaMemcpyDeviceToDevice);
+  CHECK_ERR;
 }
 
-
-void ConcreteAPI::copy2dArrayTo(void *Dst,
-                                size_t Dpitch,
-                                const void *Src,
-                                size_t Spitch,
-                                size_t Width,
-                                size_t Height) {
-  cudaMemcpy2D(Dst, Dpitch, Src, Spitch, Width, Height, cudaMemcpyHostToDevice); CHECK_ERR;
-  m_Statistics.ExplicitlyTransferredDataToDeviceBytes += Width * Height;
+void ConcreteAPI::copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch,
+                                size_t width, size_t height) {
+  cudaMemcpy2D(dst, dpitch, src, spitch, width, height, cudaMemcpyHostToDevice);
+  CHECK_ERR;
+  m_statistics.explicitlyTransferredDataToDeviceBytes += width * height;
 }
 
-
-void ConcreteAPI::copy2dArrayFrom(void *Dst,
-                                  size_t Dpitch,
-                                  const void *Src,
-                                  size_t Spitch,
-                                  size_t Width,
-                                  size_t Height) {
-  cudaMemcpy2D(Dst, Dpitch, Src, Spitch, Width, Height, cudaMemcpyDeviceToHost); CHECK_ERR;
-  m_Statistics.ExplicitlyTransferredDataToHostBytes += Width * Height;
+void ConcreteAPI::copy2dArrayFrom(void *dst, size_t dpitch, const void *src, size_t spitch,
+                                  size_t width, size_t height) {
+  cudaMemcpy2D(dst, dpitch, src, spitch, width, height, cudaMemcpyDeviceToHost);
+  CHECK_ERR;
+  m_statistics.explicitlyTransferredDataToHostBytes += width * height;
 }
 
-
-void ConcreteAPI::prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, void* streamPtr) {
+void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void *devPtr, size_t count,
+                                       void *streamPtr) {
   cudaStream_t stream = (streamPtr == nullptr) ? 0 : (static_cast<cudaStream_t>(streamPtr));
 #ifndef NDEBUG
   auto itr = std::find(m_circularStreamBuffer.begin(), m_circularStreamBuffer.end(), stream);
@@ -52,8 +45,9 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination Type, const void* DevPtr, siz
     logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
   }
 #endif
-  cudaMemPrefetchAsync(DevPtr,
-                       Count,
-                       Type == Destination::CurrentDevice ? m_CurrentDeviceId : cudaCpuDeviceId,
-                       stream); CHECK_ERR;
+  cudaMemPrefetchAsync(devPtr,
+                       count,
+                       type == Destination::CurrentDevice ? m_currentDeviceId : cudaCpuDeviceId,
+                       stream);
+  CHECK_ERR;
 }

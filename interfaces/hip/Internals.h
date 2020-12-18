@@ -8,19 +8,19 @@
 namespace device {
   namespace internals {
     void checkErr(const std::string &file, int line);
-    inline dim3 computeGrid1D(const dim3 &Block, const size_t Size) {
-      int NumBlocks = (Size + Block.x - 1) / Block.x;
-      return dim3(NumBlocks, 1, 1);
+    inline dim3 computeGrid1D(const dim3 &block, const size_t size) {
+      int numBlocks = (size + block.x - 1) / block.x;
+      return dim3(numBlocks, 1, 1);
     }
 
-    inline dim3 computeGrid1D(const int &LeadingDim, const size_t Size) {
-      int NumBlocks = (Size + LeadingDim - 1) / LeadingDim;
-      return dim3(NumBlocks, 1, 1);
+    inline dim3 computeGrid1D(const int &leadingDim, const size_t size) {
+      int numBlocks = (size + leadingDim - 1) / leadingDim;
+      return dim3(numBlocks, 1, 1);
     }
 
-    inline dim3 computeBlock1D(const int &LeadingDim, const size_t Size) {
-      int NumItems = ((Size + LeadingDim - 1) / LeadingDim) * LeadingDim;
-      return dim3(NumItems, 1, 1);
+    inline dim3 computeBlock1D(const int &leadingDim, const size_t size) {
+      int numItems = ((size + leadingDim - 1) / leadingDim) * leadingDim;
+      return dim3(numItems, 1, 1);
     }
 
     constexpr int WARP_SIZE = 64;

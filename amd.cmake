@@ -16,7 +16,9 @@ find_package(HIP QUIET)
 if(HIP_FOUND)
     message(STATUS "Found HIP: " ${HIP_VERSION})
 else()
-    message(FATAL_ERROR "Could not find HIP. Ensure that HIP is either installed in /opt/rocm/hip or the variable HIP_PATH is set to point to the right location.")
+    message(FATAL_ERROR "Could not find HIP. "
+            "Ensure that HIP is either installed in /opt/rocm/hip "
+            "or the variable HIP_PATH is set to point to the right location.")
 endif()
 
 

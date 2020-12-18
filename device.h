@@ -12,8 +12,8 @@ namespace device {
     DeviceInstance(const DeviceInstance&) = delete;
     DeviceInstance &operator=(const DeviceInstance&) = delete;
     static DeviceInstance& getInstance() {
-      static DeviceInstance Instance;
-      return Instance;
+      static DeviceInstance instance;
+      return instance;
     }
     ~DeviceInstance() { this->finalize(); }
     void finalize();

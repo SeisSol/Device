@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 project(examples)
 
+
 set(CMAKE_CXX_CLANG_TIDY clang-tidy)
 
-set(SM "sm_60" CACHE STRING "model of Nvidia Streaming Multiprocessor")
+set(SM "sm_60" CACHE STRING "model of Streaming Multiprocessor")
 set(SM_OPTIONS "sm_20" "sm_30" "sm_50" "sm_60" "sm_70" "gfx906")
 set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
 

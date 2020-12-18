@@ -3,12 +3,12 @@
 
 namespace device {
   struct Statistics {
-    size_t AllocatedMemBytes = 0;
-    size_t AllocatedUnifiedMemBytes = 0;
-    size_t DeallocatedMemBytes = 0;
+    size_t allocatedMemBytes = 0;
+    size_t allocatedUnifiedMemBytes = 0;
+    size_t deallocatedMemBytes = 0;
 
-    size_t ExplicitlyTransferredDataToDeviceBytes = 0;
-    size_t ExplicitlyTransferredDataToHostBytes = 0;
+    size_t explicitlyTransferredDataToDeviceBytes = 0;
+    size_t explicitlyTransferredDataToHostBytes = 0;
   };
 }
 

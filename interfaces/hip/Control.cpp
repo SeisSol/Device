@@ -16,32 +16,32 @@ void ConcreteAPI::initialize() {
 void ConcreteAPI::allocateStackMem() {
 
   // try to detect the amount of temp. memory from the environment
-  const size_t Factor = 1024 * 1024 * 1024;  //!< bytes in 1 GB
+  const size_t factor = 1024 * 1024 * 1024;  //!< bytes in 1 GB
 
   try {
-    char *ValueString = std::getenv("DEVICE_STACK_MEM_SIZE");
-    const auto id = m_CurrentDeviceId;
-    if (!ValueString) {
+    char *valueString = std::getenv("DEVICE_STACK_MEM_SIZE");
+    const auto id = m_currentDeviceId;
+    if (!valueString) {
       logInfo(id) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
                   << "The default amount of the device memory (1 GB) "
                   << "is going to be used to store temp. variables during execution of compute-algorithms.";
     }
     else {
-      double RequestedStackMem = std::stod(std::string(ValueString));
-      m_MaxStackMem = Factor * RequestedStackMem;
+      double requestedStackMem = std::stod(std::string(valueString));
+      m_maxStackMem = factor * requestedStackMem;
       logInfo(id) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
-                  << RequestedStackMem << "GB of the device memory is going to be used "
+                  << requestedStackMem << "GB of the device memory is going to be used "
                   << "to store temp. variables during execution of compute-algorithms.";
     }
   }
-  catch (const std::invalid_argument &Err) {
-    logError() << "DEVICE::ERROR: " << Err.what() << ". File: " << __FILE__ << ", line: " << __LINE__;
+  catch (const std::invalid_argument &err) {
+    logError() << "DEVICE::ERROR: " << err.what() << ". File: " << __FILE__ << ", line: " << __LINE__;
   }
-  catch (const std::out_of_range& Err) {
-    logError() << "DEVICE::ERROR: " << Err.what() << ". File: " << __FILE__ << ", line: " << __LINE__;
+  catch (const std::out_of_range& err) {
+    logError() << "DEVICE::ERROR: " << err.what() << ". File: " << __FILE__ << ", line: " << __LINE__;
   }
 
-  hipMalloc(&m_StackMemory, m_MaxStackMem); CHECK_ERR;
+  hipMalloc(&m_stackMemory, m_maxStackMem); CHECK_ERR;
 
   constexpr size_t concurrencyLevel = 32;
   m_circularStreamBuffer.resize(concurrencyLevel);
@@ -52,19 +52,19 @@ void ConcreteAPI::allocateStackMem() {
 
 
 void ConcreteAPI::finalize() {
-  hipFree(m_StackMemory); CHECK_ERR;
-  m_StackMemory = nullptr;
+  hipFree(m_stackMemory); CHECK_ERR;
+  m_stackMemory = nullptr;
   for (auto& stream: m_circularStreamBuffer) {
     hipStreamDestroy(stream); CHECK_ERR;
   }
   m_circularStreamBuffer.clear();
-  m_HasFinalized = true;
+  m_hasFinalized = true;
 };
 
 
-void ConcreteAPI::setDevice(int DeviceId) {
-  m_CurrentDeviceId = DeviceId;
-  hipSetDevice(m_CurrentDeviceId); CHECK_ERR;
+void ConcreteAPI::setDevice(int deviceId) {
+  m_currentDeviceId = deviceId;
+  hipSetDevice(m_currentDeviceId); CHECK_ERR;
 }
 
 
@@ -76,16 +76,16 @@ int ConcreteAPI::getNumDevices() {
 
 
 unsigned ConcreteAPI::getMaxThreadBlockSize() {
-  int BlockSize{};
-  hipDeviceGetAttribute(&BlockSize, hipDeviceAttributeMaxThreadsPerBlock, m_CurrentDeviceId); CHECK_ERR;
-  return static_cast<unsigned>(BlockSize);
+  int blockSize{};
+  hipDeviceGetAttribute(&blockSize, hipDeviceAttributeMaxThreadsPerBlock, m_currentDeviceId); CHECK_ERR;
+  return static_cast<unsigned>(blockSize);
 }
 
 
 unsigned ConcreteAPI::getMaxSharedMemSize() {
-  int SharedMemSize{};
-  hipDeviceGetAttribute(&SharedMemSize, hipDeviceAttributeMaxSharedMemoryPerBlock, m_CurrentDeviceId); CHECK_ERR;
-  return static_cast<unsigned>(SharedMemSize);
+  int sharedMemSize{};
+  hipDeviceGetAttribute(&sharedMemSize, hipDeviceAttributeMaxSharedMemoryPerBlock, m_currentDeviceId); CHECK_ERR;
+  return static_cast<unsigned>(sharedMemSize);
 }
 
 
@@ -100,33 +100,33 @@ void ConcreteAPI::synchDevice() {
 }
 
 
-std::string ConcreteAPI::getDeviceInfoAsText(int DeviceId) {
-  hipDeviceProp_t Property;
-  hipGetDeviceProperties(&Property, DeviceId); CHECK_ERR;
+std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
+  hipDeviceProp_t property;
+  hipGetDeviceProperties(&property, deviceId); CHECK_ERR;
 
-  std::ostringstream Info;
-  Info << "Name: " << Property.name << '\n';
-  Info << "totalGlobalMem: " << Property.totalGlobalMem << '\n';
-  Info << "sharedMemPerBlock: " << Property.sharedMemPerBlock << '\n';
-  Info << "regsPerBlock: " << Property.regsPerBlock << '\n';
-  Info << "warpSize: " << Property.warpSize << '\n';
-  Info << "maxThreadsPerBlock: " << Property.maxThreadsPerBlock << '\n';
-  Info << "totalConstMem: " << Property.totalConstMem << '\n';
-  Info << "clockRate: " << Property.clockRate << '\n';
-  Info << "multiProcessorCount: " << Property.multiProcessorCount << '\n';
-  Info << "canMapHostMemory: " << Property.canMapHostMemory << '\n';
-  Info << "computeMode: " << Property.computeMode << '\n';
-  Info << "concurrentKernels: " << Property.concurrentKernels << '\n';
-  Info << "pciBusID: " << Property.pciBusID << '\n';
-  Info << "pciDeviceID: " << Property.pciDeviceID << '\n';
+  std::ostringstream info;
+  info << "Name: " << property.name << '\n';
+  info << "totalGlobalMem: " << property.totalGlobalMem << '\n';
+  info << "sharedMemPerBlock: " << property.sharedMemPerBlock << '\n';
+  info << "regsPerBlock: " << property.regsPerBlock << '\n';
+  info << "warpSize: " << property.warpSize << '\n';
+  info << "maxThreadsPerBlock: " << property.maxThreadsPerBlock << '\n';
+  info << "totalConstMem: " << property.totalConstMem << '\n';
+  info << "clockRate: " << property.clockRate << '\n';
+  info << "multiProcessorCount: " << property.multiProcessorCount << '\n';
+  info << "canMapHostMemory: " << property.canMapHostMemory << '\n';
+  info << "computeMode: " << property.computeMode << '\n';
+  info << "concurrentKernels: " << property.concurrentKernels << '\n';
+  info << "pciBusID: " << property.pciBusID << '\n';
+  info << "pciDeviceID: " << property.pciDeviceID << '\n';
 
-  return Info.str();
+  return info.str();
 }
 
 /**
  * No implementation, since there is no HIP alternative for nvToolsExt
  */
-void ConcreteAPI::putProfilingMark(const std::string &Name, ProfilingColors Color) {
+void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
 }
 
 /**
