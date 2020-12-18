@@ -9,7 +9,9 @@
 #include <yaml-cpp/yaml.h>
 
 int main(int argc, char *argv[]) {
+#ifdef USE_MPI
   MPI_Init(&argc, &argv);
+#endif
   WorkSpaceT ws{MPI_COMM_WORLD};
   int numRows{-1};
   SolverSettingsT settings;
@@ -79,7 +81,8 @@ int main(int argc, char *argv[]) {
   }
 
   Logger(ws, 0) << (stream << "Elapsed Time: " << time.count() << " [sec]");
-
+#ifdef USE_MPI
   MPI_Finalize();
+#endif
   return 0;
 }

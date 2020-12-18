@@ -2,7 +2,9 @@
 #include <gmock/gmock.h>
 #include "datatypes.hpp"
 #include "matrix_manip.hpp"
+#ifdef USE_MPI
 #include <mpi.h>
+#endif
 
 using ::testing::ElementsAreArray;
 

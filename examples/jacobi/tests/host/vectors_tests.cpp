@@ -50,6 +50,7 @@ TEST_F(VectorTests, AssemblerTest) {
 }
 
 
+#ifdef USE_MPI
 TEST_F(VectorTests, InfNorm) {
   std::vector<real> extremes{-10.5, 20.01, 19.3}; // extreme values for each MPI proc.
   v1[0] = extremes[0];
@@ -61,9 +62,9 @@ TEST_F(VectorTests, InfNorm) {
 
   real globalNorm{};
   MPI_Allreduce(&localNorm, &globalNorm, 1, MPI_CUSTOM_REAL, MPI_MAX, ws.comm);
-
   ASSERT_DOUBLE_EQ(20.01, globalNorm);
 }
+#endif
 
 
 TEST_F(VectorTests, AddAndSubtract) {

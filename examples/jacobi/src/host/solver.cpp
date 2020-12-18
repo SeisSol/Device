@@ -23,7 +23,7 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
   unsigned currentIter{0};
 
   // assume that RHS is distributed. Thus, let's assemble it
-  assembler.assemble(rhs.data(), rhs.data());
+  assembler.assemble(const_cast<real*>(rhs.data()), const_cast<real*>(rhs.data()));
 
   // compute diag and LU matrices
   VectorT invDiag;
@@ -44,16 +44,16 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
     manipVectors(range, rhs, temp, x, std::minus<real>());
     manipVectors(range, invDiag, x, x, std::multiplies<real>());
 
-    assembler.assemble(x.data(), x.data());
+    assembler.assemble(const_cast<real*>(x.data()), const_cast<real*>(x.data()));
     // Compute residual and print output
     if ((currentIter % settings.printInfoNumIters) == 0) {
 
       multMatVec(matrix, x, temp);
       manipVectors(range, rhs, temp, residual, std::minus<real>());
       infNorm = getInfNorm(range, residual);
-
+#ifdef USE_MPI
       MPI_Allreduce(&infNorm, &infNorm, 1, MPI_CUSTOM_REAL, MPI_MAX, ws.comm);
-
+#endif
       std::stringstream stream;
       stream << "Current iter: " << currentIter << "; Residual: " << infNorm;
       Logger(ws, 0) << stream;

@@ -4,7 +4,9 @@
 #include "host/subroutines.hpp"
 #include "matrix_manip.hpp"
 #include "helper.hpp"
+#ifdef USE_MPI
 #include <mpi.h>
+#endif
 
 using ::testing::ElementsAreArray;
 

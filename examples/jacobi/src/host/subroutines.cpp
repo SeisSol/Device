@@ -2,7 +2,10 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+
+#ifdef USE_MPI
 #include <mpi.h>
+#endif
 
 namespace host {
 void multMatVec(const CpuMatrixDataT &matrix, const VectorT &v, VectorT &res) {
