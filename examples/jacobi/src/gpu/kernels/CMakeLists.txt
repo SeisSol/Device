@@ -59,7 +59,8 @@ elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
 
     set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};
                         -DREAL_SIZE=${REAL_SIZE_IN_BYTES};
-                        --compiler-options -fPIC;)
+                        --compiler-options -fPIC;
+                        -std=c++11)
 
     #Compile
     cuda_add_library(${TARGET_NAME} ${SOURCE_FILES})
