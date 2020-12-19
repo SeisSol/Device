@@ -67,9 +67,9 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
         std::stringstream stream;
         stream << "Current iter: " << currentIter << "; Residual: " << infNorm;
         if (currentIter != 0) {
-          stream << "; compute [KE/s]: " << computeStat.getStatistics().mean;
+          stream << "; compute: " << computeStat.getStatistics().mean << ' ' << Statistics::getUnits();
 #ifdef USE_MPI
-          stream << "; comm [KE/s]: " << commStat.getStatistics().mean;
+          stream << "; comm: " << commStat.getStatistics().mean << ' ' << Statistics::getUnits();
 #endif
         }
         Logger(ws, 0) << stream;

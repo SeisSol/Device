@@ -124,7 +124,8 @@ public:
   void stop() {
     isStopped = true;
     endTime = std::chrono::high_resolution_clock::now();
-    localTime += std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(endTime - startTime).count();
+    localTime += std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(endTime - startTime).count();
+    ++updateCounter;
   }
 
   struct Data {
@@ -143,11 +144,16 @@ public:
     std::vector<double> performance(times.size(), 0.0);
 
     for (int rank = 0; rank < ws.size; ++rank) {
-      performance[rank] = loads[rank] / times[rank];
+      performance[rank] = (updateCounter * loads[rank]) / times[rank];
     }
 
     localTime = 0.0;
+    updateCounter = 0;
     return compute(performance);
+  }
+
+  static std::string getUnits() {
+    return "ME/s";
   }
 
 private:
@@ -180,6 +186,7 @@ private:
 
   time_point<high_resolution_clock> startTime;
   time_point<high_resolution_clock> endTime;
+  size_t updateCounter{0};
 
   bool isStopped{false};
 };

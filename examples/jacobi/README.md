@@ -1,6 +1,6 @@
-# Parallel Jacobi Benchmark
+# Parallel Jacobi Iteration Benchmark
 
-This is MPI+GPU Parallel Jacobi Solver where a GPU part can be either CUDA or HIP.
+This is MPI+GPU Parallel Jacobi Iteration Solver where a GPU part can be either CUDA or HIP.
 
 Tthe benchmark is hard-coded with 2D stencil matrix of the form [-1 2 -1], 
 however, it can be extended if it is needed.  The program starts with computing 
