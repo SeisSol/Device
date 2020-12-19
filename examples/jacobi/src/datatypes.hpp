@@ -52,7 +52,7 @@ struct WorkSpaceT {
 };
 
 struct MatrixInfoT {
-  MatrixInfoT(WorkSpaceT ws, int rows, int nonZerosPerRow) : ws(ws), numRows{rows}, maxNonZerosPerRow{nonZerosPerRow} {
+  MatrixInfoT(WorkSpaceT ws, int rows, int nonZerosPerRow) : numRows{rows}, maxNonZerosPerRow{nonZerosPerRow}, ws(ws) {
 
     // distribute data
     int chunk = numRows / ws.size;

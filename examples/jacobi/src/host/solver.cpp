@@ -10,8 +10,6 @@
 
 void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix, const VectorT &inputRhs, VectorT &x) {
 
-  std::cout << "Computation of X^k using the CPU" << std::endl;
-
   // allocate all necessary data structs
   const WorkSpaceT &ws = matrix.info.ws;
   const RangeT range = matrix.info.range;
@@ -39,14 +37,20 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
 
   VectorT tempX(x.size(), 0.0);
   // start solver
+  Statistics computeStat(ws, range);
+  Statistics commStat(ws, range);
   while ((infNorm > settings.eps) and (currentIter <= settings.maxNumIters)) {
 
     // update X
+    computeStat.start();
     multMatVec(lu, x, temp);
     manipVectors(range, rhs, temp, x, std::minus<real>());
     manipVectors(range, invDiag, x, x, std::multiplies<real>());
+    computeStat.stop();
 
+    commStat.start();
     assembler.assemble(const_cast<real*>(x.data()), const_cast<real*>(tempX.data()));
+    commStat.stop();
     x.swap(tempX);
     // Compute residual and print output
     if ((currentIter % settings.printInfoNumIters) == 0) {
@@ -59,9 +63,19 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
 #else
       infNorm = localInfNorm;
 #endif
-      std::stringstream stream;
-      stream << "Current iter: " << currentIter << "; Residual: " << infNorm;
-      Logger(ws, 0) << stream;
+      {
+        std::stringstream stream;
+        stream << "Current iter: " << currentIter << "; Residual: " << infNorm;
+        if (currentIter != 0) {
+          stream << "; compute [KE/s]: " << computeStat.getStatistics().mean;
+#ifdef USE_MPI
+          stream << "; comm [KE/s]: " << commStat.getStatistics().mean;
+#endif
+        }
+        Logger(ws, 0) << stream;
+      }
+
+
     }
 
     ++currentIter;

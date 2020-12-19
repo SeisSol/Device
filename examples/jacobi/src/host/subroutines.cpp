@@ -10,10 +10,9 @@
 namespace host {
 void multMatVec(const CpuMatrixDataT &matrix, const VectorT &v, VectorT &res) {
   const auto &info = matrix.info;
-  const auto &ws = info.ws;
   const RangeT &range = info.range;
 
-  assert(info.numRows == v.size() && "matrix and vec. must have the same size");
+  assert(static_cast<size_t>(info.numRows) == v.size() && "matrix and vec. must have the same size");
 
   std::fill(&res[range.start], &res[range.end], 0.0);
 

@@ -76,8 +76,25 @@ int main(int argc, char *argv[]) {
 
   // write output
   std::stringstream stream;
-  for (auto item : unknown) {
-    stream << item << '\n';
+  if (unknown.size() < 20) {
+    for (auto item : unknown) {
+      stream << item << '\n';
+    }
+  }
+  else {
+    std::stringstream front, middle, back;
+    constexpr int windowSize = 4;
+    for (size_t i = 0; i < windowSize; ++i) {
+      auto frontIndex = i;
+      front << frontIndex << ") " << unknown[frontIndex] << '\n';
+
+      auto middleIndex = ((unknown.size() / 2) - (windowSize / 2)) + i;
+      middle << middleIndex << ") " << unknown[middleIndex] << '\n';
+
+      auto backIndex = (unknown.size() - windowSize) + i;
+      back << backIndex << ") " << unknown[backIndex] << '\n';
+    }
+    stream << front.str() << "...\n" << middle.str() << "...\n" << back.str();
   }
 
   Logger(ws, 0) << (stream << "Elapsed Time: " << time.count() << " [sec]");

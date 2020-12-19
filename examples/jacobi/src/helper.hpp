@@ -2,10 +2,14 @@
 #define JSOLVER_HELPER_HPP
 
 #include "datatypes.hpp"
+#include <chrono>
+#include <cmath>
 #include <cstring>
 #include <device.h>
 #include <iostream>
 #include <limits>
+
+using namespace std::chrono;
 
 #ifdef USE_MPI
 #include <mpi.h>
@@ -25,7 +29,7 @@ public:
   void operator<<(const std::ostream &stream) {
     waitPrevious();
     if (ws.rank == rank) {
-      std::cout << std::string(80, '=') << std::endl;
+      std::cout << std::string(90, '=') << std::endl;
       std::cout << "Info from Rank: " << ws.rank << std::endl;
       std::cout << stream.rdbuf() << std::endl;
     }
@@ -98,6 +102,86 @@ private:
   WorkSpaceT ws;
   std::vector<int> recvCounts;
   std::vector<int> displs;
+};
+
+
+class Statistics {
+public:
+  Statistics(WorkSpaceT ws, RangeT range) : ws(ws) {
+    int localSize = range.end - range.start;
+    loads.resize(ws.size, 0);
+    loads[ws.rank] = localSize;
+#ifdef USE_MPI
+    MPI_Allgather(&localSize, 1, MPI_INT, loads.data(), 1, MPI_INT, ws.comm);
+#endif
+    times.resize(ws.size, 0.0);
+  }
+
+  void start() {
+    isStopped = false;
+    startTime = std::chrono::high_resolution_clock::now();
+  }
+  void stop() {
+    isStopped = true;
+    endTime = std::chrono::high_resolution_clock::now();
+    localTime += std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(endTime - startTime).count();
+  }
+
+  struct Data {
+    double max = std::numeric_limits<double>::min();
+    double min = std::numeric_limits<double>::max();
+    double mean{0.0};
+    double standardDeviation{0.0};
+  };
+
+  Statistics::Data getStatistics() {
+    assert(isStopped && "timer has not been stopped");
+    times[ws.rank] = localTime;
+#ifdef USE_MPI
+    MPI_Allgather(&localTime, 1, MPI_DOUBLE, times.data(), 1, MPI_DOUBLE, ws.comm);
+#endif
+    std::vector<double> performance(times.size(), 0.0);
+
+    for (int rank = 0; rank < ws.size; ++rank) {
+      performance[rank] = loads[rank] / times[rank];
+    }
+
+    localTime = 0.0;
+    return compute(performance);
+  }
+
+private:
+  Data compute(const std::vector<double> &performance) {
+    Data data{};
+    for (auto &item : performance) {
+      data.mean += item;
+      if (item > data.max) {
+        data.max = item;
+      }
+      if (data.min > item) {
+        data.min = item;
+      }
+    }
+    data.mean /= performance.size();
+
+    for (auto &item : performance) {
+      double diff = item - data.mean;
+      data.standardDeviation += (diff * diff);
+    }
+    data.standardDeviation = std::sqrt(data.standardDeviation / performance.size());
+
+    return data;
+  }
+
+  WorkSpaceT ws{};
+  std::vector<int> loads{};
+  double localTime{0.0};
+  std::vector<double> times{};
+
+  time_point<high_resolution_clock> startTime;
+  time_point<high_resolution_clock> endTime;
+
+  bool isStopped{false};
 };
 
 #endif // JSOLVER_HELPER_HPP

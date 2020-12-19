@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(jsolver)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(WITH_TIDY "turn on clang-tidy" OFF)
 
@@ -23,8 +24,6 @@ set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
 
 option(WITH_MPI "build with MPI support" ON)
 
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (WITH_MPI)
     find_package(MPI REQUIRED)
@@ -59,6 +58,8 @@ target_link_libraries(solver PUBLIC device
 
 target_compile_definitions(solver PUBLIC REAL_SIZE=${REAL_SIZE_IN_BYTES}
                                          ${__MPI_DEFINITIONS})
+
+target_compile_options(solver PUBLIC -Wall -Wextra -pedantic -std=c++17)
 
 configure_file(${PROJECT_SOURCE_DIR}/input/example.yaml
                ${PROJECT_BINARY_DIR}/config.yaml

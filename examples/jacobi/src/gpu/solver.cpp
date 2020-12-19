@@ -14,8 +14,6 @@ using namespace device;
 
 void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &matrix, const VectorT &inputRhs, VectorT &x) {
 
-  std::cout << "Computation of X^k using the GPU" << std::endl;
-
   // allocate all necessary data structs
   const WorkSpaceT &ws = matrix.info.ws;
   const RangeT range = matrix.info.range;
@@ -41,14 +39,20 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
   this->setUp(lu, rhs, x, residual, invDiag);
 
   // start solver
+  Statistics computeStat(ws, range);
+  Statistics commStat(ws, range);
   while ((infNorm > settings.eps) and (currentIter <= settings.maxNumIters)) {
 
+    computeStat.start();
     launch_multMatVec(*devLU, devX, devTemp);
     launch_manipVectors(range, devRhs, devTemp, devX, VectorManipOps::Subtraction);
     launch_manipVectors(range, devInvDiag, devX, devX, VectorManipOps::Multiply);
-
     device.api->synchDevice();
+    computeStat.stop();
+
+    commStat.start();
     assembler.assemble<SystemType::OnDevice>(devX, devTempX);
+    commStat.stop();
     std::swap(devX, devTempX);
 
     // Compute residual and print output
@@ -68,6 +72,12 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
 #endif
       std::stringstream stream;
       stream << "Current iter: " << currentIter << "; Residual: " << infNorm;
+      if (currentIter != 0) {
+        stream << "; compute [KE/s]: " << computeStat.getStatistics().mean;
+#ifdef USE_MPI
+        stream << "; comm [KE/s]: " << commStat.getStatistics().mean;
+#endif
+      }
       Logger(ws, 0) << stream;
     }
     ++currentIter;
