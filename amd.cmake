@@ -27,8 +27,10 @@ endif()
 #Only need NVCC at the time no AMD system to deploy to
 set(DEVICE_HIPCC)
 set(DEVICE_HCC)
-if (DEFINED ENV{HIP_PLATFORM} AND $ENV{HIP_PLATFORM} STREQUAL "nvcc")
-    set(DEVICE_NVCC -arch=${DEVICE_SUB_ARCH};-dc;--expt-relaxed-constexpr;-DCUDA_UNDERHOOD)
+if (DEFINED ENV{HIP_PLATFORM})
+    if ($ENV{HIP_PLATFORM} STREQUAL "nvcc")
+        set(DEVICE_NVCC -arch=${DEVICE_SUB_ARCH};-dc;--expt-relaxed-constexpr;-DCUDA_UNDERHOOD)
+    endif()
 endif()
 
 set(DEVICE_SOURCE_FILES device.cpp
