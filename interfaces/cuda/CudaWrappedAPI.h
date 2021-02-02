@@ -2,85 +2,75 @@
 #define DEVICE_CUDAINTERFACE_H
 
 #include <stack>
-#include <unordered_map>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "AbstractAPI.h"
 #include "Statistics.h"
 
 namespace device {
-  class ConcreteAPI : public AbstractAPI {
-  public:
-    void setDevice(int DeviceId);
-    int getNumDevices();
-    unsigned getMaxThreadBlockSize();
-    unsigned getMaxSharedMemSize();
-    unsigned getGlobMemAlignment();
-    std::string getDeviceInfoAsText(int DeviceId);
-    void synchDevice();
-    void checkOffloading();
+class ConcreteAPI : public AbstractAPI {
+public:
+  void setDevice(int deviceId) override;
+  int getNumDevices() override;
+  unsigned getMaxThreadBlockSize() override;
+  unsigned getMaxSharedMemSize() override;
+  unsigned getGlobMemAlignment() override;
+  std::string getDeviceInfoAsText(int deviceId) override;
+  void synchDevice() override;
+  void checkOffloading() override;
 
-    void allocateStackMem();
-    void* allocGlobMem(size_t Size);
-    void* allocUnifiedMem(size_t Size);
-    void* allocPinnedMem(size_t Size);
-    char* getStackMemory(size_t RequestedBytes);
-    void freeMem(void *DevPtr);
-    void freePinnedMem(void *DevPtr);
-    void popStackMemory();
-    std::string getMemLeaksReport();
+  void allocateStackMem() override;
+  void *allocGlobMem(size_t size) override;
+  void *allocUnifiedMem(size_t size) override;
+  void *allocPinnedMem(size_t size) override;
+  char *getStackMemory(size_t requestedBytes) override;
+  void freeMem(void *devPtr) override;
+  void freePinnedMem(void *devPtr) override;
+  void popStackMemory() override;
+  std::string getMemLeaksReport() override;
 
-    void copyTo(void* Dst, const void* Src, size_t Count);
-    void copyFrom(void* Dst, const void* Src, size_t Count);
-    void copyBetween(void* Dst, const void* Src, size_t Count);
-    void copy2dArrayTo(void *Dst, size_t Dpitch, const void *Src, size_t Spitch, size_t Width, size_t Height);
-    void copy2dArrayFrom(void *Dst, size_t Dpitch, const void *Src, size_t Spitch, size_t Width, size_t Height);
-    void streamBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements);
-    void accumulateBatchedData(real **BaseSrcPtr, real **BaseDstPtr, unsigned ElementSize, unsigned NumElements);
-    void prefetchUnifiedMemTo(Destination Type, const void* DevPtr, size_t Count, int StreamId = 0);
+  void copyTo(void *dst, const void *src, size_t count) override;
+  void copyFrom(void *dst, const void *src, size_t count) override;
+  void copyBetween(void *dst, const void *src, size_t count) override;
+  void copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width,
+                     size_t height) override;
+  void copy2dArrayFrom(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width,
+                       size_t height) override;
+  void prefetchUnifiedMemTo(Destination type, const void *devPtr, size_t count,
+                            void *streamPtr) override;
 
-    size_t getMaxAvailableMem();
-    size_t getCurrentlyOccupiedMem();
-    size_t getCurrentlyOccupiedUnifiedMem();
+  size_t getMaxAvailableMem() override;
+  size_t getCurrentlyOccupiedMem() override;
+  size_t getCurrentlyOccupiedUnifiedMem() override;
 
-    unsigned createStream(StreamType Type = StreamType::Blocking);
-    void deleteStream(unsigned StreamId);
-    void deleteAllCreatedStreams();
-    void setComputeStream(unsigned StreamId);
-    void* getRawCurrentComputeStream() { return static_cast<void*>(&m_CurrentComputeStream);}
-    void setDefaultComputeStream();
-    void synchAllStreams();
+  void *getNextCircularStream() override;
+  void resetCircularStreamCounter() override;
+  size_t getCircularStreamSize() override;
+  void syncStreamFromCircularBuffer(void *streamPtr) override;
+  void syncCircularBuffer() override;
+  void fastStreamsSync() override;
 
+  void initialize() override;
+  void finalize() override;
+  void putProfilingMark(const std::string &Name, ProfilingColors Color) override;
+  void popLastProfilingMark() override;
 
-    void compareDataWithHost(const real *HostPtr,
-                             const real *DevPtr,
-                             const size_t NumElements,
-                             const std::string& DataName);
-    void scaleArray(real *DevArray, const real Scalar, const size_t NumElements);
+private:
+  int m_currentDeviceId = 0;
 
-    void touchMemory(real *Ptr, size_t Size, bool Clean);
-    void touchBatchedMemory(real **BasePtr, unsigned ElementSize, unsigned NumElements, bool Clean);
+  std::vector<cudaStream_t> m_circularStreamBuffer{};
+  size_t m_circularStreamCounter{0};
 
-    void initialize();
-    void finalize();
-    void putProfilingMark(const std::string &Name, ProfilingColors Color);
-    void popLastProfilingMark();
+  char *m_stackMemory = nullptr;
+  size_t m_stackMemByteCounter = 0;
+  size_t m_maxStackMem = 1024 * 1024 * 1024; //!< 1GB in bytes
+  std::stack<size_t> m_stackMemMeter{};
 
-  private:
-    int m_CurrentDeviceId = 0;
+  Statistics m_statistics{};
+  std::unordered_map<void *, size_t> m_memToSizeMap{{nullptr, 0}};
+};
+} // namespace device
 
-    cudaStream_t m_CurrentComputeStream = 0;
-    cudaStream_t m_DefaultStream = 0;
-    std::unordered_map<int, cudaStream_t*> m_IdToStreamMap{};
-
-    char* m_StackMemory = nullptr;
-    size_t m_StackMemByteCounter = 0;
-    size_t m_MaxStackMem = 1024 * 1024 * 1024;  //!< 1GB in bytes
-    std::stack<size_t> m_StackMemMeter{};
-
-    Statistics m_Statistics{};
-    std::unordered_map<void*, size_t> m_MemToSizeMap{{nullptr, 0}};
-  };
-}
-
-#endif //DEVICE_CUDAINTERFACE_H
+#endif // DEVICE_CUDAINTERFACE_H

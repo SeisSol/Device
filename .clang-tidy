@@ -1,5 +1,5 @@
-Checks: '-*,clang-diagnostic-*,llvm-*,misc-*,-misc-unused-parameters,-misc-non-private-member-variables-in-classes,readability-identifier-naming'
-WarningsAsErrors: 'readability-identifier-naming' 
+Checks: '-*,clang-diagnostic-*,llvm-*,misc-*,-misc-unused-parameters,-llvm-header-guard,-misc-non-private-member-variables-in-classes,readability-identifier-naming'
+#WarningsAsErrors: 'readability-identifier-naming'
 CheckOptions:
 #  - key:             readability-identifier-naming.AbstractClassCase
 #    value:           CamelCase
@@ -18,7 +18,7 @@ CheckOptions:
 #  - key:             readability-identifier-naming.ClassConstantPrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.ClassConstantSuffix
-#    value:           CamelCase
+#    value:           CamelCase-*,clang-diagnostic-*,llvm-*,misc-*,-misc-unused-parameters,-misc-non-private-member-variables-in-classes,
 #  - key:             readability-identifier-naming.ClassMemberCase
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.ClassMemberPrefix
@@ -26,7 +26,7 @@ CheckOptions:
 #  - key:             readability-identifier-naming.ClassMemberSuffix
 #    value:           CamelCase
   - key:             readability-identifier-naming.ClassMethodCase
-    value:           camelCase
+    value:           camelBack
 #  - key:             readability-identifier-naming.ClassMethodPrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.ClassMethodSuffix
@@ -56,7 +56,7 @@ CheckOptions:
 #  - key:             readability-identifier-naming.ConstantPointerParameterSuffix
 #    value:           CamelCase
   - key:             readability-identifier-naming.ConstexprFunctionCase
-    value:           camelCase
+    value:           camelBack
 #  - key:             readability-identifier-naming.ConstexprFunctionPrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.ConstexprFunctionSuffix
@@ -79,8 +79,8 @@ CheckOptions:
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.EnumSuffix
 #    value:           CamelCase
-#  - key:             readability-identifier-naming.EnumConstantCase
-#    value:           CamelCase
+  - key:             readability-identifier-naming.EnumConstantCase
+    value:           CamelCase
 #  - key:             readability-identifier-naming.EnumConstantPrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.EnumConstantSuffix
@@ -129,8 +129,8 @@ CheckOptions:
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.InlineNamespaceSuffix
 #    value:           CamelCase
-#  - key:             readability-identifier-naming.LocalConstantCase
-#    value:           CamelCase
+  - key:             readability-identifier-naming.LocalConstantCase
+    value:           camelBack
 #  - key:             readability-identifier-naming.LocalConstantPrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.LocalConstantSuffix
@@ -148,15 +148,15 @@ CheckOptions:
 #  - key:             readability-identifier-naming.LocalPointerSuffix
 #    value:           CamelCase
   - key:             readability-identifier-naming.LocalVariableCase
-    value:           CamelCase
+    value:           camelBack
 #  - key:             readability-identifier-naming.LocalVariablePrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.LocalVariableSuffix
 #    value:           CamelCase
   - key:             readability-identifier-naming.MemberCase
-    value:           CamelCase
+    value:           camelBack
   - key:             readability-identifier-naming.MemberPrefix
-    value:           m_
+    value:           ""
 #  - key:             readability-identifier-naming.MemberSuffix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.MethodCase
@@ -172,7 +172,7 @@ CheckOptions:
 #  - key:             readability-identifier-naming.NamespaceSuffix
 #    value:           CamelCase
   - key:             readability-identifier-naming.ParameterCase
-    value:           CamelCase
+    value:           camelBack
 #  - key:             readability-identifier-naming.ParameterPrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.ParameterSuffix
@@ -237,8 +237,8 @@ CheckOptions:
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.StaticVariableSuffix
 #    value:           CamelCase
-#  - key:             readability-identifier-naming.StructCase
-#    value:           CamelCase
+  - key:             readability-identifier-naming.StructCase
+    value:           CamelCase
 #  - key:             readability-identifier-naming.StructPrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.StructSuffix
@@ -274,7 +274,7 @@ CheckOptions:
 #  - key:             readability-identifier-naming.TypeTemplateParameterSuffix
 #    value:           CamelCase
   - key:             readability-identifier-naming.UnionCase
-    value:           CamelCase
+    value:           camelBack
 #  - key:             readability-identifier-naming.UnionPrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.UnionSuffix
@@ -285,14 +285,14 @@ CheckOptions:
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.ValueTemplateParameterSuffix
 #    value:           CamelCase
-#  - key:             readability-identifier-naming.VariableCase
-#    value:           CamelCase
+  - key:             readability-identifier-naming.VariableCase
+    value:           camelBack
 #  - key:             readability-identifier-naming.VariablePrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.VariableSuffix
 #    value:           CamelCase
-#  - key:             readability-identifier-naming.VirtualMethodCase
-#    value:           CamelCase
+  - key:             readability-identifier-naming.VirtualMethodCase
+    value:           camelBack
 #  - key:             readability-identifier-naming.VirtualMethodPrefix
 #    value:           CamelCase
 #  - key:             readability-identifier-naming.VirtualMethodSuffix

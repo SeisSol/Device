@@ -3,3 +3,6 @@ cuda/build
 .vscode
 *.swo
 *.swp
+
+.idea
+cmake-build-debug

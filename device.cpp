@@ -1,9 +1,9 @@
 #include "device.h"
 
-#ifdef CUDA
+#ifdef DEVICE_CUDA_LANG
 #include "CudaWrappedAPI.h"
-#elif DUMMY
-#include "DummyInterface.h"
+#elif DEVICE_HIP_LANG
+#include "HipWrappedAPI.h"
 #else
 #error "Unknown interface for the device wrapper"
 #endif
@@ -16,9 +16,7 @@ DeviceInstance::DeviceInstance() {
   // Only one interface is allowed per program because of issues of unique compilers, etc.
   api = new ConcreteAPI;
   api->initialize();
-
-  m_MaxBlockSize = api->getMaxThreadBlockSize();
-  m_MaxSharedMemSize = api->getMaxSharedMemSize();
+  algorithms.setDeviceApi(api);
 }
 
 void DeviceInstance::finalize() {
@@ -28,6 +26,3 @@ void DeviceInstance::finalize() {
     api = nullptr;
   }
 }
-
-// copyAddScale -> is located within a concrete interface subdirectory. Note, it is interface specific
-// gemm         -> is located within a concrete interface subdirectory. Note, it is interface specific
