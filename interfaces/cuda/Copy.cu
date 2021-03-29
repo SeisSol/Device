@@ -2,6 +2,7 @@
 #include "Internals.h"
 #include "utils/logger.h"
 #include <algorithm>
+#include <cassert>
 
 using namespace device;
 
@@ -19,6 +20,24 @@ void ConcreteAPI::copyFrom(void *dst, const void *src, size_t count) {
 
 void ConcreteAPI::copyBetween(void *dst, const void *src, size_t count) {
   cudaMemcpy(dst, src, count, cudaMemcpyDeviceToDevice);
+  CHECK_ERR;
+}
+
+void ConcreteAPI::copyToAsync(void *dst, const void *src, size_t count, void* streamPtr) {
+  cudaStream_t stream = (streamPtr != nullptr) ? static_cast<cudaStream_t>(streamPtr) : 0;
+  cudaMemcpyAsync(dst, src, count, cudaMemcpyHostToDevice, stream);
+  CHECK_ERR;
+}
+
+void ConcreteAPI::copyFromAsync(void *dst, const void *src, size_t count, void* streamPtr) {
+  cudaStream_t stream = (streamPtr != nullptr) ? static_cast<cudaStream_t>(streamPtr) : 0;
+  cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToHost, stream);
+  CHECK_ERR;
+}
+
+void ConcreteAPI::copyBetweenAsync(void *dst, const void *src, size_t count, void* streamPtr) {
+  cudaStream_t stream = (streamPtr != nullptr) ? static_cast<cudaStream_t>(streamPtr) : 0;
+  cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, stream);
   CHECK_ERR;
 }
 

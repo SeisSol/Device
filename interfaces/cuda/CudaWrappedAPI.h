@@ -34,6 +34,10 @@ public:
   void copyTo(void *dst, const void *src, size_t count) override;
   void copyFrom(void *dst, const void *src, size_t count) override;
   void copyBetween(void *dst, const void *src, size_t count) override;
+  void copyToAsync(void *dst, const void *src, size_t count, void* streamPtr) override;
+  void copyFromAsync(void *dst, const void *src, size_t count, void* streamPtr) override;
+  void copyBetweenAsync(void *dst, const void *src, size_t count, void* streamPtr) override;
+
   void copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width,
                      size_t height) override;
   void copy2dArrayFrom(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width,
@@ -54,7 +58,7 @@ public:
 
   void initialize() override;
   void finalize() override;
-  void putProfilingMark(const std::string &Name, ProfilingColors Color) override;
+  void putProfilingMark(const std::string &name, ProfilingColors color) override;
   void popLastProfilingMark() override;
 
 private:
