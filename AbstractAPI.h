@@ -45,6 +45,10 @@ struct AbstractAPI {
   virtual void copyTo(void *dst, const void *src, size_t count) = 0;
   virtual void copyFrom(void *dst, const void *src, size_t count) = 0;
   virtual void copyBetween(void *dst, const void *src, size_t count) = 0;
+  virtual void copyToAsync(void *dst, const void *src, size_t count, void* streamPtr) = 0;
+  virtual void copyFromAsync(void *dst, const void *src, size_t count, void* streamPtr) = 0;
+  virtual void copyBetweenAsync(void *dst, const void *src, size_t count, void* streamPtr) = 0;
+
   virtual void copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width,
                              size_t height) = 0;
   virtual void copy2dArrayFrom(void *dst, size_t dpitch, const void *src, size_t spitch,
@@ -56,6 +60,7 @@ struct AbstractAPI {
   virtual size_t getCurrentlyOccupiedMem() = 0;
   virtual size_t getCurrentlyOccupiedUnifiedMem() = 0;
 
+  virtual void *getDefaultStream() = 0;
   virtual void *getNextCircularStream() = 0;
   virtual void resetCircularStreamCounter() = 0;
   virtual size_t getCircularStreamSize() = 0;

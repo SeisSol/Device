@@ -104,7 +104,6 @@ private:
   std::vector<int> displs;
 };
 
-
 class Statistics {
 public:
   Statistics(WorkSpaceT ws, RangeT range) : ws(ws) {
@@ -152,9 +151,7 @@ public:
     return compute(performance);
   }
 
-  static std::string getUnits() {
-    return "ME/s";
-  }
+  static std::string getUnits() { return "ME/s"; }
 
 private:
   Data compute(const std::vector<double> &performance) {

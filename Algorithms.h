@@ -19,10 +19,15 @@ public:
   void touchMemory(real *ptr, size_t size, bool clean);
   void touchBatchedMemory(real **basePtr, unsigned elementSize, unsigned numElements, bool clean);
 
-  void streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize,
-                         unsigned numElements);
-  void accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize,
-                             unsigned numElements);
+  void streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize, unsigned numElements);
+  void accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize, unsigned numElements);
+
+  template <typename T>
+  void copyUniformToScatter(T *src, T **dst, size_t chunkSize, size_t numElements, void* streamPtr = nullptr);
+
+  template <typename T>
+  void copyScatterToUniform(T **src, T *dst, size_t chunkSize, size_t numElements, void* streamPtr = nullptr);
+
 
   void compareDataWithHost(const real *hostPtr, const real *devPtr, size_t numElements,
                            const std::string &dataName);

@@ -19,7 +19,7 @@
 #else
 #define MPI_CUSTOM_REAL MPI_FLOAT
 #endif // REAL_SIZE
-#else // USE_MPI
+#else  // USE_MPI
 using MPI_Comm = int;
 #define MPI_COMM_WORLD 0
 #endif

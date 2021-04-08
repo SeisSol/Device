@@ -29,7 +29,7 @@ cuda_add_library(device device.cpp
                         algorithms/cuda/ArrayManip.cu
                         algorithms/cuda/BatchManip.cu
                         algorithms/cuda/Debugging.cu
-                        algorithms/generic/Reduction.cpp)
+                        algorithms/cuda/Reduction.cpp)
 
 
 target_link_directories(device PUBLIC ${CUDA_TOOLKIT_ROOT_DIR}/lib64/stubs)
@@ -37,3 +37,5 @@ target_link_libraries(device -lcuda ${CUDA_LIBRARIES} ${NVToolsExt_LIBRARIES})
 target_include_directories(device PUBLIC ${CUDA_INCLUDE_DIRS}
         ${NVToolsExt_INCLUDE_DIRS}
         ../../src)
+
+target_compile_options(device PRIVATE "-std=c++11")

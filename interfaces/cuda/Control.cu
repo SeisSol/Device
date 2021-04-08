@@ -69,8 +69,8 @@ void ConcreteAPI::finalize() {
   m_isFinalized = true;
 };
 
-void ConcreteAPI::setDevice(int DeviceId) {
-  m_currentDeviceId = DeviceId;
+void ConcreteAPI::setDevice(int deviceId) {
+  m_currentDeviceId = deviceId;
   cudaSetDevice(m_currentDeviceId);
   CHECK_ERR;
 }

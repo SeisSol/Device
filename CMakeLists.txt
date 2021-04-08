@@ -8,18 +8,18 @@ if (NOT DEFINED DEVICE_BACKEND)
     message(FATAL_ERROR "DEVICE_BACKEND variable has not been provided into the submodule")
 else()
     set(FOUND OFF)
-    foreach(VARIANT CUDA HIP)
+    foreach(VARIANT CUDA HIP ONEAPI HIPSYCL)
         if (${DEVICE_BACKEND} STREQUAL ${VARIANT})
             set(FOUND ON)
         endif()
     endforeach()
     if (NOT FOUND)
-        message(FATAL_ERROR "DEVICE_BACKEND must be either CUDA or HIP. Given: ${DEVICE_BACKEND}")
+        message(FATAL_ERROR "DEVICE_BACKEND must be either CUDA, HIP, ONEAPI, or HIPSYCL. Given: ${DEVICE_BACKEND}")
     endif()
 endif()
 
 if (NOT DEFINED DEVICE_SUB_ARCH)
-    message(FATAL_ERROR "DEVICE_SUB_ARCH is not defined. Supported: sm_60, sm_61, sm_70, sm_71 gfx906")
+    message(FATAL_ERROR "DEVICE_SUB_ARCH is not defined. Supported for example: sm_60, sm_61, sm_70, sm_71, gfx906, avx, dg1")
 endif()
 
 
@@ -45,12 +45,15 @@ if (${DEVICE_BACKEND} STREQUAL "CUDA")
     include(nvidia.cmake)
 elseif(${DEVICE_BACKEND} STREQUAL "HIP")
     include(amd.cmake)
+elseif((${DEVICE_BACKEND} STREQUAL "ONEAPI") OR (${DEVICE_BACKEND} STREQUAL "HIPSYCL"))
+    include(sycl.cmake)
 endif()
 
 target_compile_definitions(device PRIVATE DEVICE_${DEVICE_BACKEND}_LANG REAL_SIZE=${REAL_SIZE_IN_BYTES})
+
 target_include_directories(device PRIVATE .
                                           interfaces/${BACKEND_FOLDER}
                                           algorithms/${BACKEND_FOLDER}
                                           submodules)
-target_compile_options(device PRIVATE "-std=c++11")
+
 

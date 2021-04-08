@@ -43,7 +43,7 @@ set(DEVICE_SOURCE_FILES device.cpp
                         algorithms/hip/ArrayManip.cpp
                         algorithms/hip/BatchManip.cpp
                         algorithms/hip/Debugging.cpp
-                        algorithms/generic/Reduction.cpp)
+                        algorithms/hip/Reduction.cpp)
 
 set(CMAKE_HIP_CREATE_SHARED_LIBRARY "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HCC_PATH} <CMAKE_SHARED_LIBRARY_CXX_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS> -o <TARGET> <OBJECTS> <LINK_LIBRARIES>")
 
@@ -63,3 +63,5 @@ if (DEFINED ENV{HIP_PLATFORM})
 else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
 endif()
+
+target_compile_options(device PRIVATE "-std=c++11")

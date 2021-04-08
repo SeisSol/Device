@@ -1,5 +1,5 @@
-#include "interfaces/hip/Internals.h"
 #include "AbstractAPI.h"
+#include "interfaces/hip/Internals.h"
 #include <cassert>
 #include <device.h>
 

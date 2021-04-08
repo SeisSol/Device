@@ -5,6 +5,6 @@
 #include <tuple>
 
 CpuMatrixDataT init2DStencilMatrix(WorkSpaceT ws, int numRows);
-std::pair<VectorT, CpuMatrixDataT> getDLU(const CpuMatrixDataT& matrix);
+std::pair<VectorT, CpuMatrixDataT> getDLU(const CpuMatrixDataT &matrix);
 
-#endif //JSOLVER_MATRIX_SUBROUTINES_HPP
+#endif // JSOLVER_MATRIX_SUBROUTINES_HPP

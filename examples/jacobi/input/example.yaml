@@ -1,4 +1,4 @@
-num_rows: 100
+num_rows: 1000
 eps: 1e-7
 max_num_iters: 100000
 iters_per_output: 10000

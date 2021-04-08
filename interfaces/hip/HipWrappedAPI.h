@@ -46,6 +46,7 @@ public:
   size_t getCurrentlyOccupiedMem() override;
   size_t getCurrentlyOccupiedUnifiedMem() override;
 
+  void * getDefaultStream() override;
   void *getNextCircularStream() override;
   void resetCircularStreamCounter() override;
   size_t getCircularStreamSize() override;

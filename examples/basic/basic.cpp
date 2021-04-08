@@ -40,6 +40,9 @@ int main(int argc, char *argv[]) {
   // deallocate mem. on a device
   device.api->freeMem(dInputArray);
   device.api->freeMem(dOutputArray);
+
+  std::cout << device.api->getMemLeaksReport();
+
   device.finalize();
 
   delete[] outputArray;
