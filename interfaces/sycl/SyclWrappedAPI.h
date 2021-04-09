@@ -79,6 +79,7 @@ private:
   unordered_map<void *, size_t> *currentMemoryToSizeMap;
 
   std::string getCurrentDeviceInfoAsText();
+  std::string getDeviceInfoAsText(cl::sycl::device dev);
 
   bool initialized;
   int currentDeviceId;

@@ -26,6 +26,13 @@ void ConcreteAPI::initialize() {
                    c2->queueBuffer.getDefaultQueue().get_device().get_info<cl::sycl::info::device::device_type>());
   });
 
+  stringstream  s;
+  s << "Sorted available devices: ";
+  for (auto &dev : this->availableDevices) {
+    s << this->getDeviceInfoAsText(dev->queueBuffer.getDefaultQueue().get_device());
+  }
+  logInfo() << s.str();
+
   this->setDevice(this->currentDeviceId);
   this->initialized = true;
   logInfo() << "init succeeded";
@@ -98,18 +105,23 @@ string ConcreteAPI::getDeviceInfoAsText(int id) {
   if (id < 0 || id >= this->getNumDevices())
     throw out_of_range{"device index out of range"};
 
-  ostringstream info{};
   auto device = this->availableDevices[id]->queueBuffer.getDefaultQueue().get_device();
+  return this->getDeviceInfoAsText(device);
+}
+std::string ConcreteAPI::getCurrentDeviceInfoAsText() { return this->getDeviceInfoAsText(this->currentDeviceId); }
 
-  info << "platform:" << device.get_platform().get_info<info::platform::name>() << "\n";
-  info << "    name:" << device.get_info<info::device::name>() << "\n";
-  info << "    type: " << convertToString(device.get_info<info::device::device_type>()) << "\n";
-  info << "    driver_version:" << device.get_info<info::device::driver_version>() << "\n";
+std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev)
+{
+  ostringstream info{};
+
+  info << "platform:" << dev.get_platform().get_info<info::platform::name>() << "\n";
+  info << "    name:" << dev.get_info<info::device::name>() << "\n";
+  info << "    type: " << convertToString(dev.get_info<info::device::device_type>()) << "\n";
+  info << "    driver_version:" << dev.get_info<info::device::driver_version>() << "\n";
 
   return info.str();
 }
 
-std::string ConcreteAPI::getCurrentDeviceInfoAsText() { return this->getDeviceInfoAsText(this->currentDeviceId); }
 
 void ConcreteAPI::putProfilingMark(const string &name, ProfilingColors color) {
   // ToDo: check if there is some similar functionality in VTUNE
