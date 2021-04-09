@@ -16,6 +16,20 @@ void ConcreteAPI::initialize() {
   logInfo() << "init SYCL API wrapper ...";
   for (auto const &platform : platform::get_platforms()) {
     for (auto const &device : platform.get_devices()) {
+
+      auto platName = device.get_platform().get_info<info::platform::name>();
+      auto devName = device.get_info<info::device::name>();
+      auto type = device.get_info<info::device::device_type>();
+
+      if (type == cl::sycl::info::device_type::gpu) {
+        if (devName.find("Intel") != std::string::npos) {
+          if (platName.find("Level-Zero") == std::string::npos) {
+            logDebug() << "skip non level-zero Intel GPU " << devName << " on platform " << platName;
+            continue;
+          }
+        }
+      }
+
       DeviceContext *context = new DeviceContext{device};
       this->availableDevices.push_back(context);
     }
@@ -26,7 +40,7 @@ void ConcreteAPI::initialize() {
                    c2->queueBuffer.getDefaultQueue().get_device().get_info<cl::sycl::info::device::device_type>());
   });
 
-  stringstream  s;
+  stringstream s;
   s << "Sorted available devices: ";
   for (auto &dev : this->availableDevices) {
     s << this->getDeviceInfoAsText(dev->queueBuffer.getDefaultQueue().get_device());
@@ -110,8 +124,7 @@ string ConcreteAPI::getDeviceInfoAsText(int id) {
 }
 std::string ConcreteAPI::getCurrentDeviceInfoAsText() { return this->getDeviceInfoAsText(this->currentDeviceId); }
 
-std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev)
-{
+std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
   ostringstream info{};
 
   info << "platform:" << dev.get_platform().get_info<info::platform::name>() << "\n";
@@ -121,7 +134,6 @@ std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev)
 
   return info.str();
 }
-
 
 void ConcreteAPI::putProfilingMark(const string &name, ProfilingColors color) {
   // ToDo: check if there is some similar functionality in VTUNE
