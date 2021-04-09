@@ -31,7 +31,7 @@ void fork_root(int rootRank) {
   api->copyTo(dev_ptr, &value, sizeof(int));
 
   printf("waiting for value from GPU\n");
-  MPI_Recv(&dev_ptr, 1, MPI_INT, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+  MPI_Recv(dev_ptr, 1, MPI_INT, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   api->copyFrom(&value, dev_ptr, sizeof(int));
   printf("value from GPU received: %d\n", value);
 }
