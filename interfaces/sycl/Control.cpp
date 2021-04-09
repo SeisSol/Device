@@ -78,7 +78,7 @@ void ConcreteAPI::setDevice(int id) {
   this->currentDefaultQueue = &this->currentQueueBuffer->getDefaultQueue();
   this->currentMemoryToSizeMap = &next->memoryToSizeMap;
 
-  logDebug() << "switched to device: " << this->getCurrentDeviceInfoAsText();
+  logDebug() << "switched to device: " << this->getCurrentDeviceInfoAsText() << " by index " << id;
 }
 
 int ConcreteAPI::getNumDevices() { return this->availableDevices.size(); }
