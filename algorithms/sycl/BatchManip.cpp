@@ -24,7 +24,7 @@ void Algorithms::streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigne
       real *srcElement = baseSrcPtr[item.get_group().get_id(0)];
       real *dstElement = baseDstPtr[item.get_group().get_id(0)];
 
-      for (int index = item.get_local_id(0); index < elementSize; index += item.get_group_range(0)) {
+      for (int index = item.get_local_id(0); index < elementSize; index += item.get_local_range(0)) {
         dstElement[index] = srcElement[index];
       }
     });
@@ -38,7 +38,7 @@ void Algorithms::accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, uns
     cgh.parallel_for(rng, [=](nd_item<> item) {
       real *srcElement = baseSrcPtr[item.get_group().get_id(0)];
       real *dstElement = baseDstPtr[item.get_group().get_id(0)];
-      for (int index = item.get_local_id(0); index < elementSize; index += item.get_group_range(0)) {
+      for (int index = item.get_local_id(0); index < elementSize; index += item.get_local_range(0)) {
         dstElement[index] += srcElement[index];
       }
     });
@@ -62,7 +62,7 @@ void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsign
           value += 1.0;
           value -= 1.0;
         }
-        id += item.get_group_range(0);
+        id += item.get_local_range(0);
       }
     });
   });
@@ -76,7 +76,7 @@ void Algorithms::copyUniformToScatter(T *src, T **dst, size_t chunkSize, size_t 
     cgh.parallel_for(rng, [=](nd_item<> item) {
       T *srcElement = &src[item.get_group().get_id(0)];
       T *dstElement = dst[item.get_group().get_id(0)];
-      for (int index = item.get_local_id(0); index < chunkSize; index += item.get_group_range(0)) {
+      for (int index = item.get_local_id(0); index < chunkSize; index += item.get_local_range(0)) {
         dstElement[index] = srcElement[index];
       }
     });
@@ -95,7 +95,7 @@ void Algorithms::copyScatterToUniform(T **src, T *dst, size_t chunkSize, size_t 
     cgh.parallel_for(rng, [=](nd_item<> item) {
       T *srcElement = src[item.get_group().get_id(0)];
       T *dstElement = &dst[item.get_group().get_id(0)];
-      for (int index = item.get_local_id(0); index < chunkSize; index += item.get_group_range(0)) {
+      for (int index = item.get_local_id(0); index < chunkSize; index += item.get_local_range(0)) {
         dstElement[index] = srcElement[index];
       }
     });
