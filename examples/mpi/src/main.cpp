@@ -1,4 +1,3 @@
-#include <CL/sycl.hpp>
 #include <device.h>
 #include <mpi.h>
 #include <stdio.h>
@@ -6,7 +5,7 @@
 using namespace sycl;
 using namespace device;
 
-void fork_other(int otherRank) {
+void forkOther(int otherRank) {
 
   DeviceInstance &device = DeviceInstance::getInstance();
   auto *api = device.api;
@@ -34,9 +33,9 @@ void fork_root(int rootRank) {
   MPI_Recv(dev_ptr, 1, MPI_INT, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   api->copyFrom(&value, dev_ptr, sizeof(int));
   printf("value from GPU received: %d\n", value);
+
 }
 
-// ToDo: apply api libs; currently disabled as minimal example
 int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
 
