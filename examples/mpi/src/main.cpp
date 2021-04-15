@@ -2,7 +2,6 @@
 #include <mpi.h>
 #include <stdio.h>
 
-using namespace sycl;
 using namespace device;
 
 void forkOther(int otherRank) {
@@ -11,7 +10,7 @@ void forkOther(int otherRank) {
   auto *api = device.api;
   api->setDevice(otherRank);
 
-  auto *dev_ptr =  (int *) api->allocGlobMem(sizeof(int));
+  auto *dev_ptr = (int *)api->allocGlobMem(sizeof(int));
   const int value = 42;
   api->copyTo(dev_ptr, &value, sizeof(int));
 
@@ -20,12 +19,12 @@ void forkOther(int otherRank) {
   printf("successfully sent to GPU\n");
 }
 
-void fork_root(int rootRank) {
+void forkRoot(int rootRank) {
   DeviceInstance &device = DeviceInstance::getInstance();
   auto *api = device.api;
   api->setDevice(rootRank);
 
-  auto *dev_ptr =  (int *) api->allocGlobMem(sizeof(int));
+  auto *dev_ptr = (int *)api->allocGlobMem(sizeof(int));
   int value = -1;
   api->copyTo(dev_ptr, &value, sizeof(int));
 
@@ -33,7 +32,6 @@ void fork_root(int rootRank) {
   MPI_Recv(dev_ptr, 1, MPI_INT, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   api->copyFrom(&value, dev_ptr, sizeof(int));
   printf("value from GPU received: %d\n", value);
-
 }
 
 int main(int argc, char *argv[]) {
@@ -43,9 +41,9 @@ int main(int argc, char *argv[]) {
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
   if (world_rank == 0) {
-    fork_root(world_rank);
+    forkRoot(world_rank);
   } else if (world_rank == 1) {
-    fork_other(world_rank);
+    forkOther(world_rank);
   }
 
   MPI_Finalize();
