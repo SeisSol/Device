@@ -20,7 +20,7 @@ add_subdirectory(root)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GMock REQUIRED gmock)
 
-add_executable(tests main.cpp reductions.cpp)
+add_executable(tests main.cpp reductions.cpp array_manip.cpp memory.cpp)
 target_link_libraries(tests device ${GMock_LIBRARIES})
 target_include_directories(tests PRIVATE root ${GMock_INCLUDE_DIRS})
 target_compile_definitions(tests PRIVATE REAL_SIZE=${REAL_SIZE_IN_BYTES})
