@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
     }
 
     YAML::Node params = YAML::LoadFile(argv[1]);
-    Logger(ws, ws.rank) << (std::stringstream() << "Input parameters: \n" << params);
+    Logger(ws, 0) << (std::stringstream() << "Input parameters: \n" << params);
 
     numRows = params["num_rows"].as<int>();
     settings.eps = params["eps"].as<real>();
@@ -39,12 +39,12 @@ int main(int argc, char *argv[]) {
   } catch (const std::runtime_error &error) {
     std::stringstream stream;
     stream << "Error: " << error.what();
-    Logger(ws, ws.rank) << stream;
+    Logger(ws, 0) << stream;
     return -1;
   } catch (const std::logic_error &error) {
     std::stringstream stream;
     stream << "Error: " << error.what();
-    Logger(ws, ws.rank) << stream;
+    Logger(ws, 0) << stream;
     return -1;
   }
 
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
     stream << front.str() << "...\n" << middle.str() << "...\n" << back.str();
   }
 
-  Logger(ws, ws.rank) << (stream << "Elapsed Time: " << time.count() << " [sec]");
+  Logger(ws, 0) << (stream << "Elapsed Time: " << time.count() << " [sec]");
 #ifdef USE_MPI
   MPI_Finalize();
 #endif

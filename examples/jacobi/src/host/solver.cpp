@@ -72,7 +72,7 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
           stream << "; comm: " << commStat.getStatistics().mean << ' ' << Statistics::getUnits();
 #endif
         }
-        Logger(ws, ws.rank) << stream;
+        Logger(ws, 0) << stream;
       }
     }
 
