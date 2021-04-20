@@ -6,7 +6,7 @@ endif()
 
 set(CUDA_SEPARABLE_COMPILATION ON)
 set_source_files_properties(device.cpp
-                            algorithms/generic/Reduction.cpp
+                            algorithms/cuda/Reduction.cpp
                             PROPERTIES CUDA_SOURCE_PROPERTY_FORMAT
                             OBJ)
 
