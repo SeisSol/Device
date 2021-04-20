@@ -39,10 +39,8 @@ void manipVectors(const RangeT &range, const VectorT &a, const VectorT &b, Vecto
 real getInfNorm(const RangeT &range, const VectorT &vector) {
   using TypeT = VectorT::iterator::value_type;
 
-  const auto* maxElemItr =
-      std::max_element(&vector[range.start],
-                       &vector[range.end],
-                       [](const TypeT &a, const TypeT &b) { return std::abs(a) < std::abs(b); });
+  const auto *maxElemItr = std::max_element(&vector[range.start], &vector[range.end],
+                                            [](const TypeT &a, const TypeT &b) { return std::abs(a) < std::abs(b); });
 
   return std::abs(*maxElemItr);
 }

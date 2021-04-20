@@ -47,3 +47,5 @@ __global__ void kernel_synchAllStreams() {
 void ConcreteAPI::fastStreamsSync() {
   hipLaunchKernelGGL(kernel_synchAllStreams, dim3(1), dim3(1), 0, 0);
 }
+
+void *ConcreteAPI::getDefaultStream() { return NULL; }

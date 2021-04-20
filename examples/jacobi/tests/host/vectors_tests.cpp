@@ -42,9 +42,6 @@ TEST_F(VectorTests, AssemblerTest) {
   //VectorAssembler(WorkSpaceT ws, int start, int end)
   VectorAssembler assembler(ws, range);
 
-  assembler.assemble(v1.data(), v1.data());
-  ASSERT_THAT(v1, ElementsAreArray(ref));
-
   assembler.assemble(v1.data(), v2.data());
   ASSERT_THAT(v2, ElementsAreArray(ref));
 }
@@ -70,6 +67,7 @@ TEST_F(VectorTests, InfNorm) {
 TEST_F(VectorTests, AddAndSubtract) {
   {
     VectorT test(VSIZE, 0);
+    VectorT tmp (VSIZE, 0);
 
     // init
     for (int i = range.start; i != range.end; ++i) {
@@ -80,13 +78,14 @@ TEST_F(VectorTests, AddAndSubtract) {
     host::manipVectors(range, v1, v2, test, [](real a, real b){return a + b;});
 
     VectorAssembler assembler(ws, range);
-    assembler.assemble(test.data(), test.data());
+    assembler.assemble(test.data(), tmp.data());
 
     VectorT ref(VSIZE, 0);
-    ASSERT_THAT(test, ElementsAreArray(ref));
+    ASSERT_THAT(tmp, ElementsAreArray(ref));
   }
   {
     VectorT test(VSIZE, 0);
+    VectorT tmp (VSIZE, 0);
 
     // init
     for (int i = range.start; i != range.end; ++i) {
@@ -97,12 +96,12 @@ TEST_F(VectorTests, AddAndSubtract) {
     host::manipVectors(range, v1, v2, test, [](real a, real b){return a * b;});
 
     VectorAssembler assembler(ws, range);
-    assembler.assemble(test.data(), test.data());
+    assembler.assemble(test.data(), tmp.data());
 
     VectorT ref(VSIZE, 0);
     for (int i = 0; i != VSIZE; ++i) {
       ref[i] = - real(i * i);
     }
-    ASSERT_THAT(test, ElementsAreArray(ref));
+    ASSERT_THAT(tmp, ElementsAreArray(ref));
   }
 }

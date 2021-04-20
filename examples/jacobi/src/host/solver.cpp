@@ -22,7 +22,7 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
 
   // assume that RHS is distributed. Thus, let's assemble it
   VectorT rhs(inputRhs.size(), 0.0);
-  assembler.assemble(const_cast<real*>(inputRhs.data()), const_cast<real*>(rhs.data()));
+  assembler.assemble(const_cast<real *>(inputRhs.data()), const_cast<real *>(rhs.data()));
 
   // compute diag and LU matrices
   VectorT invDiag;
@@ -49,7 +49,7 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
     computeStat.stop();
 
     commStat.start();
-    assembler.assemble(const_cast<real*>(x.data()), const_cast<real*>(tempX.data()));
+    assembler.assemble(const_cast<real *>(x.data()), const_cast<real *>(tempX.data()));
     commStat.stop();
     x.swap(tempX);
     // Compute residual and print output
@@ -74,8 +74,6 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
         }
         Logger(ws, 0) << stream;
       }
-
-
     }
 
     ++currentIter;

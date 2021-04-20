@@ -4,6 +4,10 @@
 #include "CudaWrappedAPI.h"
 #elif DEVICE_HIP_LANG
 #include "HipWrappedAPI.h"
+#elif DEVICE_ONEAPI_LANG
+#include "interfaces/sycl/SyclWrappedAPI.h"
+#elif DEVICE_HIPSYCL_LANG
+#include "interfaces/sycl/SyclWrappedAPI.h"
 #else
 #error "Unknown interface for the device wrapper"
 #endif

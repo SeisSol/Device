@@ -15,7 +15,7 @@ struct RangeT {
   int end{};
 };
 
-enum SystemType{
+enum SystemType {
   OnHost,
   OnDevice,
 };

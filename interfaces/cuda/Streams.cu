@@ -43,3 +43,5 @@ __global__ void kernel_synchAllStreams() {
 }
 
 void ConcreteAPI::fastStreamsSync() { kernel_synchAllStreams<<<1, 1>>>(); }
+
+void *ConcreteAPI::getDefaultStream() { return NULL; }

@@ -60,6 +60,7 @@ struct AbstractAPI {
   virtual size_t getCurrentlyOccupiedMem() = 0;
   virtual size_t getCurrentlyOccupiedUnifiedMem() = 0;
 
+  virtual void *getDefaultStream() = 0;
   virtual void *getNextCircularStream() = 0;
   virtual void resetCircularStreamCounter() = 0;
   virtual size_t getCircularStreamSize() = 0;

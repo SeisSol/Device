@@ -12,7 +12,8 @@
 #include <device.h>
 using namespace device;
 
-void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &matrix, const VectorT &inputRhs, VectorT &x) {
+void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &matrix, const VectorT &inputRhs,
+                      VectorT &x) {
 
   // allocate all necessary data structs
   const WorkSpaceT &ws = matrix.info.ws;
@@ -26,7 +27,7 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
 
   // assume that RHS is distributed. Thus, let's assemble it
   VectorT rhs(inputRhs.size(), 0.0);
-  assembler.assemble(const_cast<real*>(inputRhs.data()), const_cast<real*>(rhs.data()));
+  assembler.assemble(const_cast<real *>(inputRhs.data()), const_cast<real *>(rhs.data()));
 
   // compute diag and LU matrices
   VectorT invDiag;
