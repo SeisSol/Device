@@ -1,7 +1,7 @@
 find_package(CUDA REQUIRED)
 find_package(NVToolsExt)
 if (NVToolsExt_FOUND)
-    set(EXTRA_FLAGS -DPROFILING_ENABLED)
+    set(EXTRA_DEVICE_FLAGS -DPROFILING_ENABLED)
 endif()
 
 set(CUDA_SEPARABLE_COMPILATION ON)
@@ -17,7 +17,7 @@ set(CUDA_NVCC_FLAGS -std=c++14;
         -DDEVICE_${DEVICE_BACKEND}_LANG;
         -DREAL_SIZE=${REAL_SIZE_IN_BYTES};
         --expt-relaxed-constexpr;
-        ${EXTRA_FLAGS})
+        ${EXTRA_DEVICE_FLAGS})
 
 cuda_add_library(device device.cpp
                         interfaces/cuda/Control.cu

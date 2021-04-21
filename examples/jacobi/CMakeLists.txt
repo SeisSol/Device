@@ -1,30 +1,11 @@
 cmake_minimum_required(VERSION 3.5)
-
 project(jsolver)
 
-option(WITH_TIDY "turn on clang-tidy" OFF)
-
-if (WITH_TIDY)
-    set(CMAKE_CXX_CLANG_TIDY clang-tidy;-header-filter=.*;)
-endif()
-
+include(../cmake/common_options.cmake)
 option(WITH_TESTS "build with unit test" OFF)
 
-#8 for double; 4 for float
-set(REAL_SIZE_IN_BYTES "8" CACHE STRING "size of the floating point data type")
-set_property(CACHE REAL_SIZE_IN_BYTES PROPERTY STRINGS "8" "4")
-
-set(DEVICE_BACKEND "CUDA" CACHE STRING "type of an interface")
-set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "CUDA" "HIP" "ONEAPI" "HIPSYCL")
-
-set(SM "sm_60" CACHE STRING "model of Streaming Multiprocessor")
-set(SM_OPTIONS "sm_20" "sm_30" "sm_50" "sm_60" "sm_70" "gfx906" "bdw" "skl" "kbl" "cfl" "bxt" "glk" "icllp" "lkf" "ehl" "tgllp" "rkl" "adls" "dg1" "Gen8" "Gen9" "Gen11" "Gen12LP")
-set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
 
 find_package(yaml-cpp REQUIRED)
-set(DEVICE_SUB_ARCH ${SM})
-option(WITH_MPI "build with MPI support" ON)
-
 add_subdirectory(root)
 add_subdirectory(src/gpu/kernels)
 
@@ -35,15 +16,17 @@ if (WITH_MPI)
         list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../cmake")
         find_package(IntelMPI REQUIRED)
         set(CMAKE_CXX_COMPILER ${MPI_CXX_COMPILER})
+
+        # note: __MPI_LINK_FLAGS relevant only for IntelMPI
+        set(__MPI_LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
     else()
         find_package(MPI REQUIRED)
     endif()
 
     set(__MPI_INCLUDES ${MPI_CXX_INCLUDE_DIRS})
     set(__MPI_LIBS ${MPI_CXX_LIBRARIES})
-    set(__MPI_LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
     set(__MPI_COMPILE_FLAGS ${MPI_CXX_COMPILE_OPTIONS})
-    set(__MPI_DEFINITIONS "${MPI_CXX_COMPILE_DEFINITIONS}" "USE_MPI")
+    set(__MPI_DEFINITIONS ${MPI_CXX_COMPILE_DEFINITIONS} "USE_MPI")
 endif()
 
 add_executable(solver src/main.cpp
