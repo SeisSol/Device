@@ -21,12 +21,12 @@ set(SM "sm_60" CACHE STRING "model of Streaming Multiprocessor")
 set(SM_OPTIONS "sm_20" "sm_30" "sm_50" "sm_60" "sm_70" "gfx906" "bdw" "skl" "kbl" "cfl" "bxt" "glk" "icllp" "lkf" "ehl" "tgllp" "rkl" "adls" "dg1" "Gen8" "Gen9" "Gen11" "Gen12LP")
 set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
 
-add_subdirectory(root)
-add_subdirectory(src/gpu/kernels)
-
 find_package(yaml-cpp REQUIRED)
 set(DEVICE_SUB_ARCH ${SM})
 option(WITH_MPI "build with MPI support" ON)
+
+add_subdirectory(root)
+add_subdirectory(src/gpu/kernels)
 
 if (WITH_MPI)
     #workaround for Intel MPI: find mpi does not set all variables correctly, therefore we need some manual configuration
