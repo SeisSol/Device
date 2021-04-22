@@ -3,7 +3,7 @@ project(jsolver)
 
 include(../cmake/common_options.cmake)
 option(WITH_TESTS "build with unit test" OFF)
-
+option(WITH_MPI "build with MPI support" ON)
 
 find_package(yaml-cpp REQUIRED)
 add_subdirectory(root)
