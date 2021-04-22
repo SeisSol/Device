@@ -81,4 +81,10 @@ mpirun -n 3 ./tests
 NOTE: Do not use more than 3 MPI processes for testing.
 
 ## Add API kernel
-If adding a kernel from a new API, make sure to implement the `subroutines.hpp` in src/gpu/kernels for the new API. For some APIs (like OneAPI) it is necessary to have access to the device lib created in the root CMakeLists and the specific API implementation. Compare the intel.cmake to have a reference how to do this.
+When adding a kernel from a new API, make sure to implement the `subroutines.hpp` in src/gpu/kernels 
+for the new API. For some APIs (like OneAPI) it is necessary to have access to the device lib created 
+in the root CMakeLists and the specific API implementation. Use `intel.cmake` as a reference.
+
+## Experemental
+Recently we have conducted some experiments with Intel FPGAs. If you are interested you can find auxiliary
+scripts in `aux-scripts` sud-directory 

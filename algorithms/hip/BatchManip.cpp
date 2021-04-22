@@ -62,4 +62,48 @@ void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsign
   hipLaunchKernelGGL(kernel_touchBatchedMemory, grid, block, 0, 0, basePtr, elementSize, clean);
   CHECK_ERR;
 }
+
+//--------------------------------------------------------------------------------------------------
+template<typename T>
+__global__ void kernel_copyUniformToScatter(T *src, T **dst, size_t chunkSize) {
+  T *srcElement = &src[hipBlockIdx_x];
+  T *dstElement = dst[hipBlockIdx_x];
+  for (int index = hipThreadIdx_x; index < chunkSize; index += blockDim.x) {
+    dstElement[index] = srcElement[index];
+  }
+}
+
+template<typename T>
+void Algorithms::copyUniformToScatter(T *src, T **dst, size_t chunkSize, size_t numElements, void* streamPtr) {
+  dim3 block(256, 1, 1);
+  dim3 grid(numElements, 1, 1);
+  hipStream_t stream = (streamPtr != nullptr) ? static_cast<cudaStream_t>(streamPtr) : 0;
+  hipLaunchKernelGGL(kernel_copyUniformToScatter, grid, block, 0, stream, src, dst, chunkSize);
+  CHECK_ERR;
+}
+template void Algorithms::copyUniformToScatter(real *src, real **dst, size_t chunkSize, size_t numElements, void* streamPtr);
+template void Algorithms::copyUniformToScatter(int *src, int **dst, size_t chunkSize, size_t numElements, void* streamPtr);
+template void Algorithms::copyUniformToScatter(char *src, char **dst, size_t chunkSize, size_t numElements, void* streamPtr);
+
+//--------------------------------------------------------------------------------------------------
+template<typename T>
+__global__ void kernel_copyScatterToUniform(T **src, T *dst, size_t chunkSize) {
+  T *srcElement = src[hipBlockIdx_x];
+  T *dstElement = &dst[hipBlockIdx_x];
+  for (int index = hipThreadIdx_x; index < chunkSize; index += blockDim.x) {
+    dstElement[index] = srcElement[index];
+  }
+}
+
+template<typename T>
+void Algorithms::copyScatterToUniform(T **src, T *dst, size_t chunkSize, size_t numElements, void* streamPtr) {
+  dim3 block(256, 1, 1);
+  dim3 grid(numElements, 1, 1);
+  hipStream_t stream = (streamPtr != nullptr) ? static_cast<cudaStream_t>(streamPtr) : 0;
+  hipLaunchKernelGGL(kernel_copyScatterToUniform, grid, block, 0, stream, src, dst, chunkSize);
+  CHECK_ERR;
+}
+template void Algorithms::copyScatterToUniform(real **src, real *dst, size_t chunkSize, size_t numElements, void* streamPtr);
+template void Algorithms::copyScatterToUniform(int **src, int *dst, size_t chunkSize, size_t numElements, void* streamPtr);
+template void Algorithms::copyScatterToUniform(char **src, char *dst, size_t chunkSize, size_t numElements, void* streamPtr);
 } // namespace device
