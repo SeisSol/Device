@@ -23,6 +23,12 @@ int main(int argc, char *argv[]) {
   std::string deviceInfo(device.api->getDeviceInfoAsText(0));
   std::cout << deviceInfo << std::endl;
 
+  std::cout << "alignment: " << device.api->getGlobMemAlignment() << std::endl;
+  std::cout << "max available mem: " << device.api->getMaxAvailableMem() << std::endl;
+  std::cout << "max shared mem: " << device.api->getMaxSharedMemSize() << std::endl;
+  std::cout << "max thread block size: " << device.api->getMaxThreadBlockSize() << std::endl;
+
+
   // allocate mem. on a device
   real *dInputArray = static_cast<real *>(device.api->allocGlobMem(sizeof(real) * size));
   real *dOutputArray = static_cast<real *>(device.api->allocGlobMem(sizeof(real) * size));
