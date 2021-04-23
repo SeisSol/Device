@@ -99,8 +99,7 @@ int ConcreteAPI::getNumDevices() { return this->availableDevices.size(); }
 
 unsigned int ConcreteAPI::getMaxThreadBlockSize() {
   auto device = this->currentDefaultQueue->get_device();
-  auto sizes = device.get_info<info::device::max_work_item_sizes>();
-  return sizes[0] * sizes[1] * sizes[2];
+  return device.get_info<info::device::max_work_group_size>();;
 }
 
 unsigned int ConcreteAPI::getMaxSharedMemSize() {
@@ -110,7 +109,7 @@ unsigned int ConcreteAPI::getMaxSharedMemSize() {
 
 unsigned int ConcreteAPI::getGlobMemAlignment() {
   auto device = this->currentDefaultQueue->get_device();
-  return device.get_info<info::device::global_mem_size>();
+  return 128; //ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
 }
 
 void ConcreteAPI::synchDevice() { this->currentDefaultQueue->wait_and_throw(); }
