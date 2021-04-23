@@ -13,29 +13,59 @@
 
 using namespace device;
 
-void ConcreteAPI::initialize() {
+ConcreteAPI::ConcreteAPI() {
   cuInit(0);
   CHECK_ERR;
+  status[StatusId::DriverApiInitialized] = true;
+}
+
+void ConcreteAPI::setDevice(int deviceId) {
+  currentDeviceId = deviceId;
+  cudaSetDevice(currentDeviceId);
+  CHECK_ERR;
+
+  status[StatusId::DeviceSelected] = true;
+}
+
+void ConcreteAPI::initialize() {
+  if (!status[StatusId::DeviceSelected]) {
+    logError() << "Device has not been selected. Please, select device before calling initialize";
+  }
+  if (!status[StatusId::InterfaceInitialized]) {
+
+    cudaStreamCreate(&defaultStream); CHECK_ERR;
+    constexpr size_t concurrencyLevel = 32;
+    circularStreamBuffer.resize(concurrencyLevel);
+    for (auto &stream : circularStreamBuffer) {
+      cudaStreamCreate(&stream);
+      CHECK_ERR;
+    }
+    status[StatusId::InterfaceInitialized] = true;
+  }
+  else {
+    logWarning() << "Device Interface has already been initialized";
+  }
 }
 
 void ConcreteAPI::allocateStackMem() {
+  isFlagSet<StatusId::DeviceSelected>();
 
   // try to detect the amount of temp. memory from the environment
   const size_t factor = 1024 * 1024 * 1024; //!< bytes in 1 GB
 
   try {
     char *valueString = std::getenv("DEVICE_STACK_MEM_SIZE");
-    const auto id = m_currentDeviceId;
+    const auto id = currentDeviceId;
     if (!valueString) {
       logInfo(id)
           << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
           << "The default amount of the device memory (1 GB) "
           << "is going to be used to store temp. variables during execution of compute-algorithms.";
     } else {
-      double RequestedStackMem = std::stod(std::string(valueString));
-      m_maxStackMem = factor * RequestedStackMem;
+      double requestedStackMem = std::stod(std::string(valueString));
+      maxStackMem = factor * requestedStackMem;
       logInfo(id) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
-                  << RequestedStackMem << "GB of the device memory is going to be used "
+                  << requestedStackMem << "GB of the device memory is going to be used "
                   << "to store temp. variables during execution of compute-algorithms.";
     }
   } catch (const std::invalid_argument &err) {
@@ -46,34 +76,33 @@ void ConcreteAPI::allocateStackMem() {
                << ", line: " << __LINE__;
   }
 
-  cudaMalloc(&m_stackMemory, m_maxStackMem);
+  cudaMalloc(&stackMemory, maxStackMem);
   CHECK_ERR;
 
-  constexpr size_t concurrencyLevel = 32;
-  m_circularStreamBuffer.resize(concurrencyLevel);
-  for (auto &stream : m_circularStreamBuffer) {
-    cudaStreamCreate(&stream);
-    CHECK_ERR;
-  }
+  status[StatusId::StackMemAllocated] = true;
 };
 
 void ConcreteAPI::finalize() {
-  cudaFree(m_stackMemory);
-  CHECK_ERR;
-  m_stackMemory = nullptr;
-  for (auto &stream : m_circularStreamBuffer) {
-    cudaStreamDestroy(stream);
+  if (status[StatusId::StackMemAllocated]) {
+    cudaFree(stackMemory);
     CHECK_ERR;
+    stackMemory = nullptr;
+    stackMemByteCounter = 0;
+    stackMemMeter = std::stack<size_t>{};
+    status[StatusId::StackMemAllocated] = false;
+
   }
-  m_circularStreamBuffer.clear();
-  m_isFinalized = true;
+  if (status[StatusId::InterfaceInitialized]) {
+    cudaStreamDestroy(defaultStream);
+    for (auto &stream : circularStreamBuffer) {
+      cudaStreamDestroy(stream);
+      CHECK_ERR;
+    }
+    circularStreamBuffer.clear();
+    status[StatusId::InterfaceInitialized] = false;
+  }
 };
 
-void ConcreteAPI::setDevice(int deviceId) {
-  m_currentDeviceId = deviceId;
-  cudaSetDevice(m_currentDeviceId);
-  CHECK_ERR;
-}
 
 int ConcreteAPI::getNumDevices() {
   int numDevices{};
@@ -84,14 +113,14 @@ int ConcreteAPI::getNumDevices() {
 
 unsigned ConcreteAPI::getMaxThreadBlockSize() {
   int blockSize{};
-  cudaDeviceGetAttribute(&blockSize, cudaDevAttrMaxThreadsPerBlock, m_currentDeviceId);
+  cudaDeviceGetAttribute(&blockSize, cudaDevAttrMaxThreadsPerBlock, currentDeviceId);
   CHECK_ERR;
   return static_cast<unsigned>(blockSize);
 }
 
 unsigned ConcreteAPI::getMaxSharedMemSize() {
   int sharedMemSize{};
-  cudaDeviceGetAttribute(&sharedMemSize, cudaDevAttrMaxSharedMemoryPerBlock, m_currentDeviceId);
+  cudaDeviceGetAttribute(&sharedMemSize, cudaDevAttrMaxSharedMemoryPerBlock, currentDeviceId);
   CHECK_ERR;
   return static_cast<unsigned>(sharedMemSize);
 }
@@ -102,6 +131,7 @@ unsigned ConcreteAPI::getGlobMemAlignment() {
 }
 
 void ConcreteAPI::synchDevice() {
+  isFlagSet<DeviceSelected>();
   cudaDeviceSynchronize();
   CHECK_ERR;
 }
@@ -134,6 +164,7 @@ std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
 
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
 #ifdef PROFILING_ENABLED
+  isFlagSet<DeviceSelected>();
   nvtxEventAttributes_t eventAttrib = {0};
   eventAttrib.version = NVTX_VERSION;
   eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
@@ -147,6 +178,7 @@ void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors colo
 
 void ConcreteAPI::popLastProfilingMark() {
 #ifdef PROFILING_ENABLED
+  isFlagSet<DeviceSelected>();
   nvtxRangePop();
 #endif
 }

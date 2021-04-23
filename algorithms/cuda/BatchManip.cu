@@ -18,10 +18,12 @@ namespace device {
   void Algorithms::streamBatchedData(real **baseSrcPtr,
                                      real **baseDstPtr,
                                      unsigned elementSize,
-                                     unsigned numElements) {
+                                     unsigned numElements,
+                                     void* streamPtr) {
     dim3 block(internals::WARP_SIZE, 1, 1);
     dim3 grid(numElements, 1, 1);
-    kernel_streamBatchedData<<<grid, block>>>(baseSrcPtr, baseDstPtr, elementSize); CHECK_ERR;
+    auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+    kernel_streamBatchedData<<<grid, block, 0, stream>>>(baseSrcPtr, baseDstPtr, elementSize); CHECK_ERR;
   }
 
 
@@ -40,10 +42,12 @@ namespace device {
   void Algorithms::accumulateBatchedData(real **baseSrcPtr,
                                          real **baseDstPtr,
                                          unsigned elementSize,
-                                         unsigned numElements) {
+                                         unsigned numElements,
+                                         void* streamPtr) {
     dim3 block(internals::WARP_SIZE, 1, 1);
     dim3 grid(numElements, 1, 1);
-    kernel_accumulateBatchedData<<<grid, block>>>(baseSrcPtr, baseDstPtr, elementSize); CHECK_ERR;
+    auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+    kernel_accumulateBatchedData<<<grid, block, 0, stream>>>(baseSrcPtr, baseDstPtr, elementSize); CHECK_ERR;
   }
 
 //--------------------------------------------------------------------------------------------------
@@ -64,10 +68,15 @@ namespace device {
     }
   }
 
-  void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsigned numElements, bool clean) {
+  void Algorithms::touchBatchedMemory(real **basePtr,
+                                      unsigned elementSize,
+                                      unsigned numElements,
+                                      bool clean,
+                                      void* streamPtr) {
     dim3 block(256, 1, 1);
     dim3 grid(numElements, 1, 1);
-    kernel_touchBatchedMemory<<<grid, block>>>(basePtr, elementSize, clean); CHECK_ERR;
+    auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+    kernel_touchBatchedMemory<<<grid, block, 0, stream>>>(basePtr, elementSize, clean); CHECK_ERR;
   }
 
 //--------------------------------------------------------------------------------------------------
@@ -84,7 +93,7 @@ namespace device {
   void Algorithms::copyUniformToScatter(T *src, T **dst, size_t chunkSize, size_t numElements, void* streamPtr) {
     dim3 block(256, 1, 1);
     dim3 grid(numElements, 1, 1);
-    cudaStream_t stream = (streamPtr != nullptr) ? static_cast<cudaStream_t>(streamPtr) : 0;
+    auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
     kernel_copyUniformToScatter<<<grid, block, 0, stream>>>(src, dst, chunkSize); CHECK_ERR;
     CHECK_ERR;
   }
@@ -106,7 +115,7 @@ namespace device {
   void Algorithms::copyScatterToUniform(T **src, T *dst, size_t chunkSize, size_t numElements, void* streamPtr) {
     dim3 block(256, 1, 1);
     dim3 grid(numElements, 1, 1);
-    cudaStream_t stream = (streamPtr != nullptr) ? static_cast<cudaStream_t>(streamPtr) : 0;
+    auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
     kernel_copyScatterToUniform<<<grid, block, 0, stream>>>(src, dst, chunkSize); CHECK_ERR;
     CHECK_ERR;
   }

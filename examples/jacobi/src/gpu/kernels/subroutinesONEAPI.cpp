@@ -1,4 +1,3 @@
-
 #include "interfaces/sycl/Internals.h"
 #include "subroutinesGPU.h"
 
@@ -8,15 +7,12 @@
 using namespace device::internals;
 using namespace cl::sycl;
 
-inline cl::sycl::queue *getQueue() {
-  auto *api = ::device::DeviceInstance::getInstance().api;
-  return ((cl::sycl::queue *)api->getDefaultStream());
-}
 
-void launch_multMatVec(const GpuMatrixDataT &matrix, const real *v, real *res) {
+void launch_multMatVec(const GpuMatrixDataT &matrix, const real *v, real *res, void* streamPtr) {
   auto rng = computeExecutionRange1D(128, matrix.info.localNumRows);
 
-  getQueue()->submit([&](handler &cgh) {
+  auto queue = reinterpret_cast<cl::sycl::queue*>(streamPtr);
+  queue->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
       int i = item.get_global_id(0);
       if (i < matrix.info.localNumRows) {
@@ -35,10 +31,18 @@ void launch_multMatVec(const GpuMatrixDataT &matrix, const real *v, real *res) {
     });
   });
 }
-void launch_manipVectors(const RangeT &range, const real *vec1, const real *vec2, real *res, VectorManipOps op) {
+
+
+void launch_manipVectors(const RangeT &range,
+                         const real *vec1,
+                         const real *vec2,
+                         real *res,
+                         VectorManipOps op,
+                         void* streamPtr) {
   cl::sycl::nd_range<> rng = computeExecutionRange1D(128, range.end - range.start);
 
-  getQueue()->submit([&](handler &cgh) {
+  auto queue = reinterpret_cast<cl::sycl::queue*>(streamPtr);
+  queue->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
       const size_t localSize = range.end - range.start;
       if (item.get_global_id(0) < localSize) {

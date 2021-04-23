@@ -32,12 +32,12 @@ inline size_t getNearestPow2Number(size_t number) {
   return (BASE << power);
 }
 
-template <typename T, typename OperationT> void reduce(size_t size, size_t step, T *buffer, OperationT operation) {
+template <typename T, typename OperationT> void reduce(size_t size, size_t step, T *buffer, OperationT operation, void* streamPtr) {
 
   auto targetSize = getNearestPow2Number(size / (step * 2));
   auto rng = ::device::internals::computeDefaultExecutionRange1D(targetSize);
 
-  getQueue()->submit([&](handler &cgh) {
+  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
       int j = item.get_global_id(0) * (2 * step);
       if (j < size) {
@@ -54,22 +54,22 @@ template <typename T, typename OperationT> void reduce(size_t size, size_t step,
   });
 }
 
-template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type) {
+template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type, void* streamPtr) {
   if (api == nullptr)
     throw std::invalid_argument("api has not been attached to algorithms sub-system");
 
   for (int step = 1; step < size; step *= 2) {
     switch (type) {
     case ReductionType::Add: {
-      reduce<T>(size, step, buffer, ::device::Sum<T>());
+      reduce<T>(size, step, buffer, ::device::Sum<T>(), streamPtr);
       break;
     }
     case ReductionType::Max: {
-      reduce<T>(size, step, buffer, ::device::Max<T>());
+      reduce<T>(size, step, buffer, ::device::Max<T>(), streamPtr);
       break;
     }
     case ReductionType::Min: {
-      reduce<T>(size, step, buffer, ::device::Min<T>());
+      reduce<T>(size, step, buffer, ::device::Min<T>(), streamPtr);
       break;
     }
     default: {
@@ -83,6 +83,6 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
   return results;
 }
 
-template int Algorithms::reduceVector(int *buffer, size_t size, ReductionType type);
-template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type);
+template int Algorithms::reduceVector(int *buffer, size_t size, ReductionType type, void* streamPtr);
+template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type, void* streamPtr);
 } // namespace device

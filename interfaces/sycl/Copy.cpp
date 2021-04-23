@@ -46,7 +46,7 @@ void ConcreteAPI::copyToAsync(void *dst, const void *src, size_t count, void *st
     throw std::invalid_argument(getDeviceInfoAsText(currentDeviceId)
                                     .append("tried to prefetch usm on a queue that is not known to this device"));
 
-  targetQueue->submit([&](handler &cgh) { cgh.memcpy(dst, src, count); }).wait_and_throw();
+  targetQueue->submit([&](handler &cgh) { cgh.memcpy(dst, src, count); });
 }
 
 void ConcreteAPI::copyFromAsync(void *dst, const void *src, size_t count, void *streamPtr) {

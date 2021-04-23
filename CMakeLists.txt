@@ -55,5 +55,6 @@ target_include_directories(device PRIVATE .
                                           interfaces/${BACKEND_FOLDER}
                                           algorithms/${BACKEND_FOLDER}
                                           submodules)
+target_compile_options(device PRIVATE -fPIC)
 
 

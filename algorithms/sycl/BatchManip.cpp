@@ -8,18 +8,10 @@ using namespace device::internals;
 
 namespace device {
 
-inline cl::sycl::queue *getQueue(void *ptr = nullptr) {
-  auto *api = DeviceInstance::getInstance().api;
-  if (ptr == nullptr) {
-    return ((queue *)api->getDefaultStream());
-  }
-  return (cl::sycl::queue *)ptr;
-}
+void Algorithms::streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize, unsigned numElements, void* streamPtr) {
+  auto rng = cl::sycl::nd_range<1>{numElements * 32, 32};
 
-void Algorithms::streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize, unsigned numElements) {
-  auto rng = computeDefaultExecutionRange1D(numElements);
-
-  getQueue()->submit([&](handler &cgh) {
+((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
       real *srcElement = baseSrcPtr[item.get_group().get_id(0)];
       real *dstElement = baseDstPtr[item.get_group().get_id(0)];
@@ -32,9 +24,10 @@ void Algorithms::streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigne
 }
 
 void Algorithms::accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize,
-                                       unsigned numElements) {
-  auto rng = computeDefaultExecutionRange1D(numElements);
-  getQueue()->submit([&](handler &cgh) {
+                                       unsigned numElements, void* streamPtr) {
+  auto rng = cl::sycl::nd_range<1>{numElements * 32, 32};
+
+  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
       real *srcElement = baseSrcPtr[item.get_group().get_id(0)];
       real *dstElement = baseDstPtr[item.get_group().get_id(0)];
@@ -45,10 +38,10 @@ void Algorithms::accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, uns
   });
 }
 
-void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsigned numElements, bool clean) {
-  auto rng = computeExecutionRange1D(256, numElements);
+void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsigned numElements, bool clean, void* streamPtr) {
+  auto rng = cl::sycl::nd_range<1>{numElements * 256, 256};
 
-  getQueue()->submit([&](handler &cgh) {
+  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
       real *element = basePtr[item.get_group().get_id(0)];
       int id = item.get_local_id(0);
@@ -70,9 +63,9 @@ void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsign
 
 template <typename T>
 void Algorithms::copyUniformToScatter(T *src, T **dst, size_t chunkSize, size_t numElements, void *streamPtr) {
-  auto rng = computeExecutionRange1D(256, numElements);
+  auto rng = cl::sycl::nd_range<1>{numElements * 256, 256};
 
-  getQueue()->submit([&](handler &cgh) {
+  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
       T *srcElement = &src[item.get_group().get_id(0)];
       T *dstElement = dst[item.get_group().get_id(0)];
@@ -89,9 +82,9 @@ template void Algorithms::copyUniformToScatter(char *src, char **dst, size_t chu
 
 template <typename T>
 void Algorithms::copyScatterToUniform(T **src, T *dst, size_t chunkSize, size_t numElements, void *streamPtr) {
-  auto rng = computeExecutionRange1D(256, numElements);
+  auto rng = cl::sycl::nd_range<1>{numElements * 256, 256};
 
-  getQueue()->submit([&](handler &cgh) {
+  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
       T *srcElement = src[item.get_group().get_id(0)];
       T *dstElement = &dst[item.get_group().get_id(0)];

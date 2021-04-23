@@ -20,9 +20,12 @@ DeviceType fromSyclType(cl::sycl::info::device_type type) {
   return DeviceType::OTHERS;
 }
 
-bool compare(cl::sycl::info::device_type typeA, cl::sycl::info::device_type typeB) {
+bool compare(cl::sycl::device devA, cl::sycl::device devB) {
   std::string env;
   env += utils::Env::get("PREFERRED_DEVICE_TYPE", "");
+
+  auto typeA = devA.get_info<cl::sycl::info::device::device_type>();
+  auto typeB = devB.get_info<cl::sycl::info::device::device_type>();
 
   if (convertToString(typeA).compare(env) == 0) {
     return true;
@@ -30,6 +33,12 @@ bool compare(cl::sycl::info::device_type typeA, cl::sycl::info::device_type type
   if (convertToString(typeB).compare(env) == 0) {
     return false;
   }
+
+  //devices of same type are sorted by their cl::deviceid
+  if (typeA == typeB) {
+    //return devA.get() < devB.get();
+  }
+
   return fromSyclType(typeA) < fromSyclType(typeB);
 }
 
