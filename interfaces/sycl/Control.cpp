@@ -99,7 +99,7 @@ int ConcreteAPI::getNumDevices() { return this->availableDevices.size(); }
 
 unsigned int ConcreteAPI::getMaxThreadBlockSize() {
   auto device = this->currentDefaultQueue->get_device();
-  return device.get_info<info::device::max_work_group_size>();;
+  return device.get_info<info::device::max_work_group_size>();
 }
 
 unsigned int ConcreteAPI::getMaxSharedMemSize() {
