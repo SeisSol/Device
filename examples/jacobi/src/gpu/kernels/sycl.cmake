@@ -16,6 +16,7 @@ target_include_directories(${TARGET_NAME} PUBLIC root)
 target_link_libraries(${TARGET_NAME} PUBLIC device)
 
 if (${DEVICE_BACKEND} STREQUAL "HIPSYCL")
+    set(HIPSYCL_TARGETS 'cuda:sm_70')
     find_package(hipSYCL CONFIG REQUIRED)
     add_sycl_to_target(TARGET ${TARGET_NAME} SOURCES ${KERNEL_SOURCE_FILES})
 else()

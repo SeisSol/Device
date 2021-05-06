@@ -22,7 +22,7 @@ endif()
 add_library(device SHARED ${DEVICE_SOURCE_FILES})
 
 if (${DEVICE_BACKEND} STREQUAL "HIPSYCL")
-    set(HIPSYCL_TARGETS)
+    set(HIPSYCL_TARGETS 'cuda:sm_70')
     find_package(hipSYCL CONFIG REQUIRED)
     add_sycl_to_target(TARGET device SOURCES ${DEVICE_SOURCE_FILES})
 else()
