@@ -36,8 +36,7 @@ void ConcreteAPI::initialize() {
   }
 
   sort(this->availableDevices.begin(), this->availableDevices.end(), [&](DeviceContext *c1, DeviceContext *c2) {
-    return compare(c1->queueBuffer.getDefaultQueue().get_device().get_info<cl::sycl::info::device::device_type>(),
-                   c2->queueBuffer.getDefaultQueue().get_device().get_info<cl::sycl::info::device::device_type>());
+    return compare(c1->queueBuffer.getDefaultQueue().get_device(), c2->queueBuffer.getDefaultQueue().get_device());
   });
 
   stringstream s;
@@ -99,7 +98,8 @@ int ConcreteAPI::getNumDevices() { return this->availableDevices.size(); }
 
 unsigned int ConcreteAPI::getMaxThreadBlockSize() {
   auto device = this->currentDefaultQueue->get_device();
-  return device.get_info<info::device::max_work_group_size>();;
+  return device.get_info<info::device::max_work_group_size>();
+  ;
 }
 
 unsigned int ConcreteAPI::getMaxSharedMemSize() {
@@ -109,7 +109,7 @@ unsigned int ConcreteAPI::getMaxSharedMemSize() {
 
 unsigned int ConcreteAPI::getGlobMemAlignment() {
   auto device = this->currentDefaultQueue->get_device();
-  return 128; //ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
+  return 128; // ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
 }
 
 void ConcreteAPI::synchDevice() { this->currentDefaultQueue->wait_and_throw(); }
@@ -129,7 +129,9 @@ std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
   info << "platform:" << dev.get_platform().get_info<info::platform::name>() << "\n";
   info << "    name:" << dev.get_info<info::device::name>() << "\n";
   info << "    type: " << convertToString(dev.get_info<info::device::device_type>()) << "\n";
-  info << "    driver_version:" << dev.get_info<info::device::driver_version>() << "\n";
+  info << "    driver_version: " << dev.get_info<info::device::driver_version>() << "\n";
+  if (dev.get_info<info::device::device_type>() != cl::sycl::info::device_type::host)
+    info << "    device id: " << dev.get() << "\n";
 
   return info.str();
 }
