@@ -11,15 +11,19 @@ template <typename T> __global__ void kernel_scaleArray(T *array, const T scalar
   }
 }
 
-template <typename T> void Algorithms::scaleArray(T *devArray, T scalar, const size_t numElements) {
+template <typename T> void Algorithms::scaleArray(T *devArray,
+                                                  T scalar,
+                                                  const size_t numElements,
+                                                  void* streamPtr) {
   dim3 block(64, 1, 1);
   dim3 grid = internals::computeGrid1D(block, numElements);
-  kernel_scaleArray<<<grid, block>>>(devArray, scalar, numElements);
+  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  kernel_scaleArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
   CHECK_ERR;
 }
-template void Algorithms::scaleArray(real *devArray, real scalar, const size_t numElements);
-template void Algorithms::scaleArray(int *devArray, int scalar, const size_t numElements);
-template void Algorithms::scaleArray(char *devArray, char scalar, const size_t numElements);
+template void Algorithms::scaleArray(real *devArray, real scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::scaleArray(int *devArray, int scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::scaleArray(char *devArray, char scalar, const size_t numElements, void* streamPtr);
 
 //--------------------------------------------------------------------------------------------------
 template <typename T> __global__ void kernel_fillArray(T *array, T scalar, const size_t numElements) {
@@ -29,15 +33,16 @@ template <typename T> __global__ void kernel_fillArray(T *array, T scalar, const
   }
 }
 
-template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, const size_t numElements) {
+template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, const size_t numElements, void* streamPtr) {
   dim3 block(64, 1, 1);
   dim3 grid = internals::computeGrid1D(block, numElements);
-  kernel_scaleArray<<<grid, block>>>(devArray, scalar, numElements);
+  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  kernel_scaleArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
   CHECK_ERR;
 }
-template void Algorithms::fillArray(real *devArray, real scalar, const size_t numElements);
-template void Algorithms::fillArray(int *devArray, int scalar, const size_t numElements);
-template void Algorithms::fillArray(char *devArray, char scalar, const size_t numElements);
+template void Algorithms::fillArray(real *devArray, real scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::fillArray(int *devArray, int scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::fillArray(char *devArray, char scalar, const size_t numElements, void* streamPtr);
 
 //--------------------------------------------------------------------------------------------------
 __global__ void kernel_touchMemory(real *ptr, size_t size, bool clean) {
@@ -55,10 +60,11 @@ __global__ void kernel_touchMemory(real *ptr, size_t size, bool clean) {
   }
 }
 
-void Algorithms::touchMemory(real *ptr, size_t size, bool clean) {
+void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr) {
   dim3 block(256, 1, 1);
   dim3 grid = internals::computeGrid1D(block, size);
-  kernel_touchMemory<<<grid, block>>>(ptr, size, clean);
+  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  kernel_touchMemory<<<grid, block, 0, stream>>>(ptr, size, clean);
   CHECK_ERR;
 }
 } // namespace device

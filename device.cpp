@@ -19,14 +19,15 @@ DeviceInstance::DeviceInstance() {
   // Make sure to not include multiple different interfaces at the same time.
   // Only one interface is allowed per program because of issues of unique compilers, etc.
   api = new ConcreteAPI;
-  api->initialize();
   algorithms.setDeviceApi(api);
 }
 
+DeviceInstance::~DeviceInstance() {
+  this->finalize();
+  delete api;
+  api = nullptr;
+}
+
 void DeviceInstance::finalize() {
-  if (api != nullptr) {
-    api->finalize();
-    delete api;
-    api = nullptr;
-  }
+  api->finalize();
 }
