@@ -37,17 +37,19 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
   // allocate gpu data structures
   DeviceInstance &device = DeviceInstance::getInstance();
   device.api->setDevice(ws.rank);
+  device.api->initialize();
   this->setUp(lu, rhs, x, residual, invDiag);
 
   // start solver
   Statistics computeStat(ws, range);
   Statistics commStat(ws, range);
+  auto defaultStream = device.api->getDefaultStream();
   while ((infNorm > settings.eps) and (currentIter <= settings.maxNumIters)) {
 
     computeStat.start();
-    launch_multMatVec(*devLU, devX, devTemp);
-    launch_manipVectors(range, devRhs, devTemp, devX, VectorManipOps::Subtraction);
-    launch_manipVectors(range, devInvDiag, devX, devX, VectorManipOps::Multiply);
+    launch_multMatVec(*devLU, devX, devTemp, defaultStream);
+    launch_manipVectors(range, devRhs, devTemp, devX, VectorManipOps::Subtraction, defaultStream);
+    launch_manipVectors(range, devInvDiag, devX, devX, VectorManipOps::Multiply, defaultStream);
     device.api->synchDevice();
     computeStat.stop();
 
@@ -59,10 +61,10 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
     // Compute residual and print output
     if ((currentIter % settings.printInfoNumIters) == 0) {
 
-      launch_manipVectors(range, devDiag, devX, devTemp, VectorManipOps::Multiply);
-      launch_multMatVec(*devLU, devX, devResidual);
-      launch_manipVectors(range, devTemp, devResidual, devResidual, VectorManipOps::Addition);
-      launch_manipVectors(range, devRhs, devResidual, devResidual, VectorManipOps::Subtraction);
+      launch_manipVectors(range, devDiag, devX, devTemp, VectorManipOps::Multiply, defaultStream);
+      launch_multMatVec(*devLU, devX, devResidual, defaultStream);
+      launch_manipVectors(range, devTemp, devResidual, devResidual, VectorManipOps::Addition, defaultStream);
+      launch_manipVectors(range, devRhs, devResidual, devResidual, VectorManipOps::Subtraction, defaultStream);
       device.api->copyFrom(const_cast<real *>(residual.data()), devResidual, residual.size() * sizeof(real));
 
       auto localInfNorm = infNorm = host::getInfNorm(range, residual);

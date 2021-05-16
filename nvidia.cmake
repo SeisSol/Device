@@ -17,6 +17,7 @@ set(CUDA_NVCC_FLAGS -std=c++14;
         -DDEVICE_${DEVICE_BACKEND}_LANG;
         -DREAL_SIZE=${REAL_SIZE_IN_BYTES};
         --expt-relaxed-constexpr;
+        --compiler-options -fPIC;
         ${EXTRA_DEVICE_FLAGS})
 
 cuda_add_library(device device.cpp

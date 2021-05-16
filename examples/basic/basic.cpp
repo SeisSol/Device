@@ -18,6 +18,7 @@ int main(int argc, char *argv[]) {
   if (numDevices > 0) {
     device.api->setDevice(0);
   }
+  device.api->initialize();
 
   // print some device info
   std::string deviceInfo(device.api->getDeviceInfoAsText(0));
