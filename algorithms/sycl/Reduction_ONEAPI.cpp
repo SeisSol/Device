@@ -6,12 +6,9 @@
 #include <limits>
 
 namespace device {
-inline cl::sycl::queue *getQueue() {
-  auto *api = DeviceInstance::getInstance().api;
-  return ((cl::sycl::queue *)api->getDefaultStream());
-}
 
-template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type) {
+
+template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type, void* streamPtr) {
   if (api == nullptr)
     throw std::invalid_argument("api has not been attached to algorithms sub-system");
 
@@ -23,7 +20,7 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
     auto id = static_cast<T>(0);
     api->copyTo(red_ptr, &id, sizeof(T));
     auto red = cl::sycl::ONEAPI::reduction(red_ptr, red_ptr[0], std::plus<T>());
-    getQueue()->submit([&](handler &cgh) {
+    ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
       cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(buffer[it.get_global_id(0)]); });
     });
     break;
@@ -32,7 +29,7 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
     auto id = std::numeric_limits<T>::min();
     api->copyTo(red_ptr, &id, sizeof(T));
     auto red = cl::sycl::ONEAPI::reduction(red_ptr, red_ptr[0], sycl::ONEAPI::maximum<T>());
-    getQueue()->submit([&](handler &cgh) {
+    ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
       cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(buffer[it.get_global_id(0)]); });
     });
     break;
@@ -41,7 +38,7 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
     auto id = std::numeric_limits<T>::max();
     api->copyTo(red_ptr, &id, sizeof(T));
     auto red = cl::sycl::ONEAPI::reduction(red_ptr, red_ptr[0], sycl::ONEAPI::minimum<T>());
-    getQueue()->submit([&](handler &cgh) {
+    ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
       cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(buffer[it.get_global_id(0)]); });
     });
     break;
@@ -59,6 +56,6 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
   return results;
 }
 
-template int Algorithms::reduceVector(int *buffer, size_t size, ReductionType type);
-template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type);
+template int Algorithms::reduceVector(int *buffer, size_t size, ReductionType type, void* streamPtr);
+template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type, void* streamPtr);
 } // namespace device
