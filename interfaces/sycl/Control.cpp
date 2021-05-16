@@ -9,11 +9,12 @@ using namespace device;
 using namespace cl::sycl;
 using namespace std;
 
-void ConcreteAPI::initialize() {
-  if (initialized)
-    throw std::invalid_argument("can not initialize SYCL twice");
+void ConcreteAPI::initDevices() {
 
-  logInfo() << "init SYCL API wrapper ...";
+  if (this->deviceInitialized)
+    throw new std::invalid_argument("can not init devices twice!");
+
+  logInfo() << "init SYCL API devices ...";
   for (auto const &platform : platform::get_platforms()) {
     for (auto const &device : platform.get_devices()) {
 
@@ -47,9 +48,27 @@ void ConcreteAPI::initialize() {
   logInfo() << s.str();
 
   this->setDevice(this->currentDeviceId);
-  this->initialized = true;
-  logInfo() << "init succeeded";
+  this->deviceInitialized = true;
+  logInfo() << "device init succeeded";
 }
+
+void ConcreteAPI::setDevice(int id) {
+
+  if (id < 0 || id >= this->getNumDevices())
+    throw out_of_range{"device index out of range"};
+
+  this->currentDeviceId = id;
+  auto *next = this->availableDevices[id];
+  this->currentDeviceStack = &next->stack;
+  this->currentStatistics = &next->statistics;
+  this->currentQueueBuffer = &next->queueBuffer;
+  this->currentDefaultQueue = &this->currentQueueBuffer->getDefaultQueue();
+  this->currentMemoryToSizeMap = &next->memoryToSizeMap;
+
+  logDebug() << "switched to device: " << this->getCurrentDeviceInfoAsText() << " by index " << id;
+}
+
+void ConcreteAPI::initialize() {}
 
 void ConcreteAPI::allocateStackMem() {
   logInfo() << "allocating stack memory for device: \n"
@@ -76,22 +95,7 @@ void ConcreteAPI::finalize() {
   this->currentMemoryToSizeMap = nullptr;
 
   this->m_isFinalized = true;
-  this->initialized = false;
-}
-
-void ConcreteAPI::setDevice(int id) {
-  if (id < 0 || id >= this->getNumDevices())
-    throw out_of_range{"device index out of range"};
-
-  this->currentDeviceId = id;
-  auto *next = this->availableDevices[id];
-  this->currentDeviceStack = &next->stack;
-  this->currentStatistics = &next->statistics;
-  this->currentQueueBuffer = &next->queueBuffer;
-  this->currentDefaultQueue = &this->currentQueueBuffer->getDefaultQueue();
-  this->currentMemoryToSizeMap = &next->memoryToSizeMap;
-
-  logDebug() << "switched to device: " << this->getCurrentDeviceInfoAsText() << " by index " << id;
+  this->deviceInitialized = false;
 }
 
 int ConcreteAPI::getNumDevices() { return this->availableDevices.size(); }
@@ -99,7 +103,6 @@ int ConcreteAPI::getNumDevices() { return this->availableDevices.size(); }
 unsigned int ConcreteAPI::getMaxThreadBlockSize() {
   auto device = this->currentDefaultQueue->get_device();
   return device.get_info<info::device::max_work_group_size>();
-  ;
 }
 
 unsigned int ConcreteAPI::getMaxSharedMemSize() {
