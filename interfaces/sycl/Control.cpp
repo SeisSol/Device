@@ -133,8 +133,8 @@ std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
   info << "    name:" << dev.get_info<info::device::name>() << "\n";
   info << "    type: " << convertToString(dev.get_info<info::device::device_type>()) << "\n";
   info << "    driver_version: " << dev.get_info<info::device::driver_version>() << "\n";
-  if (dev.get_info<info::device::device_type>() != cl::sycl::info::device_type::host)
-    info << "    device id: " << dev.get() << "\n";
+  //if (dev.get_info<info::device::device_type>() != cl::sycl::info::device_type::host)
+    //info << "    device id: " << dev.get() << "\n";
 
   return info.str();
 }
