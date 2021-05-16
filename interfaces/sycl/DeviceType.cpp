@@ -36,7 +36,7 @@ bool compare(cl::sycl::device devA, cl::sycl::device devB) {
 
   //devices of same type are sorted by their cl::deviceid
   if (typeA == typeB) {
-    return devA.get() < devB.get();
+    //return devA.get() < devB.get();
   }
 
   return fromSyclType(typeA) < fromSyclType(typeB);
