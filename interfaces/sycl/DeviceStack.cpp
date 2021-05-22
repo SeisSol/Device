@@ -7,7 +7,7 @@ DeviceStack::DeviceStack(cl::sycl::queue &deviceQueue)
 
 DeviceStack::~DeviceStack() {
   if (stackMemory != nullptr) {
-    free(this->stackMemory, this->deviceQueue);
+    cl::sycl::free(this->stackMemory, this->deviceQueue);
   }
 }
 
