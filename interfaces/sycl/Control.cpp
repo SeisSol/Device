@@ -115,7 +115,7 @@ unsigned int ConcreteAPI::getGlobMemAlignment() {
   return 128; // ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
 }
 
-void ConcreteAPI::synchDevice() { this->currentDefaultQueue->wait_and_throw(); }
+void ConcreteAPI::synchDevice() { this->currentQueueBuffer->syncAllQueuesWithHost(); }
 
 string ConcreteAPI::getDeviceInfoAsText(int id) {
   if (id < 0 || id >= this->getNumDevices())
