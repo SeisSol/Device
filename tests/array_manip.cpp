@@ -16,7 +16,7 @@ TEST_F(ArrayManips, fill) {
   int *arr = (int *)device->api->allocGlobMem(N * sizeof(int));
   int scalar = 502;
 
-  device->algorithms.fillArray(arr, scalar, N);
+  device->algorithms.fillArray(arr, scalar, N, device->api->getDefaultStream());
 
   std::vector<int> hostVector(N, 0);
   device->api->copyFrom(&hostVector[0], arr, N * sizeof(int));
@@ -32,7 +32,7 @@ TEST_F(ArrayManips, touchClean) {
 
   const int N = 100;
   real *arr = (real *)device->api->allocGlobMem(N * sizeof(real));
-  device->algorithms.touchMemory(arr, N, true);
+  device->algorithms.touchMemory(arr, N, true, device->api->getDefaultStream());
   std::vector<real> hostVector(N, 0);
 
   device->api->copyFrom(&hostVector[0], arr, N * sizeof(real));
@@ -51,7 +51,7 @@ TEST_F(ArrayManips, touchNoClean) {
   std::vector<real> hostVector(N, 0);
 
   device->api->copyTo(arr, &hostVector[0], N * sizeof(real));
-  device->algorithms.touchMemory(arr, N, false);
+  device->algorithms.touchMemory(arr, N, false, device->api->getDefaultStream());
   device->api->copyFrom(&hostVector[0], arr, N * sizeof(real));
 
   for (auto &i : hostVector) {
@@ -67,7 +67,7 @@ TEST_F(ArrayManips, scale) {
   int *arr = (int *)device->api->allocGlobMem(N * sizeof(int));
 
   device->api->copyTo(arr, &hostVector[0], N * sizeof(int));
-  device->algorithms.scaleArray(arr, 5, N);
+  device->algorithms.scaleArray(arr, 5, N, device->api->getDefaultStream());
   device->api->copyFrom(&hostVector[0], arr, N * sizeof(int));
 
   for (auto &i : hostVector) {
