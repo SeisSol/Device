@@ -28,7 +28,7 @@ TEST_F(Reductions, Add) {
 
   int expectedResult = std::accumulate(vector.begin(), vector.end(), 0, std::plus<int>());
 
-  int testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Add);
+  int testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Add, device->api->getDefaultStream());
   device->api->popStackMemory();
   EXPECT_EQ(expectedResult, testResult);
 }
@@ -50,7 +50,7 @@ TEST_F(Reductions, Max) {
   auto max = [](int a, int b) -> int { return a > b ? a : b; };
   int expectedResult = std::accumulate(vector.begin(), vector.end(), 0, max);
 
-  int testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Max);
+  int testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Max, device->api->getDefaultStream());
   device->api->popStackMemory();
   EXPECT_EQ(expectedResult, testResult);
 }
@@ -70,7 +70,7 @@ TEST_F(Reductions, MIN) {
   auto min = [](int a, int b) -> int { return a > b ? b : a; };
   int expectedResult = std::accumulate(vector.begin(), vector.end(), 0, min);
 
-  int testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Min);
+  int testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Min, device->api->getDefaultStream());
   device->api->popStackMemory();
   EXPECT_EQ(expectedResult, testResult);
 }
