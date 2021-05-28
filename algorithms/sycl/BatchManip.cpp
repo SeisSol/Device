@@ -9,7 +9,7 @@ using namespace device::internals;
 namespace device {
 
 void Algorithms::streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize, unsigned numElements, void* streamPtr) {
-  auto rng = computeDefaultExecutionRange1D(numElements);
+  auto rng = cl::sycl::nd_range<1>{numElements * 32, 32};
 
 ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
@@ -25,8 +25,9 @@ void Algorithms::streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigne
 
 void Algorithms::accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize,
                                        unsigned numElements, void* streamPtr) {
-  auto rng = computeDefaultExecutionRange1D(numElements);
-((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
+  auto rng = cl::sycl::nd_range<1>{numElements * 32, 32};
+
+  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
       real *srcElement = baseSrcPtr[item.get_group().get_id(0)];
       real *dstElement = baseDstPtr[item.get_group().get_id(0)];
@@ -38,9 +39,9 @@ void Algorithms::accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, uns
 }
 
 void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsigned numElements, bool clean, void* streamPtr) {
-  auto rng = computeExecutionRange1D(256, numElements);
+  auto rng = cl::sycl::nd_range<1>{numElements * 256, 256};
 
-((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
+  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
       real *element = basePtr[item.get_group().get_id(0)];
       int id = item.get_local_id(0);
@@ -62,7 +63,7 @@ void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsign
 
 template <typename T>
 void Algorithms::copyUniformToScatter(T *src, T **dst, size_t chunkSize, size_t numElements, void *streamPtr) {
-  auto rng = computeExecutionRange1D(256, numElements);
+  auto rng = cl::sycl::nd_range<1>{numElements * 256, 256};
 
   ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
@@ -81,7 +82,7 @@ template void Algorithms::copyUniformToScatter(char *src, char **dst, size_t chu
 
 template <typename T>
 void Algorithms::copyScatterToUniform(T **src, T *dst, size_t chunkSize, size_t numElements, void *streamPtr) {
-  auto rng = computeExecutionRange1D(256, numElements);
+  auto rng = cl::sycl::nd_range<1>{numElements * 256, 256};
 
   ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
