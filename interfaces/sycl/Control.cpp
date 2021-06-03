@@ -79,9 +79,10 @@ void ConcreteAPI::allocateStackMem() {
 }
 
 void ConcreteAPI::finalize() {
-  if (m_isFinalized)
-    throw std::invalid_argument("API is already finalized!");
-
+  if (m_isFinalized) {
+    logWarning() << "SYCL API is already finalized!";
+    return;
+  }
   for (auto *device : this->availableDevices) {
     delete device;
   }
@@ -133,8 +134,8 @@ std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
   info << "    name:" << dev.get_info<info::device::name>() << "\n";
   info << "    type: " << convertToString(dev.get_info<info::device::device_type>()) << "\n";
   info << "    driver_version: " << dev.get_info<info::device::driver_version>() << "\n";
-  //if (dev.get_info<info::device::device_type>() != cl::sycl::info::device_type::host)
-    //info << "    device id: " << dev.get() << "\n";
+  // if (dev.get_info<info::device::device_type>() != cl::sycl::info::device_type::host)
+  // info << "    device id: " << dev.get() << "\n";
 
   return info.str();
 }
