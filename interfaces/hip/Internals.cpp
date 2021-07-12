@@ -9,6 +9,7 @@ namespace device {
     int prevLine = 0;
 
     void checkErr(const std::string &file, int line) {
+#ifndef NDEBUG
       hipError_t error = hipGetLastError();
       if (error != hipSuccess) {
         std::stringstream stream;
@@ -22,6 +23,7 @@ namespace device {
       }
       prevFile = file;
       prevLine = line;
+#endif
     }
   } // namespace internals
 } // namespace device
