@@ -49,23 +49,74 @@ void ConcreteAPI::allocateStackMem() {
   cudaMalloc(&m_stackMemory, m_maxStackMem);
   CHECK_ERR;
 
+  this->createAllStreamsAndEvents();
+}
+
+void ConcreteAPI::createAllStreamsAndEvents() {
+  cudaStreamCreateWithFlags(&m_defaultStream, cudaStreamNonBlocking); CHECK_ERR;
+  cudaEventCreate(&m_defaultStreamEvent); CHECK_ERR;
+
   constexpr size_t concurrencyLevel = 32;
   m_circularStreamBuffer.resize(concurrencyLevel);
   for (auto &stream : m_circularStreamBuffer) {
-    cudaStreamCreate(&stream);
+    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); CHECK_ERR;
     CHECK_ERR;
   }
-};
+
+  m_circularStreamEvents.resize(concurrencyLevel);
+  for (auto &event : m_circularStreamEvents) {
+    cudaEventCreate(&event);
+    CHECK_ERR;
+  }
+}
 
 void ConcreteAPI::finalize() {
+  // delete stack memory
   cudaFree(m_stackMemory);
   CHECK_ERR;
+
+  static int counter = 0;
+  std::cout << "counter: " << counter << std::endl;
+  ++counter;
+
+  // delete default stream
+  cudaStreamDestroy(m_defaultStream);
+  CHECK_ERR;
+
+  // default circular streams
   m_stackMemory = nullptr;
   for (auto &stream : m_circularStreamBuffer) {
     cudaStreamDestroy(stream);
     CHECK_ERR;
   }
   m_circularStreamBuffer.clear();
+
+  // destroy default stream event
+  cudaEventDestroy(m_defaultStreamEvent);
+  CHECK_ERR;
+
+  // destroy stream events
+  for (auto &event : m_circularStreamEvents) {
+    cudaEventDestroy(event);
+    CHECK_ERR;
+  }
+
+  // default captured graphs
+  for (auto &graphInstance : m_graphs) {
+    cudaGraphExecDestroy(graphInstance.instance);
+    CHECK_ERR;
+
+    cudaGraphDestroy(graphInstance.graph);
+    CHECK_ERR;
+
+    cudaStreamDestroy(graphInstance.graphExecutionStream);
+    CHECK_ERR;
+
+    cudaEventDestroy(graphInstance.graphCaptureEvent);
+    CHECK_ERR;
+  }
+  m_graphs.clear();
+
   m_isFinalized = true;
 };
 
@@ -73,6 +124,11 @@ void ConcreteAPI::setDevice(int deviceId) {
   m_currentDeviceId = deviceId;
   cudaSetDevice(m_currentDeviceId);
   CHECK_ERR;
+
+#ifndef DEVICE_USE_GRAPH_CAPTURING
+  const auto id = m_currentDeviceId;
+  logWarning(id) << "compute-graph capturing disabled for this device";
+#endif
 }
 
 int ConcreteAPI::getNumDevices() {

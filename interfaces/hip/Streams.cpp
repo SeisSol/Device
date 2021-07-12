@@ -5,8 +5,18 @@
 
 using namespace device;
 
+void *ConcreteAPI::getDefaultStream() {
+  return m_defaultStream;
+}
+
+void ConcreteAPI::syncDefaultStreamWithHost() {
+  hipStreamSynchronize(m_defaultStream);
+  CHECK_ERR;
+}
+
 void *ConcreteAPI::getNextCircularStream() {
-  void* returnStream = static_cast<void*>(m_circularStreamBuffer[m_circularStreamCounter]);
+  assert(m_isCircularStreamsForked && "use a circular stream must be used inside a forked region");
+  void *returnStream = static_cast<void *>(m_circularStreamBuffer[m_circularStreamCounter]);
   m_circularStreamCounter += 1;
   if (m_circularStreamCounter >= m_circularStreamBuffer.size()) {
     m_circularStreamCounter = 0;
@@ -22,30 +32,54 @@ size_t ConcreteAPI::getCircularStreamSize() {
   return m_circularStreamBuffer.size();
 }
 
-void ConcreteAPI::syncStreamFromCircularBuffer(void* streamPtr) {
-  hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+void ConcreteAPI::syncStreamFromCircularBufferWithHost(void *userStream) {
+  hipStream_t stream = static_cast<hipStream_t>(userStream);
 #ifndef NDEBUG
   auto itr = std::find(m_circularStreamBuffer.begin(), m_circularStreamBuffer.end(), stream);
   if (itr == m_circularStreamBuffer.end()) {
     logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
   }
 #endif
-  hipStreamSynchronize(stream); CHECK_ERR;
+  hipStreamSynchronize(stream);
+  CHECK_ERR;
 }
 
-void ConcreteAPI::syncCircularBuffer() {
-  for (auto& stream: m_circularStreamBuffer) {
-    hipStreamSynchronize(stream); CHECK_ERR;
+void ConcreteAPI::syncCircularBuffersWithHost() {
+  for (auto &stream : m_circularStreamBuffer) {
+    hipStreamSynchronize(stream);
+    CHECK_ERR;
   }
 }
 
-__global__ void kernel_synchAllStreams() {
-  // NOTE: an empty stream. It is supposed to get called with Cuda default stream. It is going to force all
-  // other streams to finish their tasks
+void ConcreteAPI::forkCircularStreamsFromDefault() {
+  assert(!m_isCircularStreamsForked && "circular streams must be joined before forking");
+
+  hipEventRecord(m_defaultStreamEvent, m_defaultStream);
+  CHECK_ERR;
+
+  for (auto &stream : m_circularStreamBuffer) {
+    hipStreamWaitEvent(stream, m_defaultStreamEvent, 0);
+    CHECK_ERR;
+  }
+  m_isCircularStreamsForked = true;
 }
 
-void ConcreteAPI::fastStreamsSync() {
-  hipLaunchKernelGGL(kernel_synchAllStreams, dim3(1), dim3(1), 0, 0);
+
+void ConcreteAPI::joinCircularStreamsToDefault() {
+  assert(m_isCircularStreamsForked && "circular streams must be forked before joining");
+
+  for (size_t i = 0; i < m_circularStreamBuffer.size(); ++i) {
+    hipEventRecord(m_circularStreamEvents[i], m_circularStreamBuffer[i]);
+    CHECK_ERR;
+  }
+
+  for (size_t i = 0; i < m_circularStreamBuffer.size(); ++i) {
+    hipStreamWaitEvent(m_defaultStream, m_circularStreamEvents[i], 0);
+    CHECK_ERR;
+  }
+  m_isCircularStreamsForked = false;
 }
 
-void *ConcreteAPI::getDefaultStream() { return NULL; }
+bool ConcreteAPI::isCircularStreamsJoinedWithDefault() {
+  return !m_isCircularStreamsForked;
+}

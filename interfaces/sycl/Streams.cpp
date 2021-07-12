@@ -10,8 +10,8 @@ void ConcreteAPI::resetCircularStreamCounter() { this->currentQueueBuffer->reset
 
 size_t ConcreteAPI::getCircularStreamSize() { return this->currentQueueBuffer->getCapacity(); }
 
-void ConcreteAPI::syncStreamFromCircularBuffer(void *streamPtr) {
-  auto *q = static_cast<cl::sycl::queue *>(streamPtr);
+void ConcreteAPI::syncStreamFromCircularBuffer(void *userStream) {
+  auto *q = static_cast<cl::sycl::queue *>(userStream);
   this->currentQueueBuffer->syncQueueWithHost(q);
 }
 

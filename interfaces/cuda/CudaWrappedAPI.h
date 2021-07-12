@@ -49,24 +49,52 @@ public:
   size_t getCurrentlyOccupiedMem() override;
   size_t getCurrentlyOccupiedUnifiedMem() override;
 
-  void * getDefaultStream() override;
+  void *getDefaultStream() override;
+  void syncDefaultStreamWithHost() override;
+
   void *getNextCircularStream() override;
   void resetCircularStreamCounter() override;
   size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBuffer(void *streamPtr) override;
-  void syncCircularBuffer() override;
-  void fastStreamsSync() override;
+  void syncStreamFromCircularBufferWithHost(void *userStream) override;
+  void syncCircularBuffersWithHost() override;
+
+  void forkCircularStreamsFromDefault() override;
+  void joinCircularStreamsToDefault() override;
+  bool isCircularStreamsJoinedWithDefault() override;
+
+  bool isCapableOfGraphCapturing() override;
+  void streamBeginCapture() override;
+  void streamEndCapture() override;
+  deviceGraphHandle getLastGraphHandle() override;
+  void launchGraph(deviceGraphHandle graphHandle) override;
+  void syncGraph(deviceGraphHandle graphHandle) override;
 
   void initialize() override;
   void finalize() override;
   void putProfilingMark(const std::string &name, ProfilingColors color) override;
   void popLastProfilingMark() override;
 
+  void createAllStreamsAndEvents();
+
 private:
-  int m_currentDeviceId = 0;
+  int m_currentDeviceId{0};
+
+  cudaStream_t m_defaultStream{};
+  cudaEvent_t m_defaultStreamEvent{};
 
   std::vector<cudaStream_t> m_circularStreamBuffer{};
+  std::vector<cudaEvent_t> m_circularStreamEvents{};
+  bool m_isCircularStreamsForked{false};
   size_t m_circularStreamCounter{0};
+
+  struct GraphDetails {
+    cudaGraph_t graph;
+    cudaGraphExec_t instance;
+    cudaEvent_t graphCaptureEvent;
+    cudaStream_t graphExecutionStream;
+    bool ready{false};
+  };
+  std::vector<GraphDetails> m_graphs;
 
   char *m_stackMemory = nullptr;
   size_t m_stackMemByteCounter = 0;

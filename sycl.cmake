@@ -4,6 +4,7 @@ set(DEVICE_SOURCE_FILES device.cpp
         interfaces/sycl/Copy.cpp
         interfaces/sycl/Memory.cpp
         interfaces/sycl/Streams.cpp
+        interfaces/sycl/Graphs.cpp
         interfaces/sycl/DeviceContext.cpp
         interfaces/sycl/DeviceStack.cpp
         interfaces/sycl/DeviceCircularQueueBuffer.cpp

@@ -21,7 +21,9 @@ namespace device {
                                      unsigned numElements) {
     dim3 block(internals::WARP_SIZE, 1, 1);
     dim3 grid(numElements, 1, 1);
-    kernel_streamBatchedData<<<grid, block>>>(baseSrcPtr, baseDstPtr, elementSize); CHECK_ERR;
+    cudaStream_t defaultStream = static_cast<cudaStream_t>(api->getDefaultStream());
+    kernel_streamBatchedData<<<grid, block, 0, defaultStream>>>(baseSrcPtr, baseDstPtr, elementSize);
+    CHECK_ERR;
   }
 
 
@@ -43,7 +45,9 @@ namespace device {
                                          unsigned numElements) {
     dim3 block(internals::WARP_SIZE, 1, 1);
     dim3 grid(numElements, 1, 1);
-    kernel_accumulateBatchedData<<<grid, block>>>(baseSrcPtr, baseDstPtr, elementSize); CHECK_ERR;
+    cudaStream_t defaultStream = static_cast<cudaStream_t>(api->getDefaultStream());
+    kernel_accumulateBatchedData<<<grid, block, 0, defaultStream>>>(baseSrcPtr, baseDstPtr, elementSize);
+    CHECK_ERR;
   }
 
 //--------------------------------------------------------------------------------------------------

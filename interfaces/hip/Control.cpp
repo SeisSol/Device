@@ -43,21 +43,53 @@ void ConcreteAPI::allocateStackMem() {
 
   hipMalloc(&m_stackMemory, m_maxStackMem); CHECK_ERR;
 
+  this->createAllStreamsAndEvents();
+}
+
+void ConcreteAPI::createAllStreamsAndEvents() {
+  hipStreamCreateWithFlags(&m_defaultStream, hipStreamNonBlocking); CHECK_ERR;
+  hipEventCreate(&m_defaultStreamEvent); CHECK_ERR;
+
   constexpr size_t concurrencyLevel = 32;
   m_circularStreamBuffer.resize(concurrencyLevel);
-  for (auto& stream: m_circularStreamBuffer) {
-    hipStreamCreate(&stream); CHECK_ERR;
+  for (auto &stream : m_circularStreamBuffer) {
+    hipStreamCreateWithFlags(&stream, hipStreamNonBlocking); CHECK_ERR;
+    CHECK_ERR;
   }
-};
 
+  m_circularStreamEvents.resize(concurrencyLevel);
+  for (auto &event : m_circularStreamEvents) {
+    hipEventCreate(&event);
+    CHECK_ERR;
+  }
+}
 
 void ConcreteAPI::finalize() {
   hipFree(m_stackMemory); CHECK_ERR;
   m_stackMemory = nullptr;
-  for (auto& stream: m_circularStreamBuffer) {
-    hipStreamDestroy(stream); CHECK_ERR;
+
+  // delete default stream
+  hipStreamDestroy(m_defaultStream);
+  CHECK_ERR;
+
+  // default circular streams
+  m_stackMemory = nullptr;
+  for (auto &stream : m_circularStreamBuffer) {
+    hipStreamDestroy(stream);
+    CHECK_ERR;
   }
   m_circularStreamBuffer.clear();
+
+  // destroy default stream event
+  hipEventDestroy(m_defaultStreamEvent);
+  CHECK_ERR;
+
+  // destroy circular events
+  for (auto &event : m_circularStreamEvents) {
+    hipEventDestroy(event);
+    CHECK_ERR;
+  }
+
   m_isFinalized = true;
 };
 

@@ -61,9 +61,16 @@ public:
   void *getNextCircularStream() override;
   void resetCircularStreamCounter() override;
   size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBuffer(void *streamPtr) override;
+  void syncStreamFromCircularBuffer(void *userStream) override;
   void syncCircularBuffer() override;
   void fastStreamsSync() override;
+
+  bool isCapableOfGraphCapturing() { return false; }
+  void streamBeginCapture() override {}
+  void streamEndCapture() override {}
+  void *getGraphInstance() override;
+  void launchGraph(void *userGraphInstance);
+  void syncGraph(void *userGraphInstance);
 
   void initialize() override;
   void finalize() override;

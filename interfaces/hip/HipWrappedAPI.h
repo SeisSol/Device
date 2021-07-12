@@ -47,22 +47,42 @@ public:
   size_t getCurrentlyOccupiedUnifiedMem() override;
 
   void * getDefaultStream() override;
+  void syncDefaultStreamWithHost() override;
+
   void *getNextCircularStream() override;
   void resetCircularStreamCounter() override;
   size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBuffer(void *streamPtr) override;
+  void syncStreamFromCircularBufferWithHost(void *userStream) override;
   void syncCircularBuffer() override;
-  void fastStreamsSync() override;
+  void syncCircularBuffersWithHost() override;
+
+  void forkCircularStreamsFromDefault() override;
+  void joinCircularStreamsToDefault() override;
+  bool isCircularStreamsJoinedWithDefault() override;
+
+  bool isCapableOfGraphCapturing() { return false; }
+  void streamBeginCapture() override {}
+  void streamEndCapture() override {}
+  deviceGraphHandle getGraphInstance() { return deviceGraphHandle{}; }
+  void launchGraph(deviceGraphHandle graphHandle) {}
+  void syncGraph(deviceGraphHandle graphHandle) {}
 
   void initialize() override;
   void finalize() override;
   void putProfilingMark(const std::string &name, ProfilingColors color) override;
   void popLastProfilingMark() override;
 
+  void createAlStreamsAndEvents();
+
 private:
   int m_currentDeviceId = 0;
 
+  hipStream_t m_defaultStream{};
+  hipEvent_t m_defaultStreamEvent{};
+
   std::vector<hipStream_t> m_circularStreamBuffer{};
+  std::vector<hipEvent_t> m_circularStreamEvents{};
+  bool m_isCircularStreamsForked{false};
   size_t m_circularStreamCounter{0};
 
   char *m_stackMemory = nullptr;
