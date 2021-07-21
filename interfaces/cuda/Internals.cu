@@ -8,6 +8,7 @@ std::string prevFile{};
 int prevLine = 0;
 
 void checkErr(const std::string &file, int line) {
+#ifndef NDEBUG
   cudaError_t error = cudaGetLastError();
   if (error != cudaSuccess) {
     std::stringstream stream;
@@ -22,6 +23,7 @@ void checkErr(const std::string &file, int line) {
   }
   prevFile = file;
   prevLine = line;
+#endif
 }
 } // namespace internals
 } // namespace device

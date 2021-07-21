@@ -46,13 +46,22 @@ public:
   size_t getCurrentlyOccupiedMem() override;
   size_t getCurrentlyOccupiedUnifiedMem() override;
 
-  void * getDefaultStream() override;
   void *getNextCircularStream() override;
   void resetCircularStreamCounter() override;
   size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBuffer(void *streamPtr) override;
-  void syncCircularBuffer() override;
-  void fastStreamsSync() override;
+  void syncStreamFromCircularBufferWithHost(void *userStream) override;
+  void syncCircularBuffersWithHost() override;
+
+  void forkCircularStreamsFromDefault() override;
+  void joinCircularStreamsToDefault() override;
+  bool isCircularStreamsJoinedWithDefault() override;
+
+  bool isCapableOfGraphCapturing() { return false; }
+  void streamBeginCapture() {}
+  void streamEndCapture() {}
+  DeviceGraphHandle getLastGraphHandle() { return DeviceGraphHandle{}; }
+  void launchGraph(DeviceGraphHandle graphHandle) {}
+  void syncGraph(DeviceGraphHandle graphHandle) {}
 
   void initialize() override;
   void finalize() override;

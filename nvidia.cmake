@@ -26,6 +26,7 @@ cuda_add_library(device device.cpp
                         interfaces/cuda/Memory.cu
                         interfaces/cuda/Copy.cu
                         interfaces/cuda/Streams.cu
+                        interfaces/cuda/Graphs.cu
                         interfaces/cuda/Internals.cu
                         algorithms/cuda/ArrayManip.cu
                         algorithms/cuda/BatchManip.cu

@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(device_submodule)
 
 #set(CMAKE_CXX_CLANG_TIDY clang-tidy)
+option(USE_GRAPH_CAPTURING "Enable graph capturing if it is supported" OFF)
 
 # check INTERFACE
 if (NOT DEFINED DEVICE_BACKEND)
@@ -50,6 +51,9 @@ elseif((${DEVICE_BACKEND} STREQUAL "ONEAPI") OR (${DEVICE_BACKEND} STREQUAL "HIP
 endif()
 
 target_compile_definitions(device PRIVATE DEVICE_${DEVICE_BACKEND}_LANG REAL_SIZE=${REAL_SIZE_IN_BYTES})
+if (USE_GRAPH_CAPTURING)
+    target_compile_definitions(device PRIVATE DEVICE_USE_GRAPH_CAPTURING)
+endif()
 
 target_include_directories(device PRIVATE .
                                           interfaces/${BACKEND_FOLDER}

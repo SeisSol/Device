@@ -24,6 +24,11 @@ void ConcreteAPI::setDevice(int deviceId) {
   cudaSetDevice(currentDeviceId);
   CHECK_ERR;
 
+#ifndef DEVICE_USE_GRAPH_CAPTURING
+  const auto id = currentDeviceId;
+  logWarning(id) << "compute-graph capturing disabled for this device";
+#endif
+
   status[StatusId::DeviceSelected] = true;
 }
 
@@ -33,13 +38,22 @@ void ConcreteAPI::initialize() {
   }
   if (!status[StatusId::InterfaceInitialized]) {
 
-    cudaStreamCreate(&defaultStream); CHECK_ERR;
+    cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking); CHECK_ERR;
+    cudaEventCreate(&defaultStreamEvent); CHECK_ERR;
+
     constexpr size_t concurrencyLevel = 32;
     circularStreamBuffer.resize(concurrencyLevel);
     for (auto &stream : circularStreamBuffer) {
-      cudaStreamCreate(&stream);
+      cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); CHECK_ERR;
       CHECK_ERR;
     }
+
+    circularStreamEvents.resize(concurrencyLevel);
+    for (auto &event : circularStreamEvents) {
+      cudaEventCreate(&event);
+      CHECK_ERR;
+    }
+
     status[StatusId::InterfaceInitialized] = true;
   }
   else {
@@ -80,7 +94,8 @@ void ConcreteAPI::allocateStackMem() {
   CHECK_ERR;
 
   status[StatusId::StackMemAllocated] = true;
-};
+}
+
 
 void ConcreteAPI::finalize() {
   if (status[StatusId::StackMemAllocated]) {
@@ -93,15 +108,47 @@ void ConcreteAPI::finalize() {
 
   }
   if (status[StatusId::InterfaceInitialized]) {
+    // destroy default stream
     cudaStreamDestroy(defaultStream);
+    CHECK_ERR;
+
+    // destroy default stream event
+    cudaEventDestroy(defaultStreamEvent);
+    CHECK_ERR;
+
+    // default circular streams
     for (auto &stream : circularStreamBuffer) {
       cudaStreamDestroy(stream);
       CHECK_ERR;
     }
     circularStreamBuffer.clear();
+
+    // destroy stream events
+    for (auto &event : circularStreamEvents) {
+      cudaEventDestroy(event);
+      CHECK_ERR;
+    }
+    circularStreamEvents.clear();
+
+    // default captured graphs
+    for (auto &graphInstance : graphs) {
+      cudaGraphExecDestroy(graphInstance.instance);
+      CHECK_ERR;
+
+      cudaGraphDestroy(graphInstance.graph);
+      CHECK_ERR;
+
+      cudaStreamDestroy(graphInstance.graphExecutionStream);
+      CHECK_ERR;
+
+      cudaEventDestroy(graphInstance.graphCaptureEvent);
+      CHECK_ERR;
+    }
+    graphs.clear();
+
     status[StatusId::InterfaceInitialized] = false;
   }
-};
+}
 
 
 int ConcreteAPI::getNumDevices() {

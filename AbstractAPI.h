@@ -61,12 +61,25 @@ struct AbstractAPI {
   virtual size_t getCurrentlyOccupiedUnifiedMem() = 0;
 
   virtual void *getDefaultStream() = 0;
+  virtual void syncDefaultStreamWithHost() = 0;
+
   virtual void *getNextCircularStream() = 0;
   virtual void resetCircularStreamCounter() = 0;
   virtual size_t getCircularStreamSize() = 0;
-  virtual void syncStreamFromCircularBuffer(void *streamPtr) = 0;
-  virtual void syncCircularBuffer() = 0;
-  virtual void fastStreamsSync() = 0;
+  virtual void syncStreamFromCircularBufferWithHost(void *userStream) = 0;
+  virtual void syncCircularBuffersWithHost() = 0;
+
+  virtual void forkCircularStreamsFromDefault() = 0;
+  virtual void joinCircularStreamsToDefault() = 0;
+  virtual bool isCircularStreamsJoinedWithDefault() = 0;
+
+
+  virtual bool isCapableOfGraphCapturing() = 0;
+  virtual void streamBeginCapture() = 0;
+  virtual void streamEndCapture() = 0;
+  virtual DeviceGraphHandle getLastGraphHandle() = 0;
+  virtual void launchGraph(DeviceGraphHandle graphHandle) = 0;
+  virtual void syncGraph(DeviceGraphHandle graphHandle) = 0;
 
   virtual void initialize() = 0;
   virtual void finalize() = 0;

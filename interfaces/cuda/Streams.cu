@@ -2,11 +2,22 @@
 #include "Internals.h"
 #include "utils/logger.h"
 #include <algorithm>
+#include <cassert>
 
 using namespace device;
 
+
+void *ConcreteAPI::getDefaultStream() {
+  return defaultStream;
+}
+
+void ConcreteAPI::syncDefaultStreamWithHost() {
+  cudaStreamSynchronize(defaultStream);
+  CHECK_ERR;
+}
+
 void *ConcreteAPI::getNextCircularStream() {
-  isFlagSet<InterfaceInitialized>();
+  assert(isCircularStreamsForked && "use a circular stream must be used inside a forked region");
   void *returnStream = static_cast<void *>(circularStreamBuffer[circularStreamCounter]);
   circularStreamCounter += 1;
   if (circularStreamCounter >= circularStreamBuffer.size()) {
@@ -16,18 +27,13 @@ void *ConcreteAPI::getNextCircularStream() {
 }
 
 void ConcreteAPI::resetCircularStreamCounter() {
-  isFlagSet<InterfaceInitialized>();
   circularStreamCounter = 0;
 }
 
-size_t ConcreteAPI::getCircularStreamSize() {
-  isFlagSet<InterfaceInitialized>();
-  return circularStreamBuffer.size();
-}
+size_t ConcreteAPI::getCircularStreamSize() { return circularStreamBuffer.size(); }
 
-void ConcreteAPI::syncStreamFromCircularBuffer(void *streamPtr) {
-  isFlagSet<InterfaceInitialized>();
-  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+void ConcreteAPI::syncStreamFromCircularBufferWithHost(void *userStream) {
+  cudaStream_t stream = static_cast<cudaStream_t>(userStream);
 #ifndef NDEBUG
   auto itr = std::find(circularStreamBuffer.begin(), circularStreamBuffer.end(), stream);
   if (itr == circularStreamBuffer.end()) {
@@ -38,25 +44,44 @@ void ConcreteAPI::syncStreamFromCircularBuffer(void *streamPtr) {
   CHECK_ERR;
 }
 
-void ConcreteAPI::syncCircularBuffer() {
-  isFlagSet<InterfaceInitialized>();
+void ConcreteAPI::syncCircularBuffersWithHost() {
   for (auto &stream : circularStreamBuffer) {
     cudaStreamSynchronize(stream);
     CHECK_ERR;
   }
 }
 
-__global__ void kernel_synchAllStreams() {
-  // NOTE: an empty stream. It is supposed to get called with Cuda default stream. It is going to
-  // force all other streams to finish their tasks
+
+void ConcreteAPI::forkCircularStreamsFromDefault() {
+  assert(!isCircularStreamsForked && "circular streams must be joined before forking");
+
+  cudaEventRecord(defaultStreamEvent, defaultStream);
+  CHECK_ERR;
+
+  for (auto &stream : circularStreamBuffer) {
+    cudaStreamWaitEvent(stream, defaultStreamEvent, 0);
+    CHECK_ERR;
+  }
+  isCircularStreamsForked = true;
 }
 
-void ConcreteAPI::fastStreamsSync() {
-  isFlagSet<DeviceSelected>();
-  kernel_synchAllStreams<<<1, 1>>>();
+
+void ConcreteAPI::joinCircularStreamsToDefault() {
+  assert(isCircularStreamsForked && "circular streams must be forked before joining");
+
+  for (size_t i = 0; i < circularStreamBuffer.size(); ++i) {
+    cudaEventRecord(circularStreamEvents[i], circularStreamBuffer[i]);
+    CHECK_ERR;
+  }
+
+  for (size_t i = 0; i < circularStreamBuffer.size(); ++i) {
+    cudaStreamWaitEvent(defaultStream, circularStreamEvents[i], 0);
+    CHECK_ERR;
+  }
+  isCircularStreamsForked = false;
 }
 
-void *ConcreteAPI::getDefaultStream() {
-  isFlagSet<InterfaceInitialized>();
-  return static_cast<void *>(defaultStream);
+
+bool ConcreteAPI::isCircularStreamsJoinedWithDefault() {
+  return !isCircularStreamsForked;
 }
