@@ -1,0 +1,63 @@
+stages:
+    - adjust 
+    - test
+
+
+image:
+  name: ravilmobile/gemmforge-nvidia:latest
+  entrypoint: [""]
+
+
+submodules:
+  stage: adjust
+  tags:
+    - atsccs68-docker-executor
+  image:
+    name: ravilmobile/gemmforge-nvidia:latest
+    entrypoint: [""]
+  script:
+    - cat ./.gitmodules
+    - git submodule update --init --recursive
+  artifacts:
+    paths:
+      - submodules
+
+
+.common_test_steps_template_gcc8: &common_test_script_steps_gcc8
+    - export CTEST_OUTPUT_ON_FAILURE=1
+    - export CC=/usr/bin/gcc-8
+    - export CXX=/usr/bin/g++-8
+    - export root_dir=$PWD
+
+
+.common_test_steps_template_gcc9: &common_test_script_steps_gcc9
+    - export CTEST_OUTPUT_ON_FAILURE=1
+    - export CC=/usr/bin/gcc-9
+    - export CXX=/usr/bin/g++-9
+    - export root_dir=$PWD
+
+
+cuda_test:
+  stage: test
+  tags:
+  -  atsccs68-docker-executor
+  script:
+    - *common_test_script_steps_gcc8
+    - mkdir -p tests/build
+    - cd tests/build
+    - cmake .. -DDEVICE_BACKEND=CUDA -DSM=${GPU_ MODEL} -DREAL_SIZE_IN_BYTES=8  
+    - make -j4
+    - ./tests 
+
+sycl_test:
+  stage: test
+  tags:
+  -  atsccs68-docker-executor
+  script:
+    - *common_test_script_steps_gcc9
+    - mkdir -p tests/build
+    - cd tests/build
+    - cmake .. -DDEVICE_BACKEND=CUDA -DSM=${GPU_ MODEL} -DREAL_SIZE_IN_BYTES=8  
+    - make -j4
+    - ./tests 
+
