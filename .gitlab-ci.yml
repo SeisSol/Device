@@ -34,7 +34,6 @@ submodules:
     - export CTEST_OUTPUT_ON_FAILURE=1
     - export CC=/usr/bin/gcc-9
     - export CXX=/usr/bin/g++-9
-    - export root_dir=$PWD
 
 
 cuda_test:
@@ -45,9 +44,10 @@ cuda_test:
     - *common_test_script_steps_gcc8
     - mkdir -p tests/build
     - cd tests/build
-    - cmake .. -DDEVICE_BACKEND=CUDA -DSM=${GPU_ MODEL} -DREAL_SIZE_IN_BYTES=8  
+    - cmake .. -DDEVICE_BACKEND=CUDA -DSM=${GPU_MODEL} -DREAL_SIZE_IN_BYTES=4  
     - make -j4
     - ./tests 
+
 
 sycl_test:
   stage: test
@@ -57,7 +57,7 @@ sycl_test:
     - *common_test_script_steps_gcc9
     - mkdir -p tests/build
     - cd tests/build
-    - cmake .. -DDEVICE_BACKEND=CUDA -DSM=${GPU_ MODEL} -DREAL_SIZE_IN_BYTES=8  
+    - cmake .. -DDEVICE_BACKEND=HIPSYCL -DSM=${GPU_MODEL} -DREAL_SIZE_IN_BYTES=4  
     - make -j4
     - ./tests 
 
