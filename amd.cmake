@@ -28,8 +28,11 @@ endif()
 set(DEVICE_HIPCC)
 set(DEVICE_HCC)
 if (DEFINED ENV{HIP_PLATFORM})
-    if ($ENV{HIP_PLATFORM} STREQUAL "nvcc")
-        set(DEVICE_NVCC -arch=${DEVICE_SUB_ARCH};-dc;--expt-relaxed-constexpr;-DCUDA_UNDERHOOD)
+    if ($ENV{HIP_PLATFORM} STREQUAL "nvidia")
+        set(DEVICE_NVCC -arch=${DEVICE_SUB_ARCH};
+                        -dc;
+                        --expt-relaxed-constexpr;
+                        -DCUDA_UNDERHOOD)
     endif()
 endif()
 
@@ -54,9 +57,12 @@ hip_add_library(device SHARED ${DEVICE_SOURCE_FILES}
                        HCC_OPTIONS ${DEVICE_HCC}
                        NVCC_OPTIONS ${DEVICE_NVCC})
 
+set_property(TARGET device PROPERTY HIP_ARCHITECTURES OFF)
+
 if (DEFINED ENV{HIP_PLATFORM})
-    if ($ENV{HIP_PLATFORM} STREQUAL "nvcc")
+    if ($ENV{HIP_PLATFORM} STREQUAL "nvidia")
         set_target_properties(device PROPERTIES LINKER_LANGUAGE HIP)
+        target_link_options(device PRIVATE -arch=${DEVICE_SUB_ARCH})
     else()
         target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
     endif()

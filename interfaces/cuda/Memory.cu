@@ -8,7 +8,7 @@
 using namespace device;
 
 void *ConcreteAPI::allocGlobMem(size_t size) {
-  isFlagSet<DeviceSelected>();
+  isFlagSet<DeviceSelected>(status);
   void *devPtr;
   cudaMalloc(&devPtr, size);
   CHECK_ERR;
@@ -18,7 +18,7 @@ void *ConcreteAPI::allocGlobMem(size_t size) {
 }
 
 void *ConcreteAPI::allocUnifiedMem(size_t size) {
-  isFlagSet<DeviceSelected>();
+  isFlagSet<DeviceSelected>(status);
   void *devPtr;
   cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal);
   CHECK_ERR;
@@ -29,7 +29,7 @@ void *ConcreteAPI::allocUnifiedMem(size_t size) {
 }
 
 void *ConcreteAPI::allocPinnedMem(size_t size) {
-  isFlagSet<DeviceSelected>();
+  isFlagSet<DeviceSelected>(status);
   void *devPtr;
   cudaMallocHost(&devPtr, size);
   CHECK_ERR;
@@ -39,7 +39,7 @@ void *ConcreteAPI::allocPinnedMem(size_t size) {
 }
 
 void ConcreteAPI::freeMem(void *devPtr) {
-  isFlagSet<DeviceSelected>();
+  isFlagSet<DeviceSelected>(status);
   assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
@@ -48,7 +48,7 @@ void ConcreteAPI::freeMem(void *devPtr) {
 }
 
 void ConcreteAPI::freePinnedMem(void *devPtr) {
-  isFlagSet<DeviceSelected>();
+  isFlagSet<DeviceSelected>(status);
   assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
@@ -57,7 +57,7 @@ void ConcreteAPI::freePinnedMem(void *devPtr) {
 }
 
 char *ConcreteAPI::getStackMemory(size_t requestedBytes) {
-  isFlagSet<StackMemAllocated>();
+  isFlagSet<StackMemAllocated>(status);
   assert(((stackMemByteCounter + requestedBytes) < maxStackMem) &&
          "DEVICE:: run out of a device stack memory");
   char *mem = &stackMemory[stackMemByteCounter];
@@ -67,13 +67,13 @@ char *ConcreteAPI::getStackMemory(size_t requestedBytes) {
 }
 
 void ConcreteAPI::popStackMemory() {
-  isFlagSet<StackMemAllocated>();
+  isFlagSet<StackMemAllocated>(status);
   stackMemByteCounter -= stackMemMeter.top();
   stackMemMeter.pop();
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {
-  isFlagSet<DeviceSelected>();
+  isFlagSet<DeviceSelected>(status);
   std::ostringstream report{};
   report << "Memory Leaks, bytes: "
          << (statistics.allocatedMemBytes - statistics.deallocatedMemBytes) << '\n';
@@ -82,7 +82,7 @@ std::string ConcreteAPI::getMemLeaksReport() {
 }
 
 size_t ConcreteAPI::getMaxAvailableMem() {
-  isFlagSet<DeviceSelected>();
+  isFlagSet<DeviceSelected>(status);
   cudaDeviceProp property;
   cudaGetDeviceProperties(&property, currentDeviceId);
   CHECK_ERR;
@@ -90,11 +90,11 @@ size_t ConcreteAPI::getMaxAvailableMem() {
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
-  isFlagSet<DeviceSelected>();
+  isFlagSet<DeviceSelected>(status);
   return statistics.allocatedMemBytes;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
-  isFlagSet<DeviceSelected>();
+  isFlagSet<DeviceSelected>(status);
   return statistics.allocatedUnifiedMemBytes;
 }

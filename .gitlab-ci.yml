@@ -61,3 +61,18 @@ sycl_test:
     - make -j4
     - ./tests 
 
+
+hip_test:
+  stage: test
+  tags:
+  -  atsccs68-docker-executor
+  script:
+    - *common_test_script_steps_gcc8
+    - . /etc/profile.d/rocm.sh
+    - export HIP_PLATFORM=nvidia
+    - mkdir -p tests/build
+    - cd tests/build
+    - cmake .. -DDEVICE_BACKEND=HIP -DSM=${GPU_MODEL} -DREAL_SIZE_IN_BYTES=4  
+    - make -j4
+    - ./tests 
+

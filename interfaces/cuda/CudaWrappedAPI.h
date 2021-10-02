@@ -9,16 +9,9 @@
 
 #include "AbstractAPI.h"
 #include "Statistics.h"
+#include "Status.h"
 
 namespace device {
-  enum StatusId {
-    DriverApiInitialized = 0,
-    DeviceSelected,
-    InterfaceInitialized,
-    StackMemAllocated,
-    Count
-  };
-
 class ConcreteAPI : public AbstractAPI {
 public:
   ConcreteAPI();
@@ -72,11 +65,8 @@ public:
   void putProfilingMark(const std::string &name, ProfilingColors color) override;
   void popLastProfilingMark() override;
 
-  template<StatusId ID>
-  void isFlagSet() { assert(status[ID]); }
-
 private:
-  std::array<bool, StatusId::Count> status{false};
+  device::StatusT status{false};
   int currentDeviceId{-1};
 
   cudaStream_t defaultStream{nullptr};

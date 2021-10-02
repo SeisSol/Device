@@ -53,8 +53,10 @@ target_compile_definitions(device PRIVATE DEVICE_${DEVICE_BACKEND}_LANG REAL_SIZ
 
 target_include_directories(device PRIVATE .
                                           interfaces/${BACKEND_FOLDER}
+                                          interfaces/common
                                           algorithms/${BACKEND_FOLDER}
                                           submodules)
+
 target_compile_options(device PRIVATE -fPIC)
 
 
