@@ -1,0 +1,54 @@
+stages:
+    - adjust 
+    - test
+
+
+image:
+  name: ravilmobile/gemmforge-nvidia:latest
+  entrypoint: [""]
+
+
+submodules:
+  stage: adjust
+  tags:
+    - atsccs68-docker-executor
+  image:
+    name: ravilmobile/gemmforge-nvidia:latest
+    entrypoint: [""]
+  script:
+    - cat ./.gitmodules
+    - git submodule update --init --recursive
+  artifacts:
+    paths:
+      - submodules
+
+
+.common_test_steps: &common_test_script
+    - export CTEST_OUTPUT_ON_FAILURE=1
+    - if [[ "${BACKEND}" == "HIPSYCL" ]]; then
+        export CC=/usr/bin/gcc-9 ;
+        export CXX=/usr/bin/g++-9 ;
+      else
+        export CC=/usr/bin/gcc-8 ;
+        export CXX=/usr/bin/g++-8 ;
+      fi ;
+    - if [[ "${BACKEND}" == "HIP" ]]; then
+        . /etc/profile.d/rocm.sh ;
+        export HIP_PLATFORM=nvidia ;
+      fi ;
+
+
+tests:
+  stage: test
+  tags:
+    - atsccs68-docker-executor
+  parallel:
+    matrix:
+      - BACKEND: [CUDA, HIP, HIPSYCL]
+  script:
+    - *common_test_script
+    - mkdir -p tests/build
+    - cd tests/build
+    - cmake .. -DDEVICE_BACKEND=${BACKEND} -DSM=${GPU_MODEL} -DREAL_SIZE_IN_BYTES=4  
+    - make -j4
+    - ./tests 

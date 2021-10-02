@@ -3,16 +3,20 @@
 
 #include "AbstractAPI.h"
 #include "Statistics.h"
+#include "Status.h"
+
 #include "hip/hip_runtime.h"
 #include <stack>
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <cassert>
 
 
 namespace device {
 class ConcreteAPI : public AbstractAPI {
 public:
+  ConcreteAPI();
   void setDevice(int deviceId) override;
   int getNumDevices() override;
   unsigned getMaxThreadBlockSize() override;
@@ -35,6 +39,12 @@ public:
   void copyTo(void *dst, const void *src, size_t count) override;
   void copyFrom(void *dst, const void *src, size_t count) override;
   void copyBetween(void *dst, const void *src, size_t count) override;
+  void copyToAsync(void *dst, const void *src, size_t count, void* streamPtr) override;
+  void copyFromAsync(void *dst, const void *src, size_t count, void* streamPtr) override;
+  void copyBetweenAsync(void *dst, const void *src, size_t count, void* streamPtr) override;
+
+
+
   void copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width,
                      size_t height) override;
   void copy2dArrayFrom(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width,
@@ -60,18 +70,20 @@ public:
   void popLastProfilingMark() override;
 
 private:
-  int m_currentDeviceId = 0;
+  device::StatusT status{false};
+  int currentDeviceId{-1};
 
-  std::vector<hipStream_t> m_circularStreamBuffer{};
-  size_t m_circularStreamCounter{0};
+  cudaStream_t defaultStream{nullptr};
+  std::vector<cudaStream_t> circularStreamBuffer{};
+  size_t circularStreamCounter{0};
 
-  char *m_stackMemory = nullptr;
-  size_t m_stackMemByteCounter = 0;
-  size_t m_maxStackMem = 1024 * 1024 * 1024; //!< 1GB in bytes
-  std::stack<size_t> m_stackMemMeter{};
+  char *stackMemory = nullptr;
+  size_t stackMemByteCounter = 0;
+  size_t maxStackMem = 1024 * 1024 * 1024; //!< 1GB in bytes
+  std::stack<size_t> stackMemMeter{};
 
-  Statistics m_statistics{};
-  std::unordered_map<void *, size_t> m_memToSizeMap{{nullptr, 0}};
+  Statistics statistics{};
+  std::unordered_map<void *, size_t> memToSizeMap{{nullptr, 0}};
 };
 } // namespace device
 

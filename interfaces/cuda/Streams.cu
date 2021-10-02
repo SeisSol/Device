@@ -6,7 +6,7 @@
 using namespace device;
 
 void *ConcreteAPI::getNextCircularStream() {
-  isFlagSet<InterfaceInitialized>();
+  isFlagSet<InterfaceInitialized>(status);
   void *returnStream = static_cast<void *>(circularStreamBuffer[circularStreamCounter]);
   circularStreamCounter += 1;
   if (circularStreamCounter >= circularStreamBuffer.size()) {
@@ -16,17 +16,17 @@ void *ConcreteAPI::getNextCircularStream() {
 }
 
 void ConcreteAPI::resetCircularStreamCounter() {
-  isFlagSet<InterfaceInitialized>();
+  isFlagSet<InterfaceInitialized>(status);
   circularStreamCounter = 0;
 }
 
 size_t ConcreteAPI::getCircularStreamSize() {
-  isFlagSet<InterfaceInitialized>();
+  isFlagSet<InterfaceInitialized>(status);
   return circularStreamBuffer.size();
 }
 
 void ConcreteAPI::syncStreamFromCircularBuffer(void *streamPtr) {
-  isFlagSet<InterfaceInitialized>();
+  isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
 #ifndef NDEBUG
   auto itr = std::find(circularStreamBuffer.begin(), circularStreamBuffer.end(), stream);
@@ -39,7 +39,7 @@ void ConcreteAPI::syncStreamFromCircularBuffer(void *streamPtr) {
 }
 
 void ConcreteAPI::syncCircularBuffer() {
-  isFlagSet<InterfaceInitialized>();
+  isFlagSet<InterfaceInitialized>(status);
   for (auto &stream : circularStreamBuffer) {
     cudaStreamSynchronize(stream);
     CHECK_ERR;
@@ -52,11 +52,11 @@ __global__ void kernel_synchAllStreams() {
 }
 
 void ConcreteAPI::fastStreamsSync() {
-  isFlagSet<DeviceSelected>();
+  isFlagSet<DeviceSelected>(status);
   kernel_synchAllStreams<<<1, 1>>>();
 }
 
 void *ConcreteAPI::getDefaultStream() {
-  isFlagSet<InterfaceInitialized>();
+  isFlagSet<InterfaceInitialized>(status);
   return static_cast<void *>(defaultStream);
 }

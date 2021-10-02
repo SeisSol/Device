@@ -1,7 +1,7 @@
 #include "utils/logger.h"
 #include <iostream>
-#include <string>
 #include <sstream>
+#include <string>
 #include "hip/hip_runtime.h"
 
 #include "HipWrappedAPI.h"
@@ -9,100 +9,133 @@
 
 using namespace device;
 
+ConcreteAPI::ConcreteAPI() {
+  hipInit(0);
+  CHECK_ERR;
+  status[StatusID::DriverApiInitialized] = true;
+}
+
+void ConcreteAPI::setDevice(int deviceId) {
+  currentDeviceId = deviceId;
+  hipSetDevice(currentDeviceId);
+  CHECK_ERR;
+
+  status[StatusID::DeviceSelected] = true;
+}
+
 void ConcreteAPI::initialize() {
-  hipInit(0); CHECK_ERR;
+  if (!status[StatusID::DeviceSelected]) {
+    logError() << "Device has not been selected. Please, select device before calling initialize";
+  }
+  if (!status[StatusID::InterfaceInitialized]) {
+
+    hipStreamCreate(&defaultStream); CHECK_ERR;
+    constexpr size_t concurrencyLevel = 32;
+    circularStreamBuffer.resize(concurrencyLevel);
+    for (auto &stream : circularStreamBuffer) {
+      hipStreamCreate(&stream);
+      CHECK_ERR;
+    }
+    status[StatusID::InterfaceInitialized] = true;
+  }
+  else {
+    logWarning() << "Device Interface has already been initialized";
+  }
 }
 
 void ConcreteAPI::allocateStackMem() {
+  isFlagSet<StatusID::DeviceSelected>(status);
 
   // try to detect the amount of temp. memory from the environment
-  const size_t factor = 1024 * 1024 * 1024;  //!< bytes in 1 GB
+  const size_t factor = 1024 * 1024 * 1024; //!< bytes in 1 GB
 
   try {
     char *valueString = std::getenv("DEVICE_STACK_MEM_SIZE");
-    const auto id = m_currentDeviceId;
+    const auto id = currentDeviceId;
     if (!valueString) {
-      logInfo(id) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
-                  << "The default amount of the device memory (1 GB) "
-                  << "is going to be used to store temp. variables during execution of compute-algorithms.";
-    }
-    else {
+      logInfo(id)
+          << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
+          << "The default amount of the device memory (1 GB) "
+          << "is going to be used to store temp. variables during execution of compute-algorithms.";
+    } else {
       double requestedStackMem = std::stod(std::string(valueString));
-      m_maxStackMem = factor * requestedStackMem;
+      maxStackMem = factor * requestedStackMem;
       logInfo(id) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
                   << requestedStackMem << "GB of the device memory is going to be used "
                   << "to store temp. variables during execution of compute-algorithms.";
     }
-  }
-  catch (const std::invalid_argument &err) {
-    logError() << "DEVICE::ERROR: " << err.what() << ". File: " << __FILE__ << ", line: " << __LINE__;
-  }
-  catch (const std::out_of_range& err) {
-    logError() << "DEVICE::ERROR: " << err.what() << ". File: " << __FILE__ << ", line: " << __LINE__;
+  } catch (const std::invalid_argument &err) {
+    logError() << "DEVICE::ERROR: " << err.what() << ". File: " << __FILE__
+               << ", line: " << __LINE__;
+  } catch (const std::out_of_range &err) {
+    logError() << "DEVICE::ERROR: " << err.what() << ". File: " << __FILE__
+               << ", line: " << __LINE__;
   }
 
-  hipMalloc(&m_stackMemory, m_maxStackMem); CHECK_ERR;
+  hipMalloc(&stackMemory, maxStackMem);
+  CHECK_ERR;
 
-  constexpr size_t concurrencyLevel = 32;
-  m_circularStreamBuffer.resize(concurrencyLevel);
-  for (auto& stream: m_circularStreamBuffer) {
-    hipStreamCreate(&stream); CHECK_ERR;
-  }
+  status[StatusID::StackMemAllocated] = true;
 };
-
 
 void ConcreteAPI::finalize() {
-  hipFree(m_stackMemory); CHECK_ERR;
-  m_stackMemory = nullptr;
-  for (auto& stream: m_circularStreamBuffer) {
-    hipStreamDestroy(stream); CHECK_ERR;
+  if (status[StatusID::StackMemAllocated]) {
+    hipFree(stackMemory);
+    CHECK_ERR;
+    stackMemory = nullptr;
+    stackMemByteCounter = 0;
+    stackMemMeter = std::stack<size_t>{};
+    status[StatusID::StackMemAllocated] = false;
+
   }
-  m_circularStreamBuffer.clear();
-  m_isFinalized = true;
+  if (status[StatusID::InterfaceInitialized]) {
+    hipStreamDestroy(defaultStream);
+    for (auto &stream : circularStreamBuffer) {
+      hipStreamDestroy(stream);
+      CHECK_ERR;
+    }
+    circularStreamBuffer.clear();
+    status[StatusID::InterfaceInitialized] = false;
+  }
 };
-
-
-void ConcreteAPI::setDevice(int deviceId) {
-  m_currentDeviceId = deviceId;
-  hipSetDevice(m_currentDeviceId); CHECK_ERR;
-}
 
 
 int ConcreteAPI::getNumDevices() {
   int numDevices{};
-  hipGetDeviceCount(&numDevices); CHECK_ERR;
+  hipGetDeviceCount(&numDevices);
+  CHECK_ERR;
   return numDevices;
 }
 
-
 unsigned ConcreteAPI::getMaxThreadBlockSize() {
   int blockSize{};
-  hipDeviceGetAttribute(&blockSize, hipDeviceAttributeMaxThreadsPerBlock, m_currentDeviceId); CHECK_ERR;
+  hipDeviceGetAttribute(&blockSize, hipDeviceAttributeMaxThreadsPerBlock, currentDeviceId); CHECK_ERR;
+  CHECK_ERR;
   return static_cast<unsigned>(blockSize);
 }
 
-
 unsigned ConcreteAPI::getMaxSharedMemSize() {
   int sharedMemSize{};
-  hipDeviceGetAttribute(&sharedMemSize, hipDeviceAttributeMaxSharedMemoryPerBlock, m_currentDeviceId); CHECK_ERR;
+  hipDeviceGetAttribute(&sharedMemSize, hipDeviceAttributeMaxSharedMemoryPerBlock, currentDeviceId); CHECK_ERR;
+  CHECK_ERR;
   return static_cast<unsigned>(sharedMemSize);
 }
 
-
 unsigned ConcreteAPI::getGlobMemAlignment() {
-  // TODO: use hipDeviceGetAttribute
+  // TODO: use cuDeviceGetAttribute
   return 128;
 }
 
-
 void ConcreteAPI::synchDevice() {
-  hipDeviceSynchronize(); CHECK_ERR;
+  isFlagSet<DeviceSelected>(status);
+  hipDeviceSynchronize();
+  CHECK_ERR;
 }
-
 
 std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
   hipDeviceProp_t property;
-  hipGetDeviceProperties(&property, deviceId); CHECK_ERR;
+  hipGetDeviceProperties(&property, deviceId);
+  CHECK_ERR;
 
   std::ostringstream info;
   info << "Name: " << property.name << '\n';
@@ -110,10 +143,12 @@ std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
   info << "sharedMemPerBlock: " << property.sharedMemPerBlock << '\n';
   info << "regsPerBlock: " << property.regsPerBlock << '\n';
   info << "warpSize: " << property.warpSize << '\n';
+  info << "memPitch: " << property.memPitch << '\n';
   info << "maxThreadsPerBlock: " << property.maxThreadsPerBlock << '\n';
   info << "totalConstMem: " << property.totalConstMem << '\n';
   info << "clockRate: " << property.clockRate << '\n';
   info << "multiProcessorCount: " << property.multiProcessorCount << '\n';
+  info << "integrated: " << property.integrated << '\n';
   info << "canMapHostMemory: " << property.canMapHostMemory << '\n';
   info << "computeMode: " << property.computeMode << '\n';
   info << "concurrentKernels: " << property.concurrentKernels << '\n';
@@ -123,15 +158,23 @@ std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
   return info.str();
 }
 
-/**
- * No implementation, since there is no HIP alternative for nvToolsExt
- */
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
+#ifdef PROFILING_ENABLED
+  isFlagSet<DeviceSelected>(status);
+  nvtxEventAttributes_t eventAttrib = {0};
+  eventAttrib.version = NVTX_VERSION;
+  eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+  eventAttrib.colorType = NVTX_COLOR_ARGB;
+  eventAttrib.color = static_cast<uint32_t>(color);
+  eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
+  eventAttrib.message.ascii = name.c_str();
+  nvtxRangePushEx(&eventAttrib);
+#endif
 }
 
-/**
- * No implementation, since there is no HIP alternative for nvToolsExt
- */
 void ConcreteAPI::popLastProfilingMark() {
-
+#ifdef PROFILING_ENABLED
+  isFlagSet<DeviceSelected>(status);
+  nvtxRangePop();
+#endif
 }

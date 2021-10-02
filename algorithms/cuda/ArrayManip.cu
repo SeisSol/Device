@@ -37,7 +37,7 @@ template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, co
   dim3 block(64, 1, 1);
   dim3 grid = internals::computeGrid1D(block, numElements);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
-  kernel_scaleArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
+  kernel_fillArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
   CHECK_ERR;
 }
 template void Algorithms::fillArray(real *devArray, real scalar, const size_t numElements, void* streamPtr);
