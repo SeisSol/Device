@@ -66,8 +66,6 @@ configure_file(${PROJECT_SOURCE_DIR}/input/example.yaml
 
 if (WITH_TESTS)
     find_package(GTest REQUIRED)
-    find_package(PkgConfig)
-    pkg_check_modules(GMOCK "gmock" REQUIRED)
 
     add_executable(tests tests/driver.cpp
                          tests/host/vectors_tests.cpp
@@ -83,20 +81,18 @@ if (WITH_TESTS)
 
     target_include_directories(tests PRIVATE root
                                              ${GTEST_INCLUDE_DIR}
-                                             ${GMOCK_INCLUDE_DIR}
                                              ${__MPI_INCLUDES}
                                              ${CMAKE_SOURCE_DIR}/src)
 
     target_link_libraries(tests PRIVATE device
                                         kernel
-                                        ${GTEST_LIBRARIES}
-                                        ${GMOCK_LIBRARIES}
+                                        ${GTEST_BOTH_LIBRARIES}
                                         ${__MPI_LIBS})
 
     target_compile_definitions(tests PRIVATE REAL_SIZE=${REAL_SIZE_IN_BYTES}
                                      ${__MPI_DEFINITIONS})
 
-    target_compile_options(tests PRIVATE ${__MPI_COMPILE_FLAGS})
+    target_compile_options(tests PRIVATE -std=c++17 ${__MPI_COMPILE_FLAGS})
 
 endif()
 

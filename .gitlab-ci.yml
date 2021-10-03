@@ -1,6 +1,7 @@
 stages:
     - adjust 
     - test
+    - miscellaneous
 
 
 image:
@@ -49,6 +50,39 @@ tests:
     - *common_test_script
     - mkdir -p tests/build
     - cd tests/build
+    - cmake .. -DDEVICE_BACKEND=${BACKEND} -DSM=${GPU_MODEL} -DREAL_SIZE_IN_BYTES=4
+    - make -j4
+    - ./tests
+
+
+basic_example:
+  stage: miscellaneous
+  tags:
+    - atsccs68-docker-executor
+  parallel:
+    matrix:
+      - BACKEND: [CUDA, HIP, HIPSYCL]
+  script:
+    - *common_test_script
+    - export WORKDIR=./examples/basic/build
+    - mkdir -p ${WORKDIR} && cd ${WORKDIR}
     - cmake .. -DDEVICE_BACKEND=${BACKEND} -DSM=${GPU_MODEL} -DREAL_SIZE_IN_BYTES=4  
     - make -j4
-    - ./tests 
+    - ./basic
+
+
+jacobi_example:
+  stage: miscellaneous
+  tags:
+    - atsccs68-docker-executor
+  parallel:
+    matrix:
+      - BACKEND: [CUDA, HIP, HIPSYCL]
+  script:
+    - *common_test_script
+    - export WORKDIR=./examples/jacobi/build
+    - mkdir -p ${WORKDIR} && cd ${WORKDIR}
+    - cmake .. -DDEVICE_BACKEND=${BACKEND} -DSM=${GPU_MODEL} -DREAL_SIZE_IN_BYTES=4 -DWITH_MPI=OFF -DWITH_TESTS=ON
+    - make -j4
+    - ./tests
+    - ./solver ./config.yaml
