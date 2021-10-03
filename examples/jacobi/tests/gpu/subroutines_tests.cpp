@@ -9,6 +9,7 @@ using ::testing::ElementsAreArray;
 
 TEST(Subroutines, MultMatrixVec) {
   auto *api = ::device::DeviceInstance::getInstance().api;
+  auto defaultStream = api->getDefaultStream();
   const int size = 3;
 
   WorkSpaceT space{};
@@ -34,7 +35,7 @@ TEST(Subroutines, MultMatrixVec) {
   api->copyTo(devV, v, size * sizeof(real));
   api->copyTo(devRes, res, size * sizeof(real));
 
-  launch_multMatVec(matrix, devV, devRes);
+  launch_multMatVec(matrix, devV, devRes, defaultStream);
 
   //we dont need a sync here; all API queues are in order and this memory copy is synchronous
   api->copyFrom(res, devRes, size * sizeof(real));
@@ -49,6 +50,8 @@ TEST(Subroutines, MultMatrixVec) {
 
 TEST(Subroutines, VectorManips) {
   auto *api = ::device::DeviceInstance::getInstance().api;
+  auto defaultStream = api->getDefaultStream();
+
   const int size = 3;
   RangeT rng {0, size};
 
@@ -65,21 +68,21 @@ TEST(Subroutines, VectorManips) {
     ref[i] = i + i;
   }
 
-  launch_manipVectors(rng, devA, devB, devRes, VectorManipOps::Addition);
+  launch_manipVectors(rng, devA, devB, devRes, VectorManipOps::Addition, defaultStream);
   api->copyFrom(&res[0], devRes, size * sizeof(real));
   ASSERT_THAT(res, ElementsAreArray(ref));
 
   for (int i = 0; i < size; ++i)
     ref[i] = i * i;
 
-  launch_manipVectors(rng, devA, devB, devRes, VectorManipOps::Multiply);
+  launch_manipVectors(rng, devA, devB, devRes, VectorManipOps::Multiply, defaultStream);
   api->copyFrom(&res[0], devRes, size * sizeof(real));
   ASSERT_THAT(res, ElementsAreArray(ref));
 
   for (int i = 0; i < size; ++i)
     ref[i] = 0;
 
-  launch_manipVectors(rng, devA, devB, devRes, VectorManipOps::Subtraction);
+  launch_manipVectors(rng, devA, devB, devRes, VectorManipOps::Subtraction, defaultStream);
   api->copyFrom(&res[0], devRes, size * sizeof(real));
   ASSERT_THAT(res, ElementsAreArray(ref));
 }

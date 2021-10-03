@@ -1,3 +1,4 @@
+#include <device.h>
 #include <gtest/gtest.h>
 
 #ifdef USE_MPI
@@ -6,6 +7,8 @@
 
 #include "datatypes.hpp"
 #include <stdexcept>
+
+using namespace device;
 
 int main(int argc, char **argv) {
 #ifdef USE_MPI
@@ -16,6 +19,10 @@ int main(int argc, char **argv) {
 #else
   WorkSpaceT ws{MPI_COMM_WORLD};
 #endif
+
+  DeviceInstance &device = DeviceInstance::getInstance();
+  device.api->setDevice(ws.rank);
+  device.api->initialize();
 
   ::testing::InitGoogleTest(&argc, argv);
   int result = RUN_ALL_TESTS();
