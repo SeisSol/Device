@@ -5,7 +5,7 @@ stages:
 
 
 image:
-  name: ravilmobile/gemmforge-nvidia:latest
+  name: ravilmobile/gemmforge-nvidia:gcc-8_cuda-10
   entrypoint: [""]
 
 
@@ -13,9 +13,6 @@ submodules:
   stage: adjust
   tags:
     - atsccs68-docker-executor
-  image:
-    name: ravilmobile/gemmforge-nvidia:latest
-    entrypoint: [""]
   script:
     - cat ./.gitmodules
     - git submodule update --init --recursive
