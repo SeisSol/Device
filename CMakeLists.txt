@@ -42,10 +42,13 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 string(TOLOWER ${DEVICE_BACKEND} BACKEND_FOLDER)
 
 if (${DEVICE_BACKEND} STREQUAL "CUDA")
+    set(BACKEND_FOLDER "cuda")
     include(nvidia.cmake)
 elseif(${DEVICE_BACKEND} STREQUAL "HIP")
+    set(BACKEND_FOLDER "hip")
     include(amd.cmake)
 elseif((${DEVICE_BACKEND} STREQUAL "ONEAPI") OR (${DEVICE_BACKEND} STREQUAL "HIPSYCL"))
+    set(BACKEND_FOLDER "sycl")
     include(sycl.cmake)
 endif()
 
