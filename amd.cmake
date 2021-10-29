@@ -29,7 +29,7 @@ set(DEVICE_HIPCC)
 set(DEVICE_HCC)
 if (DEFINED ENV{HIP_PLATFORM})
     if ($ENV{HIP_PLATFORM} STREQUAL "nvidia")
-        set(DEVICE_NVCC -arch=${DEVICE_SUB_ARCH};
+        set(DEVICE_NVCC -arch=${DEVICE_ARCH};
                         -dc;
                         --expt-relaxed-constexpr;
                         -DCUDA_UNDERHOOD)
@@ -62,7 +62,7 @@ set_property(TARGET device PROPERTY HIP_ARCHITECTURES OFF)
 if (DEFINED ENV{HIP_PLATFORM})
     if ($ENV{HIP_PLATFORM} STREQUAL "nvidia")
         set_target_properties(device PROPERTIES LINKER_LANGUAGE HIP)
-        target_link_options(device PRIVATE -arch=${DEVICE_SUB_ARCH})
+        target_link_options(device PRIVATE -arch=${DEVICE_ARCH})
     else()
         target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
     endif()
