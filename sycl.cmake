@@ -13,7 +13,7 @@ set(DEVICE_SOURCE_FILES device.cpp
         algorithms/sycl/Debugging.cpp
         )
 
-if (${DEVICE_BACKEND} STREQUAL "ONEAPI")
+if (${DEVICE_BACKEND} STREQUAL "oneapi")
     list(APPEND DEVICE_SOURCE_FILES "algorithms/sycl/Reduction_ONEAPI.cpp")
 else()
     list(APPEND DEVICE_SOURCE_FILES "algorithms/sycl/Reduction.cpp")
@@ -21,7 +21,7 @@ endif()
 
 add_library(device SHARED ${DEVICE_SOURCE_FILES})
 
-if (${DEVICE_BACKEND} STREQUAL "HIPSYCL")
+if (${DEVICE_BACKEND} STREQUAL "hipsycl")
     set(HIPSYCL_TARGETS "cuda:${DEVICE_ARCH}")
     find_package(hipSYCL CONFIG REQUIRED)
     add_sycl_to_target(TARGET device SOURCES ${DEVICE_SOURCE_FILES})

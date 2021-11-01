@@ -32,25 +32,25 @@ If you want to use Intel's OneAPI, make sure to install the basic module includi
 ### Compile without MPI
 ``` 
 # either
-cmake .. -DWITH_MPI=OFF -DDEVICE_BACKEND=CUDA -DSM=6=sm_60
+cmake .. -DWITH_MPI=OFF -DDEVICE_BACKEND=cuda -DSM=6=sm_60
 # or
-cmake .. -DWITH_MPI=OFF -DDEVICE_BACKEND=HIP
+cmake .. -DWITH_MPI=OFF -DDEVICE_BACKEND=hip
 # or
-cmake .. -DWITH_MPI=OFF -DDEVICE_BACKEND=ONEAPI
+cmake .. -DWITH_MPI=OFF -DDEVICE_BACKEND=oneapi
 ```
 
 ### Support of different floating point precision formats
 ```
 # either double 
-cmake .. -DWITH_MPI=OFF -DDEVICE_BACKEND=HIP -DREAL_SIZE_IN_BYTES=8
+cmake .. -DWITH_MPI=OFF -DDEVICE_BACKEND=hip -DREAL_SIZE_IN_BYTES=8
 # or single
-cmake .. -DWITH_MPI=OFF -DDEVICE_BACKEND=HIP -DREAL_SIZE_IN_BYTES=4
+cmake .. -DWITH_MPI=OFF -DDEVICE_BACKEND=hip -DREAL_SIZE_IN_BYTES=4
 ```
 
 ## MPI Support
 ```
 #either double 
-cmake .. -DWITH_MPI=ON -DDEVICE_BACKEND=HIP -DREAL_SIZE_IN_BYTES=4
+cmake .. -DWITH_MPI=ON -DDEVICE_BACKEND=hip -DREAL_SIZE_IN_BYTES=4
 ```
 
 ### How to use Intel MPI
