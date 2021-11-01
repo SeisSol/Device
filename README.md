@@ -28,29 +28,29 @@ The setup is explained with linux commands; for windows, see the belonging batch
 If you want to run the examples, follow the instructions in the belonging package.
 
 ### Device options for CUDA
-* use `-DDEVICE_BACKEND:STRING=CUDA` to build the CUDA implementation 
-* CUDA also requires a sub architecture for the device, for example `-DDEVICE_SUB_ARCH=sm60`; see the CMakeLists.txt for all options
+* use `-DDEVICE_BACKEND:STRING=cuda` to build the CUDA implementation 
+* CUDA also requires a sub architecture for the device, for example `-DDEVICE_ARCH=sm60`; see the CMakeLists.txt for all options
 * Make sure to have CUDA including nvcc installed 
-* Complete example call: `cmake .. -DDEVICE_BACKEND:STRING=CUDA -DREAL_SIZE_IN_BYTES=4 -DDEVICE_SUB_ARCH=sm60`
+* Complete example call: `cmake .. -DDEVICE_BACKEND:STRING=cuda -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=sm60`
 
 ### Device options for HIP
-* use `-DDEVICE_BACKEND:STRING=HIP` to build the HIP implementation 
-* Complete example call: `cmake .. -DDEVICE_BACKEND:STRING=HIP -DREAL_SIZE_IN_BYTES=4 -DDEVICE_SUB_ARCH=gfx906`
+* use `-DDEVICE_BACKEND:STRING=hip` to build the HIP implementation 
+* Complete example call: `cmake .. -DDEVICE_BACKEND:STRING=hip -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=gfx906`
 
 ### Device options for OneAPI
-* use `-DDEVICE_BACKEND:STRING=ONEAPI` to build the OneAPI implementation
+* use `-DDEVICE_BACKEND:STRING=oneapi` to build the OneAPI implementation
 * currently, OneAPI is mainly used to target Intel devices; for CUDA or HIP as device backend, use hipSYCL and set the right environment variables, respectively
-* Set the environment variable `PREFERRED_DEVICE_TYPE` to compile for the defined `DEVICE_SUB_ARCH`
-* If `PREFERRED_DEVICE_TYPE` is not specified on build, JIT compilation is assumed and the value of `DEVICE_SUB_ARCH` is ignored
+* Set the environment variable `PREFERRED_DEVICE_TYPE` to compile for the defined `DEVICE_ARCH`
+* If `PREFERRED_DEVICE_TYPE` is not specified on build, JIT compilation is assumed and the value of `DEVICE_ARCH` is ignored
 * Options for `PREFERRED_DEVICE_TYPE` are `GPU`, `CPU`, or `FPGA`
 * The environment variable must be also set before running any code using this lib. The runtime needs this hint to select the right device the code was compile for. If the value was not specified or illegal, the runtime applies a default selection strategy, preferring GPUs over CPUs and CPUs over the host. This might crashes the application if the targeted compilation architecture differs from the runtime target
 * If `PREFERRED_DEVICE_TYPE` was not specified on build but before running an application, the JIT compiler will generate the kernels and allows switching the device type at runtime
-* Complete example call: `export PREFERRED_DEVICE_TYPE=GPU` and `cmake .. -DDEVICE_BACKEND:STRING=ONEAPI -DREAL_SIZE_IN_BYTES=4 -DDEVICE_SUB_ARCH=dg1`
+* Complete example call: `export PREFERRED_DEVICE_TYPE=GPU` and `cmake .. -DDEVICE_BACKEND:STRING=oneapi -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=dg1`
 
 ### Device options for hipSYCL
-* use `-DDEVICE_BACKEND:STRING=HIPSYCL` to build for hipSYCL
+* use `-DDEVICE_BACKEND:STRING=hipsycl` to build for hipSYCL
 * hipSYCL does currently not require the definition of a sub architecture, but it has to be specified in the cmake
-*  Complete example call: `cmake .. -DDEVICE_BACKEND:STRING=HIPSYCL -DREAL_SIZE_IN_BYTES=4 -DDEVICE_SUB_ARCH=dg1`
+*  Complete example call: `cmake .. -DDEVICE_BACKEND:STRING=hipsycl -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=dg1`
 
 ## Add another API
 * Extend the CMakeLists.txt with the new API
