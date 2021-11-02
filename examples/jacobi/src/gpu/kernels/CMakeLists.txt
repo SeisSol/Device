@@ -4,10 +4,10 @@ project(subroutinesKernel)
 
 set(TARGET_NAME kernel)
 
-if (${DEVICE_BACKEND} STREQUAL "HIP")
+if (${DEVICE_BACKEND} STREQUAL "hip")
     include(amd.cmake)
-elseif(${DEVICE_BACKEND} STREQUAL "CUDA")
+elseif(${DEVICE_BACKEND} STREQUAL "cuda")
     include(nvidia.cmake)
-elseif((${DEVICE_BACKEND} STREQUAL "ONEAPI") OR (${DEVICE_BACKEND} STREQUAL "HIPSYCL"))
+elseif((${DEVICE_BACKEND} STREQUAL "oneapi") OR (${DEVICE_BACKEND} STREQUAL "hipsycl"))
     include(sycl.cmake)
 endif()
