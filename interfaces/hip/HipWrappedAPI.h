@@ -73,8 +73,8 @@ private:
   device::StatusT status{false};
   int currentDeviceId{-1};
 
-  cudaStream_t defaultStream{nullptr};
-  std::vector<cudaStream_t> circularStreamBuffer{};
+  hipStream_t defaultStream{nullptr};
+  std::vector<hipStream_t> circularStreamBuffer{};
   size_t circularStreamCounter{0};
 
   char *stackMemory = nullptr;
