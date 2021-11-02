@@ -29,21 +29,21 @@ void ConcreteAPI::copyBetween(void* dst, const void* src, size_t count) {
 void ConcreteAPI::copyToAsync(void *dst, const void *src, size_t count, void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   auto stream = (streamPtr != nullptr) ? static_cast<hipStream_t>(streamPtr) : 0;
-  cudaMemcpyAsync(dst, src, count, cudaMemcpyHostToDevice, stream);
+  hipMemcpyAsync(dst, src, count, hipMemcpyHostToDevice, stream);
   CHECK_ERR;
 }
 
 void ConcreteAPI::copyFromAsync(void *dst, const void *src, size_t count, void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   auto stream = (streamPtr != nullptr) ? static_cast<hipStream_t>(streamPtr) : 0;
-  cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToHost, stream);
+  hipMemcpyAsync(dst, src, count, hipMemcpyDeviceToHost, stream);
   CHECK_ERR;
 }
 
 void ConcreteAPI::copyBetweenAsync(void *dst, const void *src, size_t count, void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   auto stream = (streamPtr != nullptr) ? static_cast<hipStream_t>(streamPtr) : 0;
-  cudaMemcpyAsync(dst, src, count, cudaMemcpyDeviceToDevice, stream);
+  hipMemcpyAsync(dst, src, count, hipMemcpyDeviceToDevice, stream);
   CHECK_ERR;
 }
 
@@ -81,7 +81,7 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void* devPtr, siz
     logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
   }
 #endif
-  //cudaMemPrefetchAsync - Not supported by HIP
+  //hipMemPrefetchAsync - Not supported by HIP
   if(type == Destination::CurrentDevice){
     hipMemcpyAsync((void*) devPtr, devPtr, count, hipMemcpyHostToDevice, stream);
   }else{
