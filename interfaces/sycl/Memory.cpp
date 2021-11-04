@@ -26,17 +26,27 @@ void *ConcreteAPI::allocPinnedMem(size_t size) {
 }
 
 void ConcreteAPI::freeMem(void *devPtr) {
-  if (this->currentMemoryToSizeMap->find(devPtr) == this->currentMemoryToSizeMap->end())
-    throw std::invalid_argument(this->getDeviceInfoAsText(this->currentDeviceId)
-                                    .append("an attempt to delete memory that has not been allocated. Is this "
-                                            "a pointer to this device or was this a double free?"));
+  // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behaviour
+  // contrast to C++/CUDA/HIP
+  if(devPtr != nullptr) {
+    if (this->currentMemoryToSizeMap->find(devPtr) == this->currentMemoryToSizeMap->end())
+      throw std::invalid_argument(this->getDeviceInfoAsText(this->currentDeviceId)
+                                      .append("an attempt to delete memory that has not been allocated. Is this "
+                                              "a pointer to this device or was this a double free?"));
 
-  this->currentStatistics->deallocatedMemBytes += this->currentMemoryToSizeMap->at(devPtr);
-  this->currentMemoryToSizeMap->erase(devPtr);
-  free(devPtr, this->currentDefaultQueue->get_context());
+    this->currentStatistics->deallocatedMemBytes += this->currentMemoryToSizeMap->at(devPtr);
+    this->currentMemoryToSizeMap->erase(devPtr);
+    free(devPtr, this->currentDefaultQueue->get_context());
+  }
 }
 
-void ConcreteAPI::freePinnedMem(void *devPtr) { this->freeMem(devPtr); }
+void ConcreteAPI::freePinnedMem(void *devPtr) {
+  // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behaviour
+  // contrast to C++/CUDA/HIP
+  if(devPtr != nullptr) {
+    this->freeMem(devPtr);
+  }
+}
 
 char *ConcreteAPI::getStackMemory(size_t requestedBytes) {
   return this->currentDeviceStack->getStackMemory(requestedBytes);

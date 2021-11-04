@@ -20,10 +20,11 @@ __global__ void kernel_multMatVec(GpuMatrixDataT matrix, const real *v, real *re
   }
 }
 
-void launch_multMatVec(const GpuMatrixDataT &matrix, const real *v, real *res) {
+void launch_multMatVec(const GpuMatrixDataT &matrix, const real *v, real *res, void* streamPtr) {
   dim3 block(128, 1, 1);
   dim3 grid(get1DGrid(block.x, matrix.info.localNumRows), 1, 1);
-  kernel_multMatVec<<<grid, block>>>(matrix, v, res);
+  auto stream = reinterpret_cast<cudaStream_t>(streamPtr);
+  kernel_multMatVec<<<grid, block, 0, stream>>>(matrix, v, res);
 }
 
 __global__ void kernel_manipVectors(RangeT range, const real *vec1, const real *vec2, real *res, VectorManipOps op) {
@@ -32,25 +33,31 @@ __global__ void kernel_manipVectors(RangeT range, const real *vec1, const real *
   if (idx < localSize) {
     const int linIndex = range.start + idx;
     switch (op) {
-    case VectorManipOps::Addition: {
-      res[linIndex] = vec1[linIndex] + vec2[linIndex];
-      break;
-    }
-    case VectorManipOps::Subtraction: {
-      res[linIndex] = vec1[linIndex] - vec2[linIndex];
-      break;
-    }
-    case VectorManipOps::Multiply: {
-      res[linIndex] = vec1[linIndex] * vec2[linIndex];
-      break;
-    }
+      case VectorManipOps::Addition: {
+        res[linIndex] = vec1[linIndex] + vec2[linIndex];
+        break;
+      }
+      case VectorManipOps::Subtraction: {
+        res[linIndex] = vec1[linIndex] - vec2[linIndex];
+        break;
+      }
+      case VectorManipOps::Multiply: {
+        res[linIndex] = vec1[linIndex] * vec2[linIndex];
+        break;
+      }
     }
   }
 }
 
-void launch_manipVectors(const RangeT &range, const real *vec1, const real *vec2, real *res, VectorManipOps op) {
+void launch_manipVectors(const RangeT &range,
+                         const real *vec1,
+                         const real *vec2,
+                         real *res,
+                         VectorManipOps op,
+                         void* streamPtr) {
   size_t localSize = range.end - range.start;
   dim3 block(128, 1, 1);
   dim3 grid(get1DGrid(block.x, localSize), 1, 1);
-  kernel_manipVectors<<<grid, block>>>(range, vec1, vec2, res, op);
+  auto stream = reinterpret_cast<cudaStream_t>(streamPtr);
+  kernel_manipVectors<<<grid, block, 0, stream>>>(range, vec1, vec2, res, op);
 }

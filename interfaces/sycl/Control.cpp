@@ -9,11 +9,12 @@ using namespace device;
 using namespace cl::sycl;
 using namespace std;
 
-void ConcreteAPI::initialize() {
-  if (initialized)
-    throw std::invalid_argument("can not initialize SYCL twice");
+void ConcreteAPI::initDevices() {
 
-  logInfo() << "init SYCL API wrapper ...";
+  if (this->deviceInitialized)
+    throw new std::invalid_argument("can not init devices twice!");
+
+  logInfo() << "init SYCL API devices ...";
   for (auto const &platform : platform::get_platforms()) {
     for (auto const &device : platform.get_devices()) {
 
@@ -36,8 +37,7 @@ void ConcreteAPI::initialize() {
   }
 
   sort(this->availableDevices.begin(), this->availableDevices.end(), [&](DeviceContext *c1, DeviceContext *c2) {
-    return compare(c1->queueBuffer.getDefaultQueue().get_device().get_info<cl::sycl::info::device::device_type>(),
-                   c2->queueBuffer.getDefaultQueue().get_device().get_info<cl::sycl::info::device::device_type>());
+    return compare(c1->queueBuffer.getDefaultQueue().get_device(), c2->queueBuffer.getDefaultQueue().get_device());
   });
 
   stringstream s;
@@ -48,9 +48,27 @@ void ConcreteAPI::initialize() {
   logInfo() << s.str();
 
   this->setDevice(this->currentDeviceId);
-  this->initialized = true;
-  logInfo() << "init succeeded";
+  this->deviceInitialized = true;
+  logInfo() << "device init succeeded";
 }
+
+void ConcreteAPI::setDevice(int id) {
+
+  if (id < 0 || id >= this->getNumDevices())
+    throw out_of_range{"device index out of range"};
+
+  this->currentDeviceId = id;
+  auto *next = this->availableDevices[id];
+  this->currentDeviceStack = &next->stack;
+  this->currentStatistics = &next->statistics;
+  this->currentQueueBuffer = &next->queueBuffer;
+  this->currentDefaultQueue = &this->currentQueueBuffer->getDefaultQueue();
+  this->currentMemoryToSizeMap = &next->memoryToSizeMap;
+
+  logDebug() << "switched to device: " << this->getCurrentDeviceInfoAsText() << " by index " << id;
+}
+
+void ConcreteAPI::initialize() {}
 
 void ConcreteAPI::allocateStackMem() {
   logInfo() << "allocating stack memory for device: \n"
@@ -61,9 +79,10 @@ void ConcreteAPI::allocateStackMem() {
 }
 
 void ConcreteAPI::finalize() {
-  if (m_isFinalized)
-    throw std::invalid_argument("API is already finalized!");
-
+  if (m_isFinalized) {
+    logWarning() << "SYCL API is already finalized!";
+    return;
+  }
   for (auto *device : this->availableDevices) {
     delete device;
   }
@@ -77,22 +96,7 @@ void ConcreteAPI::finalize() {
   this->currentMemoryToSizeMap = nullptr;
 
   this->m_isFinalized = true;
-  this->initialized = false;
-}
-
-void ConcreteAPI::setDevice(int id) {
-  if (id < 0 || id >= this->getNumDevices())
-    throw out_of_range{"device index out of range"};
-
-  this->currentDeviceId = id;
-  auto *next = this->availableDevices[id];
-  this->currentDeviceStack = &next->stack;
-  this->currentStatistics = &next->statistics;
-  this->currentQueueBuffer = &next->queueBuffer;
-  this->currentDefaultQueue = &this->currentQueueBuffer->getDefaultQueue();
-  this->currentMemoryToSizeMap = &next->memoryToSizeMap;
-
-  logDebug() << "switched to device: " << this->getCurrentDeviceInfoAsText() << " by index " << id;
+  this->deviceInitialized = false;
 }
 
 int ConcreteAPI::getNumDevices() { return this->availableDevices.size(); }
@@ -112,7 +116,7 @@ unsigned int ConcreteAPI::getGlobMemAlignment() {
   return 128; //ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
 }
 
-void ConcreteAPI::synchDevice() { this->currentDefaultQueue->wait_and_throw(); }
+void ConcreteAPI::synchDevice() { this->currentQueueBuffer->syncAllQueuesWithHost(); }
 
 string ConcreteAPI::getDeviceInfoAsText(int id) {
   if (id < 0 || id >= this->getNumDevices())
@@ -129,7 +133,9 @@ std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
   info << "platform:" << dev.get_platform().get_info<info::platform::name>() << "\n";
   info << "    name:" << dev.get_info<info::device::name>() << "\n";
   info << "    type: " << convertToString(dev.get_info<info::device::device_type>()) << "\n";
-  info << "    driver_version:" << dev.get_info<info::device::driver_version>() << "\n";
+  info << "    driver_version: " << dev.get_info<info::device::driver_version>() << "\n";
+  // if (dev.get_info<info::device::device_type>() != cl::sycl::info::device_type::host)
+  // info << "    device id: " << dev.get() << "\n";
 
   return info.str();
 }

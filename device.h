@@ -15,7 +15,7 @@ public:
     static DeviceInstance instance;
     return instance;
   }
-  ~DeviceInstance() { this->finalize(); }
+  ~DeviceInstance();
   void finalize();
 
   AbstractAPI *api{nullptr};

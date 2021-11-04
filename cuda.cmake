@@ -12,11 +12,12 @@ set_source_files_properties(device.cpp
 
 # NOTE: cmake doesn't fully support $<$<COMPILE_LANGUAGE>:CUDA>:
 set(CUDA_NVCC_FLAGS -std=c++14;
-        -arch=${DEVICE_SUB_ARCH};
+        -arch=${DEVICE_ARCH};
         -Xptxas -v;
-        -DDEVICE_${DEVICE_BACKEND}_LANG;
+        -DDEVICE_${BACKEND_UPPER_CASE}_LANG;
         -DREAL_SIZE=${REAL_SIZE_IN_BYTES};
         --expt-relaxed-constexpr;
+        --compiler-options -fPIC;
         ${EXTRA_DEVICE_FLAGS})
 
 cuda_add_library(device device.cpp

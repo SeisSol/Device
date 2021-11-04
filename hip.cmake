@@ -11,27 +11,33 @@ endif()
 set(CMAKE_MODULE_PATH "${HIP_PATH}/cmake" ${CMAKE_MODULE_PATH})
 
 set(HIP_COMPILER hcc)
+find_package(HIP REQUIRED)
 
-find_package(HIP QUIET)
-if(HIP_FOUND)
-    message(STATUS "Found HIP: " ${HIP_VERSION})
-else()
-    message(FATAL_ERROR "Could not find HIP. "
-            "Ensure that HIP is either installed in /opt/rocm/hip "
-            "or the variable HIP_PATH is set to point to the right location.")
-endif()
-
-
-#Can set different FLAGS for the compilers via HCC_OPTIONS and NVCC_OPTIONS keywords; options for both via HIPCC_OPTIONS
-#Set the flags here, use them later
-#Only need NVCC at the time no AMD system to deploy to
+# Can set different FLAGS for the compilers via HCC_OPTIONS and NVCC_OPTIONS keywords;
+# options for both via HIPCC_OPTIONS
+# Set the flags here, use them later
+# Only need NVCC at the time no AMD system to deploy to
 set(DEVICE_HIPCC)
 set(DEVICE_HCC)
+set(IS_NVCC_PLATFORM OFF)
 if (DEFINED ENV{HIP_PLATFORM})
-    if ($ENV{HIP_PLATFORM} STREQUAL "nvcc")
-        set(DEVICE_NVCC -arch=${DEVICE_SUB_ARCH};-dc;--expt-relaxed-constexpr;-DCUDA_UNDERHOOD)
+    if ($ENV{HIP_PLATFORM} STREQUAL "nvidia")
+        set(IS_NVCC_PLATFORM ON)
     endif()
 endif()
+
+if (IS_NVCC_PLATFORM)
+    set(DEVICE_NVCC -arch=${DEVICE_ARCH};
+                    -dc;
+                    --expt-relaxed-constexpr;
+                    -DCUDA_UNDERHOOD)
+else()
+    set(DEVICE_HIPCC -std=c++14;
+                     -O3;
+                     --amdgpu-target=${DEVICE_ARCH};
+                     -DDEVICE_${BACKEND_UPPER_CASE}_LANG)
+endif()
+
 
 set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Aux.cpp
@@ -49,19 +55,20 @@ set(CMAKE_HIP_CREATE_SHARED_LIBRARY "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HCC_PATH
 
 
 set_source_files_properties(${DEVICE_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
+hip_reset_flags()
 hip_add_library(device SHARED ${DEVICE_SOURCE_FILES}
                        HIPCC_OPTIONS ${DEVICE_HIPCC}
                        HCC_OPTIONS ${DEVICE_HCC}
                        NVCC_OPTIONS ${DEVICE_NVCC})
 
-if (DEFINED ENV{HIP_PLATFORM})
-    if ($ENV{HIP_PLATFORM} STREQUAL "nvcc")
-        set_target_properties(device PROPERTIES LINKER_LANGUAGE HIP)
-    else()
-        target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
-    endif()
+set_property(TARGET device PROPERTY HIP_ARCHITECTURES OFF)
+
+if (IS_NVCC_PLATFORM)
+    set_target_properties(device PROPERTIES LINKER_LANGUAGE HIP)
+    target_link_options(device PRIVATE -arch=${DEVICE_ARCH})
 else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
 endif()
 
 target_compile_options(device PRIVATE "-std=c++11")
+

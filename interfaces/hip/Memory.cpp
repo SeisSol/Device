@@ -9,80 +9,91 @@
 using namespace device;
 
 void* ConcreteAPI::allocGlobMem(size_t size) {
+  isFlagSet<DeviceSelected>(status);
   void *devPtr;
   hipMalloc(&devPtr, size); CHECK_ERR;
-  m_statistics.allocatedMemBytes += size;
-  m_memToSizeMap[devPtr] = size;
+  statistics.allocatedMemBytes += size;
+  memToSizeMap[devPtr] = size;
   return devPtr;
 }
 
 
 void* ConcreteAPI::allocUnifiedMem(size_t size) {
+  isFlagSet<DeviceSelected>(status);
   void *devPtr;
   hipMallocManaged(&devPtr, size, hipMemAttachGlobal); CHECK_ERR;
-  m_statistics.allocatedMemBytes += size;
-  m_statistics.allocatedUnifiedMemBytes += size;
-  m_memToSizeMap[devPtr] = size;
+  statistics.allocatedMemBytes += size;
+  statistics.allocatedUnifiedMemBytes += size;
+  memToSizeMap[devPtr] = size;
   return devPtr;
 }
 
 
 void* ConcreteAPI::allocPinnedMem(size_t size) {
+  isFlagSet<DeviceSelected>(status);
   void *devPtr;
   hipHostMalloc(&devPtr, size); CHECK_ERR;
-  m_statistics.allocatedMemBytes += size;
-  m_memToSizeMap[devPtr] = size;
+  statistics.allocatedMemBytes += size;
+  memToSizeMap[devPtr] = size;
   return devPtr;
 }
 
 
 void ConcreteAPI::freeMem(void *devPtr) {
-  assert((m_memToSizeMap.find(devPtr) != m_memToSizeMap.end())
+  isFlagSet<DeviceSelected>(status);
+  assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) 
          && "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  m_statistics.deallocatedMemBytes += m_memToSizeMap[devPtr];
+  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
   hipFree(devPtr); CHECK_ERR;
 }
 
 
 void ConcreteAPI::freePinnedMem(void *devPtr) {
-  assert((m_memToSizeMap.find(devPtr) != m_memToSizeMap.end())
+  isFlagSet<DeviceSelected>(status);
+  assert((memToSizeMap.find(devPtr) != memToSizeMap.end())
          && "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  m_statistics.deallocatedMemBytes += m_memToSizeMap[devPtr];
+  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
   hipHostFree(devPtr); CHECK_ERR;
 }
 
 
 char* ConcreteAPI::getStackMemory(size_t requestedBytes) {
-  assert(((m_stackMemByteCounter + requestedBytes) < m_maxStackMem) && "DEVICE:: run out of a device stack memory");
-  char *mem = &m_stackMemory[m_stackMemByteCounter];
-  m_stackMemByteCounter += requestedBytes;
-  m_stackMemMeter.push(requestedBytes);
+  isFlagSet<StackMemAllocated>(status);
+  assert(((stackMemByteCounter + requestedBytes) < maxStackMem) && "DEVICE:: run out of a device stack memory");
+  char *mem = &stackMemory[stackMemByteCounter];
+  stackMemByteCounter += requestedBytes;
+  stackMemMeter.push(requestedBytes);
   return mem;
 }
 
 
 void ConcreteAPI::popStackMemory() {
-  m_stackMemByteCounter -= m_stackMemMeter.top();
-  m_stackMemMeter.pop();
+  isFlagSet<StackMemAllocated>(status);
+  stackMemByteCounter -= stackMemMeter.top();
+  stackMemMeter.pop();
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {
+  isFlagSet<DeviceSelected>(status);
   std::ostringstream report{};
-  report << "Memory Leaks, bytes: " << (m_statistics.allocatedMemBytes - m_statistics.deallocatedMemBytes) << '\n';
-  report << "Stack Memory Leaks, bytes: " << m_stackMemByteCounter << '\n';
+  report << "Memory Leaks, bytes: " << (statistics.allocatedMemBytes - statistics.deallocatedMemBytes) << '\n';
+  report << "Stack Memory Leaks, bytes: " << stackMemByteCounter << '\n';
   return report.str();
 }
 
 size_t ConcreteAPI::getMaxAvailableMem() {
+  isFlagSet<DeviceSelected>(status);
   hipDeviceProp_t property;
-  hipGetDeviceProperties(&property, m_currentDeviceId); CHECK_ERR;
+  hipGetDeviceProperties(&property, currentDeviceId); CHECK_ERR;
   return property.totalGlobalMem;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
-  return m_statistics.allocatedMemBytes;
+  isFlagSet<DeviceSelected>(status);
+  return statistics.allocatedMemBytes;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
-  return m_statistics.allocatedUnifiedMemBytes;
+  isFlagSet<DeviceSelected>(status);
+  return statistics.allocatedUnifiedMemBytes;
 }

@@ -6,27 +6,31 @@
 using namespace device;
 
 void *ConcreteAPI::getNextCircularStream() {
-  void* returnStream = static_cast<void*>(m_circularStreamBuffer[m_circularStreamCounter]);
-  m_circularStreamCounter += 1;
-  if (m_circularStreamCounter >= m_circularStreamBuffer.size()) {
-    m_circularStreamCounter = 0;
+  isFlagSet<InterfaceInitialized>(status);
+  void* returnStream = static_cast<void*>(circularStreamBuffer[circularStreamCounter]);
+  circularStreamCounter += 1;
+  if (circularStreamCounter >= circularStreamBuffer.size()) {
+    circularStreamCounter = 0;
   }
   return returnStream;
 }
 
 void ConcreteAPI::resetCircularStreamCounter() {
-  m_circularStreamCounter = 0;
+  isFlagSet<InterfaceInitialized>(status);
+  circularStreamCounter = 0;
 }
 
 size_t ConcreteAPI::getCircularStreamSize() {
-  return m_circularStreamBuffer.size();
+  isFlagSet<InterfaceInitialized>(status);
+  return circularStreamBuffer.size();
 }
 
 void ConcreteAPI::syncStreamFromCircularBuffer(void* streamPtr) {
+  isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
 #ifndef NDEBUG
-  auto itr = std::find(m_circularStreamBuffer.begin(), m_circularStreamBuffer.end(), stream);
-  if (itr == m_circularStreamBuffer.end()) {
+  auto itr = std::find(circularStreamBuffer.begin(), circularStreamBuffer.end(), stream);
+  if (itr == circularStreamBuffer.end()) {
     logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
   }
 #endif
@@ -34,7 +38,8 @@ void ConcreteAPI::syncStreamFromCircularBuffer(void* streamPtr) {
 }
 
 void ConcreteAPI::syncCircularBuffer() {
-  for (auto& stream: m_circularStreamBuffer) {
+  isFlagSet<InterfaceInitialized>(status);
+  for (auto& stream: circularStreamBuffer) {
     hipStreamSynchronize(stream); CHECK_ERR;
   }
 }
@@ -45,7 +50,11 @@ __global__ void kernel_synchAllStreams() {
 }
 
 void ConcreteAPI::fastStreamsSync() {
+  isFlagSet<DeviceSelected>(status);
   hipLaunchKernelGGL(kernel_synchAllStreams, dim3(1), dim3(1), 0, 0);
 }
 
-void *ConcreteAPI::getDefaultStream() { return NULL; }
+void *ConcreteAPI::getDefaultStream() {
+  isFlagSet<InterfaceInitialized>(status);
+  return static_cast<void *>(defaultStream);
+}

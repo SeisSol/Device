@@ -20,8 +20,10 @@ class ConcreteAPI : public AbstractAPI {
 public:
   ConcreteAPI()
       : availableDevices{vector<DeviceContext *>{}}, currentDefaultQueue{nullptr}, currentDeviceStack{nullptr},
-        currentQueueBuffer{nullptr}, currentStatistics{nullptr}, currentMemoryToSizeMap{nullptr}, initialized{false},
-        currentDeviceId{0} {}
+        currentQueueBuffer{nullptr}, currentStatistics{nullptr}, currentMemoryToSizeMap{nullptr}, deviceInitialized{false},
+        currentDeviceId{0}{
+    this->initDevices();
+  }
 
   void setDevice(int deviceId) override;
   int getNumDevices() override;
@@ -78,10 +80,12 @@ private:
   Statistics *currentStatistics;
   unordered_map<void *, size_t> *currentMemoryToSizeMap;
 
+  void initDevices();
+
   std::string getCurrentDeviceInfoAsText();
   std::string getDeviceInfoAsText(cl::sycl::device dev);
 
-  bool initialized;
+  bool deviceInitialized;
   int currentDeviceId;
 };
 } // namespace device

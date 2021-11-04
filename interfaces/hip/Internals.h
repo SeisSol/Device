@@ -7,6 +7,7 @@
 #define CHECK_ERR device::internals::checkErr(__FILE__,__LINE__)
 namespace device {
   namespace internals {
+    using deviceStreamT = hipStream_t;
     void checkErr(const std::string &file, int line);
     inline dim3 computeGrid1D(const dim3 &block, const size_t size) {
       int numBlocks = (size + block.x - 1) / block.x;
@@ -23,7 +24,11 @@ namespace device {
       return dim3(numItems, 1, 1);
     }
 
+#ifdef CUDA_UNDERHOOD
+    constexpr int WARP_SIZE = 32;
+#else
     constexpr int WARP_SIZE = 64;
+#endif
   }
 }
 
