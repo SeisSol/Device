@@ -80,7 +80,7 @@ void ConcreteAPI::allocateStackMem() {
   CHECK_ERR;
 
   status[StatusID::StackMemAllocated] = true;
-};
+}
 
 void ConcreteAPI::finalize() {
   if (status[StatusID::StackMemAllocated]) {
@@ -101,14 +101,24 @@ void ConcreteAPI::finalize() {
     circularStreamBuffer.clear();
     status[StatusID::InterfaceInitialized] = false;
   }
-};
-
+}
 
 int ConcreteAPI::getNumDevices() {
   int numDevices{};
   cudaGetDeviceCount(&numDevices);
   CHECK_ERR;
   return numDevices;
+}
+
+int ConcreteAPI::getDeviceId() {
+  if (!status[StatusID::DeviceSelected]) {
+    logError() << "Device has not been selected. Please, select device before requesting device Id";
+  }
+  return currentDeviceId;
+}
+
+size_t ConcreteAPI::getLaneSize() {
+  return static_cast<size_t>(device::internals::WARP_SIZE);
 }
 
 unsigned ConcreteAPI::getMaxThreadBlockSize() {

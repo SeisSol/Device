@@ -1,6 +1,7 @@
 #include "DeviceType.h"
 #include "SyclWrappedAPI.h"
 #include "utils/logger.h"
+#include "Internals.h"
 
 #include <iostream>
 #include <string>
@@ -100,6 +101,18 @@ void ConcreteAPI::finalize() {
 }
 
 int ConcreteAPI::getNumDevices() { return this->availableDevices.size(); }
+
+int ConcreteAPI::getDeviceId() {
+  if (deviceInitialized) {
+    logError() << "Device has not been selected. Please, select device before requesting device Id";
+  }
+  return currentDeviceId;
+}
+
+
+size_t ConcreteAPI::getLaneSize() {
+  return static_cast<size_t>(device::internals::WARP_SIZE);
+}
 
 unsigned int ConcreteAPI::getMaxThreadBlockSize() {
   auto device = this->currentDefaultQueue->get_device();

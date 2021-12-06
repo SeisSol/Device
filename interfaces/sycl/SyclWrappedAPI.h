@@ -26,6 +26,9 @@ public:
   }
 
   void setDevice(int deviceId) override;
+
+  int getDeviceId() override;
+  size_t getLaneSize() override;
   int getNumDevices() override;
   unsigned getMaxThreadBlockSize() override;
   unsigned getMaxSharedMemSize() override;

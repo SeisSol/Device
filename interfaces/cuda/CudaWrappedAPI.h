@@ -16,7 +16,10 @@ class ConcreteAPI : public AbstractAPI {
 public:
   ConcreteAPI();
   void setDevice(int deviceId) override;
+
   int getNumDevices() override;
+  int getDeviceId() override;
+  size_t getLaneSize() override;
   unsigned getMaxThreadBlockSize() override;
   unsigned getMaxSharedMemSize() override;
   unsigned getGlobMemAlignment() override;
