@@ -111,7 +111,7 @@ int ConcreteAPI::getDeviceId() {
 
 
 size_t ConcreteAPI::getLaneSize() {
-  return static_cast<size_t>(device::internals::WARP_SIZE);
+  return static_cast<size_t>(::internals::WARP_SIZE);
 }
 
 unsigned int ConcreteAPI::getMaxThreadBlockSize() {

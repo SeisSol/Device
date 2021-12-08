@@ -56,6 +56,6 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
   return results;
 }
 
-template int Algorithms::reduceVector(int *buffer, size_t size, ReductionType type, void* streamPtr);
+template unsigned Algorithms::reduceVector(unsigned *buffer, size_t size, ReductionType type, void* streamPtr);
 template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type, void* streamPtr);
 } // namespace device

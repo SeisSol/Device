@@ -85,53 +85,89 @@ void Algorithms::touchBatchedMemory(real **basePtr,
 
 //--------------------------------------------------------------------------------------------------
 template<typename T>
-__global__ void kernel_copyUniformToScatter(T *src, T **dst, size_t chunkSize) {
-  T *srcElement = &src[hipBlockIdx_x];
+__global__ void kernel_copyUniformToScatter(T *src, T **dst, size_t srcOffset, size_t copySize) {
+  T *srcElement = &src[hipBlockIdx_x * srcOffset];
   T *dstElement = dst[hipBlockIdx_x];
-  for (int index = hipThreadIdx_x; index < chunkSize; index += blockDim.x) {
+  for (int index = hipThreadIdx_x; index < copySize; index += blockDim.x) {
     dstElement[index] = srcElement[index];
   }
 }
 
 template<typename T>
-void Algorithms::copyUniformToScatter(T *src, 
-                                      T **dst, 
-                                      size_t chunkSize, 
-                                      size_t numElements, 
+void Algorithms::copyUniformToScatter(T *src,
+                                      T **dst,
+                                      size_t srcOffset,
+                                      size_t copySize,
+                                      size_t numElements,
                                       void* streamPtr) {
   dim3 block(256, 1, 1);
   dim3 grid(numElements, 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
-  hipLaunchKernelGGL(kernel_copyUniformToScatter, grid, block, 0, stream, src, dst, chunkSize);
+  hipLaunchKernelGGL(kernel_copyUniformToScatter, grid, block, 0, stream, src, dst, srcOffset, copySize);
   CHECK_ERR;
 }
-template void Algorithms::copyUniformToScatter(real *src, real **dst, size_t chunkSize, size_t numElements, void* streamPtr);
-template void Algorithms::copyUniformToScatter(int *src, int **dst, size_t chunkSize, size_t numElements, void* streamPtr);
-template void Algorithms::copyUniformToScatter(char *src, char **dst, size_t chunkSize, size_t numElements, void* streamPtr);
+template void Algorithms::copyUniformToScatter(real *src,
+                                               real **dst,
+                                               size_t srcOffset,
+                                               size_t copySize,
+                                               size_t numElements,
+                                               void* streamPtr);
+
+template void Algorithms::copyUniformToScatter(int *src,
+                                               int **dst,
+                                               size_t srcOffset,
+                                               size_t copySize,
+                                               size_t numElements,
+                                               void* streamPtr);
+
+template void Algorithms::copyUniformToScatter(char *src,
+                                               char **dst,
+                                               size_t srcOffset,
+                                               size_t copySize,
+                                               size_t numElements,
+                                               void* streamPtr);
 
 //--------------------------------------------------------------------------------------------------
 template<typename T>
-__global__ void kernel_copyScatterToUniform(T **src, T *dst, size_t chunkSize) {
+__global__ void kernel_copyScatterToUniform(T **src, T *dst, size_t dstOffset, size_t copySize) {
   T *srcElement = src[hipBlockIdx_x];
-  T *dstElement = &dst[hipBlockIdx_x];
-  for (int index = hipThreadIdx_x; index < chunkSize; index += blockDim.x) {
+  T *dstElement = &dst[hipBlockIdx_x * dstOffset];
+  for (int index = hipThreadIdx_x; index < copySize; index += blockDim.x) {
     dstElement[index] = srcElement[index];
   }
 }
 
 template<typename T>
-void Algorithms::copyScatterToUniform(T **src, 
-                                      T *dst, 
-                                      size_t chunkSize, 
-                                      size_t numElements, 
+void Algorithms::copyScatterToUniform(T **src,
+                                      T *dst,
+                                      size_t dstOffset,
+                                      size_t copySize,
+                                      size_t numElements,
                                       void* streamPtr) {
   dim3 block(256, 1, 1);
   dim3 grid(numElements, 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
-  hipLaunchKernelGGL(kernel_copyScatterToUniform, grid, block, 0, stream, src, dst, chunkSize);
+  hipLaunchKernelGGL(kernel_copyScatterToUniform, grid, block, 0, stream, src, dst, dstOffset, copySize);
   CHECK_ERR;
 }
-template void Algorithms::copyScatterToUniform(real **src, real *dst, size_t chunkSize, size_t numElements, void* streamPtr);
-template void Algorithms::copyScatterToUniform(int **src, int *dst, size_t chunkSize, size_t numElements, void* streamPtr);
-template void Algorithms::copyScatterToUniform(char **src, char *dst, size_t chunkSize, size_t numElements, void* streamPtr);
+template void Algorithms::copyScatterToUniform(real **src,
+                                               real *dst,
+                                               size_t dstOffset,
+                                               size_t copySize,
+                                               size_t numElements,
+                                               void* streamPtr);
+
+template void Algorithms::copyScatterToUniform(int **src,
+                                               int *dst,
+                                               size_t dstOffset,
+                                               size_t copySize,
+                                               size_t numElements,
+                                               void* streamPtr);
+
+template void Algorithms::copyScatterToUniform(char **src,
+                                               char *dst,
+                                               size_t dstOffset,
+                                               size_t copySize,
+                                               size_t numElements,
+                                               void* streamPtr);
 } // namespace device

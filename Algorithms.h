@@ -37,10 +37,10 @@ public:
                              void* streamPtr);
 
   template <typename T>
-  void copyUniformToScatter(T *src, T **dst, size_t chunkSize, size_t numElements, void* streamPtr);
+  void copyUniformToScatter(T *src, T **dst, size_t srcOffset, size_t copySize, size_t numElements, void* streamPtr);
 
   template <typename T>
-  void copyScatterToUniform(T **src, T *dst, size_t chunkSize, size_t numElements, void* streamPtr);
+  void copyScatterToUniform(T **src, T *dst, size_t dstOffset, size_t copySize, size_t numElements, void* streamPtr);
 
   void compareDataWithHost(const real *hostPtr, const real *devPtr, size_t numElements,
                            const std::string &dataName);

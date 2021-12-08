@@ -6,11 +6,6 @@
 #include <limits>
 
 namespace device {
-inline cl::sycl::queue *getQueue() {
-  auto *api = DeviceInstance::getInstance().api;
-  return ((cl::sycl::queue *)api->getDefaultStream());
-}
-
 template <typename T> struct Sum {
   T getDefaultValue() const { return static_cast<T>(0); }
   T operator()(T op1, T op2) const { return op1 + op2; }
@@ -32,57 +27,98 @@ inline size_t getNearestPow2Number(size_t number) {
   return (BASE << power);
 }
 
-template <typename T, typename OperationT> void reduce(size_t size, size_t step, T *buffer, OperationT operation, void* streamPtr) {
 
-  auto targetSize = getNearestPow2Number(size / (step * 2));
-  auto rng = ::device::internals::computeDefaultExecutionRange1D(targetSize);
+template <typename T, typename OperationT>
+void reduce(T *to, T *from, size_t reducedSize, OperationT Operation, void* queuePtr) {
+  auto rng = ::device::internals::computeDefaultExecutionRange1D(reducedSize);
+  auto queue = reinterpret_cast<cl::sycl::queue*>(queuePtr);
 
-  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
+  queue->submit([&](handler &cgh) {
+    auto numLanes = ::device::internals::WARP_SIZE;
+    cl::sycl::local_accessor<T> shrMem{numLanes, cgh};
+
     cgh.parallel_for(rng, [=](nd_item<> item) {
-      int j = item.get_global_id(0) * (2 * step);
-      if (j < size) {
-        T buddyValue = operation.getDefaultValue();
-        T currentValue = buffer[j];
+      auto localRange = item.get_local_range();
+      auto gid = item.get_global_id(0);
+      auto lid = item.get_local_id(0);
 
-        int buddyIndex = j + step;
-        if (buddyIndex < size) {
-          buddyValue = buffer[buddyIndex];
+      shrMem[lid] = from[gid];
+      item.barrier();
+
+      for (int offset = numLanes/2; offset >= 1; offset /= 2) {
+        if (lid < offset) {
+          shrMem[lid] = Operation(shrMem[lid], shrMem[lid + offset]);
         }
-        buffer[j] = operation(currentValue, buddyValue);
+        item.barrier();
+      }
+
+      auto wid = item.get_group().get_id(0);
+      if (lid == 0) {
+        to[wid] = shrMem[0];
       }
     });
   });
 }
 
-template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type, void* streamPtr) {
-  if (api == nullptr)
-    throw std::invalid_argument("api has not been attached to algorithms sub-system");
 
-  for (int step = 1; step < size; step *= 2) {
+template <typename T>
+T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type, void* queuePtr) {
+  if (api == nullptr) {
+    throw std::invalid_argument("api has not been attached to algorithms sub-system");
+  }
+
+  size_t adjustedSize = getNearestPow2Number(size);
+  const size_t totalBuffersSize = 2 * adjustedSize * sizeof(T);
+
+  T *reductionBuffer = reinterpret_cast<T *>(api->getStackMemory(totalBuffersSize));
+
+  this->fillArray(reinterpret_cast<char *>(reductionBuffer),
+                  static_cast<char>(0),
+                  2 * adjustedSize * sizeof(T),
+                  queuePtr);
+
+  api->copyBetween(reductionBuffer, buffer, size * sizeof(T));
+
+  T *buffer0 = &reductionBuffer[0];
+  T *buffer1 = &reductionBuffer[adjustedSize];
+
+  size_t swapCounter = 0;
+  for (size_t reducedSize = adjustedSize; reducedSize > 0; reducedSize /= internals::WARP_SIZE) {
     switch (type) {
     case ReductionType::Add: {
-      reduce<T>(size, step, buffer, ::device::Sum<T>(), streamPtr);
+      reduce<T>(buffer1, buffer0, reducedSize, ::device::Sum<T>(), queuePtr);
       break;
     }
     case ReductionType::Max: {
-      reduce<T>(size, step, buffer, ::device::Max<T>(), streamPtr);
+      reduce<T>(buffer1, buffer0, reducedSize, ::device::Max<T>(), queuePtr);
       break;
     }
     case ReductionType::Min: {
-      reduce<T>(size, step, buffer, ::device::Min<T>(), streamPtr);
+      reduce<T>(buffer1, buffer0, reducedSize, ::device::Min<T>(), queuePtr);
       break;
     }
     default: {
       throw std::invalid_argument("reduction type is not implemented");
     }
     }
+    std::swap(buffer1, buffer0);
+    ++swapCounter;
   }
 
   T results{};
-  api->copyFrom(&results, buffer, sizeof(T));
+  if ((swapCounter % 2) == 0) {
+    api->copyFrom(&results, buffer0, sizeof(T));
+  } else {
+    api->copyFrom(&results, buffer1, sizeof(T));
+  }
+  this->fillArray(reinterpret_cast<char *>(reductionBuffer),
+                  static_cast<char>(0),
+                  2 * adjustedSize * sizeof(T),
+                  queuePtr);
+  api->popStackMemory();
   return results;
 }
 
-template int Algorithms::reduceVector(int *buffer, size_t size, ReductionType type, void* streamPtr);
-template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type, void* streamPtr);
+template unsigned Algorithms::reduceVector(unsigned *buffer, size_t size, ReductionType type, void* queuePtr);
+template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type, void* queuePtr);
 } // namespace device
