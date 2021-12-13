@@ -55,7 +55,7 @@ TEST_F(Reductions, Max) {
   EXPECT_EQ(expectedResult, testResult);
 }
 
-TEST_F(Reductions, MIN) {
+TEST_F(Reductions, Min) {
   constexpr size_t size = 1000;
   std::vector<unsigned> vector(size, 0);
 
