@@ -5,41 +5,52 @@
 #include <device.h>
 #include <limits>
 
+
 namespace device {
 
 
-template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type, void* streamPtr) {
+template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type, void* queuePtr) {
   if (api == nullptr)
     throw std::invalid_argument("api has not been attached to algorithms sub-system");
 
-  auto rng = internals::computeExecutionRange1D(internals::WARP_SIZE, size);
-  T *red_ptr = (T *)api->allocGlobMem(sizeof(T));
+  auto queue = reinterpret_cast<cl::sycl::queue *>(queuePtr);
+  size_t adjustedSize = internals::WARP_SIZE * ((internals::WARP_SIZE + size - 1) / internals::WARP_SIZE);
+  T *reductionBuffer = reinterpret_cast<T *>(api->getStackMemory(adjustedSize));
+  this->fillArray(reinterpret_cast<char *>(reductionBuffer),
+                  static_cast<char>(0),
+                  adjustedSize * sizeof(T),
+                  queuePtr);
 
+  api->copyBetween(reductionBuffer, buffer, size * sizeof(T));
+
+  T *redPtr = reinterpret_cast<T *>(api->getStackMemory(sizeof(T)));
+
+  auto rng = internals::computeExecutionRange1D(internals::WARP_SIZE, adjustedSize);
   switch (type) {
   case ReductionType::Add: {
-    auto id = static_cast<T>(0);
-    api->copyTo(red_ptr, &id, sizeof(T));
-    auto red = cl::sycl::ONEAPI::reduction(red_ptr, red_ptr[0], std::plus<T>());
-    ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
-      cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(buffer[it.get_global_id(0)]); });
+    auto identity = static_cast<T>(0);
+    api->copyTo(redPtr, &identity, sizeof(T));
+    auto red = cl::sycl::ext::oneapi::reduction(redPtr, identity, std::plus<T>());
+    queue->submit([&](handler &cgh) {
+      cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(reductionBuffer[it.get_global_id(0)]); });
     });
     break;
   }
   case ReductionType::Max: {
-    auto id = std::numeric_limits<T>::min();
-    api->copyTo(red_ptr, &id, sizeof(T));
-    auto red = cl::sycl::ONEAPI::reduction(red_ptr, red_ptr[0], sycl::ONEAPI::maximum<T>());
-    ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
-      cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(buffer[it.get_global_id(0)]); });
+    auto identity = std::numeric_limits<T>::min();
+    api->copyTo(redPtr, &identity, sizeof(T));
+    auto red = cl::sycl::ext::oneapi::reduction(redPtr, identity, sycl::ext::oneapi::maximum<T>());
+    queue->submit([&](handler &cgh) {
+      cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(reductionBuffer[it.get_global_id(0)]); });
     });
     break;
   }
   case ReductionType::Min: {
-    auto id = std::numeric_limits<T>::max();
-    api->copyTo(red_ptr, &id, sizeof(T));
-    auto red = cl::sycl::ONEAPI::reduction(red_ptr, red_ptr[0], sycl::ONEAPI::minimum<T>());
-    ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
-      cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(buffer[it.get_global_id(0)]); });
+    auto identity = std::numeric_limits<T>::max();
+    api->copyTo(redPtr, &identity, sizeof(T));
+    auto red = cl::sycl::ext::oneapi::reduction(redPtr, identity, sycl::ext::oneapi::minimum<T>());
+    queue->submit([&](handler &cgh) {
+      cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(reductionBuffer[it.get_global_id(0)]); });
     });
     break;
   }
@@ -50,12 +61,13 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
   api->synchDevice();
 
   T results{};
-  api->copyFrom(&results, red_ptr, sizeof(T));
-  api->freeMem(red_ptr);
+  api->copyFrom(&results, redPtr, sizeof(T));
+  api->popStackMemory();
+  api->popStackMemory();
 
   return results;
 }
 
-template int Algorithms::reduceVector(int *buffer, size_t size, ReductionType type, void* streamPtr);
+template unsigned Algorithms::reduceVector(unsigned *buffer, size_t size, ReductionType type, void* streamPtr);
 template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type, void* streamPtr);
 } // namespace device

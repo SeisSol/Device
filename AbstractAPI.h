@@ -24,7 +24,10 @@ struct AbstractAPI {
   virtual ~AbstractAPI() = default;
 
   virtual void setDevice(int deviceId) = 0;
+  virtual int getDeviceId() = 0;
+
   virtual int getNumDevices() = 0;
+  virtual size_t getLaneSize() = 0;
   virtual unsigned getMaxThreadBlockSize() = 0;
   virtual unsigned getMaxSharedMemSize() = 0;
   virtual unsigned getGlobMemAlignment() = 0;

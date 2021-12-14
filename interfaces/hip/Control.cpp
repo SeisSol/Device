@@ -107,6 +107,18 @@ int ConcreteAPI::getNumDevices() {
   return numDevices;
 }
 
+int ConcreteAPI::getDeviceId() {
+  if (!status[StatusID::DeviceSelected]) {
+    logError() << "Device has not been selected. Please, select device before requesting device Id";
+  }
+  return currentDeviceId;
+}
+
+
+size_t ConcreteAPI::getLaneSize() {
+  return static_cast<size_t>(device::internals::WARP_SIZE);
+}
+
 unsigned ConcreteAPI::getMaxThreadBlockSize() {
   int blockSize{};
   hipDeviceGetAttribute(&blockSize, hipDeviceAttributeMaxThreadsPerBlock, currentDeviceId); CHECK_ERR;

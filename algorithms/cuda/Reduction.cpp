@@ -42,8 +42,8 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
   CHECK_ERR;
   api->copyBetween(reductionBuffer, buffer, size * sizeof(T));
 
-  T *buffer0 = &reductionBuffer[0];
-  T *buffer1 = &reductionBuffer[adjustedSize];
+  T *from = &reductionBuffer[0];
+  T *to = &reductionBuffer[adjustedSize];
 
   dim3 block(internals::WARP_SIZE, 1, 1);
   dim3 grid = internals::computeGrid1D(internals::WARP_SIZE, size);
@@ -53,15 +53,15 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
   for (size_t reducedSize = adjustedSize; reducedSize > 0; reducedSize /= internals::WARP_SIZE) {
     switch (type) {
     case ReductionType::Add: {
-      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, buffer1, buffer0, reducedSize, device::Sum<T>());
+      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, to, from, reducedSize, device::Sum<T>());
       break;
     }
     case ReductionType::Max: {
-      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, buffer1, buffer0, reducedSize, device::Max<T>());
+      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, to, from, reducedSize, device::Max<T>());
       break;
     }
     case ReductionType::Min: {
-      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, buffer1, buffer0, reducedSize, device::Min<T>());
+      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, to, from, reducedSize, device::Min<T>());
       break;
     }
     default: {
@@ -69,16 +69,16 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
     }
       CHECK_ERR;
     }
-    std::swap(buffer1, buffer0);
+    std::swap(to, from);
     ++swapCounter;
   }
 
   T results{};
   if ((swapCounter % 2) == 0) {
-    api->copyFrom(&results, buffer0, sizeof(T));
-  } else {
-    api->copyFrom(&results, buffer1, sizeof(T));
+    std::swap(to, from);
   }
+
+  api->copyFrom(&results, to, sizeof(T));
   this->fillArray(reinterpret_cast<char *>(reductionBuffer),
                   static_cast<char>(0),
                   2 * adjustedSize * sizeof(T),
@@ -88,6 +88,6 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
   return results;
 }
 
-template int Algorithms::reduceVector(int *buffer, size_t size, ReductionType type, void* streamPtr);
+template unsigned Algorithms::reduceVector(unsigned *buffer, size_t size, ReductionType type, void* streamPtr);
 template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type, void* streamPtr);
 } // namespace device
