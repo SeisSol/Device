@@ -79,38 +79,38 @@ T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type, voi
 
   api->copyBetween(reductionBuffer, buffer, size * sizeof(T));
 
-  T *buffer0 = &reductionBuffer[0];
-  T *buffer1 = &reductionBuffer[adjustedSize];
+  T *from = &reductionBuffer[0];
+  T *to = &reductionBuffer[adjustedSize];
 
   size_t swapCounter = 0;
   for (size_t reducedSize = adjustedSize; reducedSize > 0; reducedSize /= internals::WARP_SIZE) {
     switch (type) {
     case ReductionType::Add: {
-      reduce<T>(buffer1, buffer0, reducedSize, ::device::Sum<T>(), queuePtr);
+      reduce<T>(to, from, reducedSize, ::device::Sum<T>(), queuePtr);
       break;
     }
     case ReductionType::Max: {
-      reduce<T>(buffer1, buffer0, reducedSize, ::device::Max<T>(), queuePtr);
+      reduce<T>(to, from, reducedSize, ::device::Max<T>(), queuePtr);
       break;
     }
     case ReductionType::Min: {
-      reduce<T>(buffer1, buffer0, reducedSize, ::device::Min<T>(), queuePtr);
+      reduce<T>(to, from, reducedSize, ::device::Min<T>(), queuePtr);
       break;
     }
     default: {
       throw std::invalid_argument("reduction type is not implemented");
     }
     }
-    std::swap(buffer1, buffer0);
+    std::swap(to, from);
     ++swapCounter;
   }
 
   T results{};
   if ((swapCounter % 2) == 0) {
-    api->copyFrom(&results, buffer0, sizeof(T));
-  } else {
-    api->copyFrom(&results, buffer1, sizeof(T));
+    std::swap(to, from);
   }
+
+  api->copyFrom(&results, to, sizeof(T));
   this->fillArray(reinterpret_cast<char *>(reductionBuffer),
                   static_cast<char>(0),
                   2 * adjustedSize * sizeof(T),

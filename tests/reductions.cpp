@@ -23,7 +23,7 @@ TEST_F(Reductions, Add) {
     element = distribution(randomEngine);
   }
 
-  auto devVector = reinterpret_cast<unsigned *>(device->api->getStackMemory(sizeof(unsigned) * size));
+  auto* devVector = reinterpret_cast<unsigned *>(device->api->getStackMemory(sizeof(unsigned) * size));
   device->api->copyTo(devVector, vector.data(), sizeof(unsigned) * size);
 
   auto expectedResult = std::accumulate(vector.begin(), vector.end(), 0, std::plus<unsigned>());
@@ -37,7 +37,7 @@ TEST_F(Reductions, Max) {
   constexpr size_t size = 1000;
   std::vector<unsigned> vector(size, 0);
 
-  unsigned *devVector = reinterpret_cast<unsigned *>(device->api->getStackMemory(sizeof(unsigned) * size));
+  auto* devVector = reinterpret_cast<unsigned *>(device->api->getStackMemory(sizeof(unsigned) * size));
   device->api->copyTo(devVector, vector.data(), sizeof(unsigned) * size);
 
   std::uniform_int_distribution<> distribution(10, 100);
@@ -64,7 +64,7 @@ TEST_F(Reductions, Min) {
     element = distribution(randomEngine);
   }
 
-  unsigned *devVector = reinterpret_cast<unsigned *>(device->api->getStackMemory(sizeof(unsigned) * size));
+  auto* devVector = reinterpret_cast<unsigned *>(device->api->getStackMemory(sizeof(unsigned) * size));
   device->api->copyTo(devVector, vector.data(), sizeof(unsigned) * size);
 
   auto min = [](unsigned a, unsigned b) -> unsigned { return a > b ? b : a; };
