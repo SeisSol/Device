@@ -63,6 +63,7 @@ public:
   void *getNextCircularStream() override;
   void resetCircularStreamCounter() override;
   size_t getCircularStreamSize() override;
+  bool isStreamReady(void* streamPtr) override;
   void syncStreamFromCircularBuffer(void *streamPtr) override;
   void syncCircularBuffer() override;
   void fastStreamsSync() override;

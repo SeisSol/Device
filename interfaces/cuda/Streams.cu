@@ -25,6 +25,21 @@ size_t ConcreteAPI::getCircularStreamSize() {
   return circularStreamBuffer.size();
 }
 
+bool ConcreteAPI::isStreamReady(void* streamPtr) {
+  isFlagSet<InterfaceInitialized>(status);
+  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+  auto streamStatus = cudaStreamQuery(stream);
+
+  switch (streamStatus) {
+    case cudaSuccess: return true;
+    case cudaErrorNotReady: return false;
+    default: {
+      CHECK_ERR;
+    }
+    return false;
+  }
+}
+
 void ConcreteAPI::syncStreamFromCircularBuffer(void *streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);

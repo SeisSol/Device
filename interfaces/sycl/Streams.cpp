@@ -10,6 +10,13 @@ void ConcreteAPI::resetCircularStreamCounter() { this->currentQueueBuffer->reset
 
 size_t ConcreteAPI::getCircularStreamSize() { return this->currentQueueBuffer->getCapacity(); }
 
+bool ConcreteAPI::isStreamReady(void* streamPtr) {
+  // TODO: ask Alex whether there is ansync mem copies
+  auto *q = static_cast<cl::sycl::queue *>(streamPtr);
+  q->wait_and_throw();
+  return true;
+}
+
 void ConcreteAPI::syncStreamFromCircularBuffer(void *streamPtr) {
   auto *q = static_cast<cl::sycl::queue *>(streamPtr);
   this->currentQueueBuffer->syncQueueWithHost(q);

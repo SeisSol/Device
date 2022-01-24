@@ -25,6 +25,21 @@ size_t ConcreteAPI::getCircularStreamSize() {
   return circularStreamBuffer.size();
 }
 
+bool ConcreteAPI::isStreamReady(void* streamPtr) {
+  isFlagSet<InterfaceInitialized>(status);
+  hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+  auto streamStatus = hipStreamQuery(stream);
+
+  switch (streamStatus) {
+    case hipSuccess: return true;
+    case hipErrorNotReady: return false;
+    default: {
+      CHECK_ERR;
+    }
+      return false;
+  }
+}
+
 void ConcreteAPI::syncStreamFromCircularBuffer(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
