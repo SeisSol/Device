@@ -2,6 +2,7 @@
 #define DEVICE_SYCLINTERFACE_H
 
 #include "AbstractAPI.h"
+#include "Common.h"
 #include "DeviceContext.h"
 #include "Statistics.h"
 
