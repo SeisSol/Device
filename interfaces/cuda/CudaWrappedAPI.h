@@ -9,7 +9,7 @@
 
 #include "AbstractAPI.h"
 #include "Statistics.h"
-#include "Status.h"
+#include "Common.h"
 
 namespace device {
 class ConcreteAPI : public AbstractAPI {

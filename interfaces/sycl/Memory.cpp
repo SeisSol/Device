@@ -49,7 +49,8 @@ void ConcreteAPI::freePinnedMem(void *devPtr) {
 }
 
 char *ConcreteAPI::getStackMemory(size_t requestedBytes) {
-  return this->currentDeviceStack->getStackMemory(requestedBytes);
+  size_t requestedAlignedBytes = align(requestedBytes, getGlobMemAlignment());
+  return this->currentDeviceStack->getStackMemory(requestedAlignedBytes);
 }
 
 void ConcreteAPI::popStackMemory() { this->currentDeviceStack->popStackMemory(); }

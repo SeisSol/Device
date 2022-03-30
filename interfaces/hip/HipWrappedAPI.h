@@ -3,7 +3,7 @@
 
 #include "AbstractAPI.h"
 #include "Statistics.h"
-#include "Status.h"
+#include "Common.h"
 
 #include "hip/hip_runtime.h"
 #include <stack>
