@@ -10,6 +10,7 @@
 #include "AbstractAPI.h"
 #include "Statistics.h"
 #include "Common.h"
+#include "cuda.h"
 
 namespace device {
 class ConcreteAPI : public AbstractAPI {

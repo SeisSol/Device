@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.20)
 project(jsolver)
 
 include(../cmake/common_options.cmake)
@@ -10,9 +10,11 @@ add_subdirectory(root)
 add_subdirectory(src/gpu/kernels)
 
 if (WITH_MPI)
-    #workaround for Intel MPI: find mpi does not set all variables correctly, therefore we need some manual configuration
+    # workaround for Intel MPI: find mpi does not set all variables correctly,
+    # therefore we need some manual configuration
     if(FORCE_INTEL_MPI)
-        #the submodule does not search within the cmake folder, thus we are extending the module path
+        # the submodule does not search within the cmake folder,
+        # thus we are extending the module path
         list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../cmake")
         find_package(IntelMPI REQUIRED)
         set(CMAKE_CXX_COMPILER ${MPI_CXX_COMPILER})
@@ -95,5 +97,4 @@ if (WITH_TESTS)
     target_compile_options(tests PRIVATE -std=c++17 ${__MPI_COMPILE_FLAGS})
 
 endif()
-
 

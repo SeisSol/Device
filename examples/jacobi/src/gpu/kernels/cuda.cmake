@@ -1,16 +1,18 @@
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+enable_language(CUDA)
+set(CMAKE_CUDA_STANDARD 14)
 
-#Compile the CUDA kernel
-find_package(CUDA REQUIRED)
-
-#Set the source files and needed flags
 set(SOURCE_FILES subroutinesCUDA.cu)
 
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};
-                    -DREAL_SIZE=${REAL_SIZE_IN_BYTES};
-                    --compiler-options -fPIC;
-                    -std=c++11)
+add_library(${TARGET_NAME} SHARED ${SOURCE_FILES})
+set_target_properties(${TARGET_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_compile_features(${TARGET_NAME} PRIVATE cxx_std_14)
 
-#Compile
-cuda_add_library(${TARGET_NAME} ${SOURCE_FILES})
+target_compile_definitions(${TARGET_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+    -DREAL_SIZE=${REAL_SIZE_IN_BYTES}
+    >)
+
+target_compile_options(${TARGET_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+    -Xptxas -v;
+    --expt-relaxed-constexpr;
+    >)
+
