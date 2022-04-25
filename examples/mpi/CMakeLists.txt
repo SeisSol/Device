@@ -1,7 +1,9 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.20)
 project(MPI)
 
+
 include(../cmake/common_options.cmake)
+
 
 if(FORCE_INTEL_MPI)
     list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../cmake")
@@ -10,10 +12,12 @@ else()
     find_package(MPI REQUIRED)
 endif()
 
+
 add_executable(mpi src/main.cpp)
 add_subdirectory(root)
 target_include_directories(mpi PUBLIC root ${MPI_CXX_INCLUDE_DIRS})
 target_link_libraries(mpi PUBLIC device ${MPI_CXX_LIBRARIES})
+
 
 if(FORCE_INTEL_MPI)
     set(CMAKE_CXX_COMPILER ${MPI_CXX_COMPILER})
@@ -27,3 +31,4 @@ endif()
 
 target_compile_options(mpi PRIVATE ${MPI_CXX_COMPILE_OPTIONS})
 target_compile_definitions(mpi PRIVATE DEVICE_${DEVICE_BACKEND}_LANG REAL_SIZE=${REAL_SIZE_IN_BYTES})
+
