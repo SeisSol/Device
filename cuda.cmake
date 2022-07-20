@@ -42,3 +42,4 @@ endif()
 
 find_package(CUDAToolkit REQUIRED)
 target_link_libraries(device PUBLIC CUDA::cudart CUDA::cuda_driver CUDA::nvToolsExt)
+target_compile_definitions(device PRIVATE PROFILING_ENABLED)
