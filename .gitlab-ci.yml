@@ -5,7 +5,7 @@ stages:
 
 
 image:
-  name: ravilmobile/gemmforge-nvidia:gcc-8_cuda-10
+  name: "seissol/gpu-ci-image:v0.0.2"
   entrypoint: [""]
 
 
@@ -23,13 +23,6 @@ submodules:
 
 .common_test_steps: &common_test_script
     - export CTEST_OUTPUT_ON_FAILURE=1
-    - if [[ "${BACKEND}" == "hipsycl" ]]; then
-        export CC=/usr/bin/gcc-9 ;
-        export CXX=/usr/bin/g++-9 ;
-      else
-        export CC=/usr/bin/gcc-8 ;
-        export CXX=/usr/bin/g++-8 ;
-      fi ;
     - if [[ "${BACKEND}" == "hip" ]]; then
         . /etc/profile.d/rocm.sh ;
         export HIP_PLATFORM=nvidia ;
@@ -75,6 +68,13 @@ jacobi_example:
   parallel:
     matrix:
       - BACKEND: [cuda, hip, hipsycl]
+  before_script:
+    - git clone --depth 1 --branch release-1.10.0 https://github.com/google/googletest
+    - mkdir -p googletest/build && cd googletest/build
+    - cmake .. -DBUILD_GTEST=ON -DBUILD_GMOCK=ON -Dgtest_disable_pthreads=ON -DBUILD_SHARED_LIBS=ON
+    - make -j $(nproc)
+    - make install
+    - cd ../..
   script:
     - *common_test_script
     - export WORKDIR=./examples/jacobi/build
