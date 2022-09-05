@@ -13,8 +13,8 @@ void Algorithms::streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigne
 
 ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
-      real *srcElement = baseSrcPtr[item.get_group().get_id(0)];
-      real *dstElement = baseDstPtr[item.get_group().get_id(0)];
+      real *srcElement = baseSrcPtr[item.get_group().get_group_id(0)];
+      real *dstElement = baseDstPtr[item.get_group().get_group_id(0)];
 
       for (int index = item.get_local_id(0); index < elementSize; index += item.get_local_range(0)) {
         dstElement[index] = srcElement[index];
@@ -29,8 +29,8 @@ void Algorithms::accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, uns
 
   ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
-      real *srcElement = baseSrcPtr[item.get_group().get_id(0)];
-      real *dstElement = baseDstPtr[item.get_group().get_id(0)];
+      real *srcElement = baseSrcPtr[item.get_group().get_group_id(0)];
+      real *dstElement = baseDstPtr[item.get_group().get_group_id(0)];
       for (int index = item.get_local_id(0); index < elementSize; index += item.get_local_range(0)) {
         dstElement[index] += srcElement[index];
       }
@@ -43,7 +43,7 @@ void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsign
 
   ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
-      real *element = basePtr[item.get_group().get_id(0)];
+      real *element = basePtr[item.get_group().get_group_id(0)];
       int id = item.get_local_id(0);
       while (id < elementSize) {
         if (clean) {
@@ -72,8 +72,8 @@ void Algorithms::copyUniformToScatter(T *src,
 
   ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
-      T *srcElement = &src[item.get_group().get_id(0) * srcOffset];
-      T *dstElement = dst[item.get_group().get_id(0)];
+      T *srcElement = &src[item.get_group().get_group_id(0) * srcOffset];
+      T *dstElement = dst[item.get_group().get_group_id(0)];
       for (int index = item.get_local_id(0); index < copySize; index += item.get_local_range(0)) {
         dstElement[index] = srcElement[index];
       }
@@ -113,8 +113,8 @@ void Algorithms::copyScatterToUniform(T **src,
 
   ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
     cgh.parallel_for(rng, [=](nd_item<> item) {
-      T *srcElement = src[item.get_group().get_id(0)];
-      T *dstElement = &dst[item.get_group().get_id(0) * dstOffset];
+      T *srcElement = src[item.get_group().get_group_id(0)];
+      T *dstElement = &dst[item.get_group().get_group_id(0) * dstOffset];
       for (int index = item.get_local_id(0); index < copySize; index += item.get_local_range(0)) {
         dstElement[index] = srcElement[index];
       }

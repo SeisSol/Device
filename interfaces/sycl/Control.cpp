@@ -103,7 +103,7 @@ void ConcreteAPI::finalize() {
 int ConcreteAPI::getNumDevices() { return this->availableDevices.size(); }
 
 int ConcreteAPI::getDeviceId() {
-  if (deviceInitialized) {
+  if (!deviceInitialized) {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
   return currentDeviceId;

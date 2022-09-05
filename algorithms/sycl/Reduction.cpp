@@ -52,7 +52,7 @@ void reduce(T *to, T *from, size_t reducedSize, OperationT Operation, void* queu
         item.barrier();
       }
 
-      auto wid = item.get_group().get_id(0);
+      auto wid = item.get_group().get_group_id(0);
       if (lid == 0) {
         to[wid] = shrMem[0];
       }

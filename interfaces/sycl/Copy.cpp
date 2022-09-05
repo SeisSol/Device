@@ -23,7 +23,7 @@ void ConcreteAPI::copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_
   if (width > dpitch || width > spitch)
     throw std::invalid_argument("width exceeds row pitch of matrix");
 
-  auto diffPitch = cl::sycl::max<size_t>(spitch, dpitch) - cl::sycl::min<size_t>(spitch, dpitch);
+  auto diffPitch = std::max(spitch, dpitch) - std::min(spitch, dpitch);
   for (size_t i = 0; i < height; i++) {
     this->copyTo((std::byte *)dst + i * dpitch, (std::byte *)src + i * spitch, width + diffPitch);
   }
@@ -34,7 +34,7 @@ void ConcreteAPI::copy2dArrayFrom(void *dst, size_t dpitch, const void *src, siz
   if (width > dpitch || width > spitch)
     throw std::invalid_argument("width exceeds row pitch of matrix");
 
-  auto diffPitch = cl::sycl::max<size_t>(spitch, dpitch) - cl::sycl::min<size_t>(spitch, dpitch);
+  auto diffPitch = std::max(spitch, dpitch) - std::min(spitch, dpitch);
   for (size_t i = 0; i < height; i++) {
     this->copyFrom((std::byte *)dst + i * dpitch, (std::byte *)src + i * spitch, width + diffPitch);
   }
