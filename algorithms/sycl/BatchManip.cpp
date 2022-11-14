@@ -11,8 +11,8 @@ namespace device {
 void Algorithms::streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize, unsigned numElements, void* streamPtr) {
   auto rng = cl::sycl::nd_range<1>{numElements * 32, 32};
 
-((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
-    cgh.parallel_for(rng, [=](nd_item<> item) {
+((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
+    cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
       real *srcElement = baseSrcPtr[item.get_group().get_group_id(0)];
       real *dstElement = baseDstPtr[item.get_group().get_group_id(0)];
 
@@ -27,8 +27,8 @@ void Algorithms::accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, uns
                                        unsigned numElements, void* streamPtr) {
   auto rng = cl::sycl::nd_range<1>{numElements * 32, 32};
 
-  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
-    cgh.parallel_for(rng, [=](nd_item<> item) {
+  ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
+    cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
       real *srcElement = baseSrcPtr[item.get_group().get_group_id(0)];
       real *dstElement = baseDstPtr[item.get_group().get_group_id(0)];
       for (int index = item.get_local_id(0); index < elementSize; index += item.get_local_range(0)) {
@@ -41,8 +41,8 @@ void Algorithms::accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, uns
 void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsigned numElements, bool clean, void* streamPtr) {
   auto rng = cl::sycl::nd_range<1>{numElements * 256, 256};
 
-  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
-    cgh.parallel_for(rng, [=](nd_item<> item) {
+  ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
+    cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
       real *element = basePtr[item.get_group().get_group_id(0)];
       int id = item.get_local_id(0);
       while (id < elementSize) {
@@ -70,8 +70,8 @@ void Algorithms::copyUniformToScatter(T *src,
                                       void *streamPtr) {
   auto rng = cl::sycl::nd_range<1>{numElements * 256, 256};
 
-  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
-    cgh.parallel_for(rng, [=](nd_item<> item) {
+  ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
+    cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
       T *srcElement = &src[item.get_group().get_group_id(0) * srcOffset];
       T *dstElement = dst[item.get_group().get_group_id(0)];
       for (int index = item.get_local_id(0); index < copySize; index += item.get_local_range(0)) {
@@ -111,8 +111,8 @@ void Algorithms::copyScatterToUniform(T **src,
                                       void *streamPtr) {
   auto rng = cl::sycl::nd_range<1>{numElements * 256, 256};
 
-  ((cl::sycl::queue *) streamPtr)->submit([&](handler &cgh) {
-    cgh.parallel_for(rng, [=](nd_item<> item) {
+  ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
+    cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
       T *srcElement = src[item.get_group().get_group_id(0)];
       T *dstElement = &dst[item.get_group().get_group_id(0) * dstOffset];
       for (int index = item.get_local_id(0); index < copySize; index += item.get_local_range(0)) {

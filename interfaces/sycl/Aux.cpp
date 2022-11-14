@@ -16,8 +16,8 @@ void ConcreteAPI::checkOffloading() {
   this->copyTo(devPtr, hostPtr, N * sizeof(real));
 
   auto *q = ((cl::sycl::queue *)getDefaultStream());
-  q->submit([&](handler &cgh) {
-    cgh.parallel_for(nd_range<>{{N}, {1}}, [=](nd_item<> item) {
+  q->submit([&](cl::sycl::handler &cgh) {
+    cgh.parallel_for(cl::sycl::nd_range<>{{N}, {1}}, [=](cl::sycl::nd_item<> item) {
       int i = item.get_global_id(0);
       devPtr[i] = MAGIC_NUMBER;
     });

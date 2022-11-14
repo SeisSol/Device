@@ -22,6 +22,10 @@ void *ConcreteAPI::allocUnifiedMem(size_t size) {
   void *devPtr;
   cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal);
   CHECK_ERR;
+  if (allowedConcurrentManagedAccess) {
+    cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation, currentDeviceId);
+    CHECK_ERR;
+  }
   statistics.allocatedMemBytes += size;
   statistics.allocatedUnifiedMemBytes += size;
   memToSizeMap[devPtr] = size;

@@ -13,7 +13,7 @@ DeviceStack::~DeviceStack() {
 
 void DeviceStack::initMemory() {
   if (stackMemory != nullptr) {
-    auto name = deviceQueue.get_device().get_info<info::device::name>();
+    auto name = deviceQueue.get_device().get_info<cl::sycl::info::device::name>();
     throw std::invalid_argument(name.append(" - Illegal State: stack memory already initialized"));
   }
 
@@ -28,7 +28,7 @@ void DeviceStack::initMemory() {
 
 char *DeviceStack::getStackMemory(size_t requestedBytes) {
   if ((stackMemByteCounter + requestedBytes) >= maxStackMemory) {
-    auto name = deviceQueue.get_device().get_info<info::device::name>();
+    auto name = deviceQueue.get_device().get_info<cl::sycl::info::device::name>();
     throw std::invalid_argument(name.append(": Stack out of memory"));
   }
 

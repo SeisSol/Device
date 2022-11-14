@@ -7,8 +7,6 @@
 #include <string>
 
 using namespace device;
-using namespace cl::sycl;
-using namespace std;
 
 void ConcreteAPI::initDevices() {
 
@@ -16,12 +14,12 @@ void ConcreteAPI::initDevices() {
     throw new std::invalid_argument("can not init devices twice!");
 
   logInfo() << "init SYCL API devices ...";
-  for (auto const &platform : platform::get_platforms()) {
+  for (auto const &platform : cl::sycl::platform::get_platforms()) {
     for (auto const &device : platform.get_devices()) {
 
-      auto platName = device.get_platform().get_info<info::platform::name>();
-      auto devName = device.get_info<info::device::name>();
-      auto type = device.get_info<info::device::device_type>();
+      auto platName = device.get_platform().get_info<cl::sycl::info::platform::name>();
+      auto devName = device.get_info<cl::sycl::info::device::name>();
+      auto type = device.get_info<cl::sycl::info::device::device_type>();
 
       if (type == cl::sycl::info::device_type::gpu) {
         if (devName.find("Intel") != std::string::npos) {
@@ -41,7 +39,7 @@ void ConcreteAPI::initDevices() {
     return compare(c1->queueBuffer.getDefaultQueue().get_device(), c2->queueBuffer.getDefaultQueue().get_device());
   });
 
-  stringstream s;
+  std::stringstream s;
   s << "Sorted available devices: ";
   for (auto &dev : this->availableDevices) {
     s << this->getDeviceInfoAsText(dev->queueBuffer.getDefaultQueue().get_device());
@@ -56,7 +54,7 @@ void ConcreteAPI::initDevices() {
 void ConcreteAPI::setDevice(int id) {
 
   if (id < 0 || id >= this->getNumDevices())
-    throw out_of_range{"device index out of range"};
+    throw std::out_of_range{"device index out of range"};
 
   this->currentDeviceId = id;
   auto *next = this->availableDevices[id];
@@ -116,12 +114,12 @@ size_t ConcreteAPI::getLaneSize() {
 
 unsigned int ConcreteAPI::getMaxThreadBlockSize() {
   auto device = this->currentDefaultQueue->get_device();
-  return device.get_info<info::device::max_work_group_size>();
+  return device.get_info<cl::sycl::info::device::max_work_group_size>();
 }
 
 unsigned int ConcreteAPI::getMaxSharedMemSize() {
   auto device = this->currentDefaultQueue->get_device();
-  return device.get_info<info::device::local_mem_size>();
+  return device.get_info<cl::sycl::info::device::local_mem_size>();
 }
 
 unsigned int ConcreteAPI::getGlobMemAlignment() {
@@ -131,9 +129,9 @@ unsigned int ConcreteAPI::getGlobMemAlignment() {
 
 void ConcreteAPI::synchDevice() { this->currentQueueBuffer->syncAllQueuesWithHost(); }
 
-string ConcreteAPI::getDeviceInfoAsText(int id) {
+std::string ConcreteAPI::getDeviceInfoAsText(int id) {
   if (id < 0 || id >= this->getNumDevices())
-    throw out_of_range{"device index out of range"};
+    throw std::out_of_range{"device index out of range"};
 
   auto device = this->availableDevices[id]->queueBuffer.getDefaultQueue().get_device();
   return this->getDeviceInfoAsText(device);
@@ -141,19 +139,19 @@ string ConcreteAPI::getDeviceInfoAsText(int id) {
 std::string ConcreteAPI::getCurrentDeviceInfoAsText() { return this->getDeviceInfoAsText(this->currentDeviceId); }
 
 std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
-  ostringstream info{};
+  std::ostringstream info{};
 
-  info << "platform:" << dev.get_platform().get_info<info::platform::name>() << "\n";
-  info << "    name:" << dev.get_info<info::device::name>() << "\n";
-  info << "    type: " << convertToString(dev.get_info<info::device::device_type>()) << "\n";
-  info << "    driver_version: " << dev.get_info<info::device::driver_version>() << "\n";
+  info << "platform:" << dev.get_platform().get_info<cl::sycl::info::platform::name>() << "\n";
+  info << "    name:" << dev.get_info<cl::sycl::info::device::name>() << "\n";
+  info << "    type: " << convertToString(dev.get_info<cl::sycl::info::device::device_type>()) << "\n";
+  info << "    driver_version: " << dev.get_info<cl::sycl::info::device::driver_version>() << "\n";
   // if (dev.get_info<info::device::device_type>() != cl::sycl::info::device_type::host)
   // info << "    device id: " << dev.get() << "\n";
 
   return info.str();
 }
 
-void ConcreteAPI::putProfilingMark(const string &name, ProfilingColors color) {
+void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
   // ToDo: check if there is some similar functionality in VTUNE
 }
 

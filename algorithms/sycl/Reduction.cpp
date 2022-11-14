@@ -33,11 +33,11 @@ void reduce(T *to, T *from, size_t reducedSize, OperationT Operation, void* queu
   auto rng = ::device::internals::computeDefaultExecutionRange1D(reducedSize);
   auto queue = reinterpret_cast<cl::sycl::queue*>(queuePtr);
 
-  queue->submit([&](handler &cgh) {
+  queue->submit([&](cl::sycl::handler &cgh) {
     auto numLanes = ::device::internals::WARP_SIZE;
     cl::sycl::local_accessor<T> shrMem{numLanes, cgh};
 
-    cgh.parallel_for(rng, [=](nd_item<> item) {
+    cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
       auto localRange = item.get_local_range();
       auto gid = item.get_global_id(0);
       auto lid = item.get_local_id(0);

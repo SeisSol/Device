@@ -12,15 +12,13 @@
 #include <unordered_map>
 #include <vector>
 
-using namespace std;
-using namespace cl::sycl;
 
 namespace device {
 class ConcreteAPI : public AbstractAPI {
 
 public:
   ConcreteAPI()
-      : availableDevices{vector<DeviceContext *>{}}, currentDefaultQueue{nullptr}, currentDeviceStack{nullptr},
+      : availableDevices{std::vector<DeviceContext *>{}}, currentDefaultQueue{nullptr}, currentDeviceStack{nullptr},
         currentQueueBuffer{nullptr}, currentStatistics{nullptr}, currentMemoryToSizeMap{nullptr}, deviceInitialized{false},
         currentDeviceId{0}{
     this->initDevices();
@@ -77,12 +75,12 @@ public:
   void popLastProfilingMark() override;
 
 private:
-  vector<DeviceContext *> availableDevices;
+  std::vector<DeviceContext *> availableDevices;
   cl::sycl::queue *currentDefaultQueue;
   DeviceStack *currentDeviceStack;
   DeviceCircularQueueBuffer *currentQueueBuffer;
   Statistics *currentStatistics;
-  unordered_map<void *, size_t> *currentMemoryToSizeMap;
+  std::unordered_map<void *, size_t> *currentMemoryToSizeMap;
 
   void initDevices();
 
