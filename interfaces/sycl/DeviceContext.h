@@ -13,12 +13,12 @@ namespace device {
 class DeviceContext {
 public:
   DeviceContext(const cl::sycl::device &targetDevice);
-  unordered_map<void *, size_t> memoryToSizeMap;
+  std::unordered_map<void *, size_t> memoryToSizeMap;
   DeviceCircularQueueBuffer queueBuffer;
   DeviceStack stack;
   Statistics statistics;
 private:
-  void onExceptionOccurred(exception_list &exceptions);
+  void onExceptionOccurred(cl::sycl::exception_list &exceptions);
 };
 } // namespace device
 #endif // DEVICE_SUBMODULE_DEVICECONTEXT_H

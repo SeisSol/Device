@@ -5,7 +5,7 @@ include(../cmake/common_options.cmake)
 option(WITH_TESTS "build with unit test" OFF)
 option(WITH_MPI "build with MPI support" ON)
 
-find_package(yaml-cpp REQUIRED)
+find_package(yaml-cpp REQUIRED 0.7.0)
 add_subdirectory(root)
 add_subdirectory(src/gpu/kernels)
 
@@ -46,8 +46,7 @@ endif()
 
 target_include_directories(solver PUBLIC src
                                          root
-                                         ${__MPI_INCLUDES}
-                                         ${YAML_CPP_INCLUDE_DIR})
+                                         ${__MPI_INCLUDES})
 
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.13")
     target_link_options(solver PUBLIC ${__MPI_LINK_FLAGS})
@@ -58,8 +57,8 @@ endif()
 
 target_link_libraries(solver PUBLIC device
                                     kernel
-                                    ${__MPI_LIBS}
-                                    ${YAML_CPP_LIBRARIES})
+                                    yaml-cpp
+                                    ${__MPI_LIBS})
 
 
 

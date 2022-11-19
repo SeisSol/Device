@@ -7,8 +7,6 @@
 
 #define DEFAULT_STACK_MEMORY 1024 * 1024 * 1024
 
-using namespace cl::sycl;
-using namespace std;
 
 namespace device {
 class DeviceStack {
@@ -24,7 +22,7 @@ public:
 
 private:
   cl::sycl::queue &deviceQueue;
-  stack<size_t> stackMemoryMeter;
+  std::stack<size_t> stackMemoryMeter;
   char *stackMemory;
   size_t stackMemByteCounter;
   size_t maxStackMemory;

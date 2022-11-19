@@ -4,7 +4,6 @@
 #include <CL/sycl.hpp>
 #include <string>
 
-using namespace cl::sycl;
 
 namespace device {
 enum class DeviceType { GPU = 0, CPU = 1, FPGA = 2, HOST = 3, OTHERS = 4 };

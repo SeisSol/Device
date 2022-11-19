@@ -72,6 +72,7 @@ public:
 private:
   device::StatusT status{false};
   int currentDeviceId{-1};
+  bool allowedConcurrentManagedAccess{false};
 
   cudaStream_t defaultStream{nullptr};
   std::vector<cudaStream_t> circularStreamBuffer{};

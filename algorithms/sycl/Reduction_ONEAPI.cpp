@@ -30,27 +30,33 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
   case ReductionType::Add: {
     auto identity = static_cast<T>(0);
     api->copyTo(redPtr, &identity, sizeof(T));
-    auto red = cl::sycl::ext::oneapi::reduction(redPtr, identity, std::plus<T>());
-    queue->submit([&](handler &cgh) {
-      cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(reductionBuffer[it.get_global_id(0)]); });
+    auto red = cl::sycl::reduction(redPtr, identity, std::plus<T>());
+    queue->submit([&](cl::sycl::handler &cgh) {
+      cgh.parallel_for(rng, red, [=](cl::sycl::nd_item<1> it, auto &out) {
+        out.combine(reductionBuffer[it.get_global_id(0)]); 
+      });
     });
     break;
   }
   case ReductionType::Max: {
     auto identity = std::numeric_limits<T>::min();
     api->copyTo(redPtr, &identity, sizeof(T));
-    auto red = cl::sycl::ext::oneapi::reduction(redPtr, identity, sycl::ext::oneapi::maximum<T>());
-    queue->submit([&](handler &cgh) {
-      cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(reductionBuffer[it.get_global_id(0)]); });
+    auto red = cl::sycl::reduction(redPtr, identity, sycl::ext::oneapi::maximum<T>());
+    queue->submit([&](cl::sycl::handler &cgh) {
+      cgh.parallel_for(rng, red, [=](cl::sycl::nd_item<1> it, auto &out) { 
+        out.combine(reductionBuffer[it.get_global_id(0)]);
+      });
     });
     break;
   }
   case ReductionType::Min: {
     auto identity = std::numeric_limits<T>::max();
     api->copyTo(redPtr, &identity, sizeof(T));
-    auto red = cl::sycl::ext::oneapi::reduction(redPtr, identity, sycl::ext::oneapi::minimum<T>());
-    queue->submit([&](handler &cgh) {
-      cgh.parallel_for(rng, red, [=](nd_item<1> it, auto &out) { out.combine(reductionBuffer[it.get_global_id(0)]); });
+    auto red = cl::sycl::reduction(redPtr, identity, sycl::ext::oneapi::minimum<T>());
+    queue->submit([&](cl::sycl::handler &cgh) {
+      cgh.parallel_for(rng, red, [=](cl::sycl::nd_item<1> it, auto &out) {
+        out.combine(reductionBuffer[it.get_global_id(0)]);
+      });
     });
     break;
   }

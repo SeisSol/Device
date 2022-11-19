@@ -3,14 +3,14 @@
 #include "utils/logger.h"
 
 namespace device {
-DeviceCircularQueueBuffer::DeviceCircularQueueBuffer(cl::sycl::device dev, std::function<void(exception_list)> handler,
+DeviceCircularQueueBuffer::DeviceCircularQueueBuffer(cl::sycl::device dev, std::function<void(cl::sycl::exception_list)> handler,
                                                      size_t capacity)
-    : queues{vector<cl::sycl::queue>(capacity)} {
+    : queues{std::vector<cl::sycl::queue>(capacity)} {
   if (capacity <= 0)
     throw std::invalid_argument("Capacity must be at least 1!");
 
   for (size_t i = 0; i < capacity; i++) {
-    this->queues[i] = cl::sycl::queue{dev, handler, property::queue::in_order()};
+    this->queues[i] = cl::sycl::queue{dev, handler, cl::sycl::property::queue::in_order()};
   }
 }
 

@@ -7,16 +7,16 @@ using namespace device;
 
 void ConcreteAPI::copyTo(void *dst, const void *src, size_t size) {
   this->currentStatistics->explicitlyTransferredDataToDeviceBytes += size;
-  this->currentDefaultQueue->submit([&](handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  this->currentDefaultQueue->submit([&](cl::sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
 }
 
 void ConcreteAPI::copyFrom(void *dst, const void *src, size_t size) {
   this->currentStatistics->explicitlyTransferredDataToHostBytes += size;
-  this->currentDefaultQueue->submit([&](handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  this->currentDefaultQueue->submit([&](cl::sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
 }
 
 void ConcreteAPI::copyBetween(void *dst, const void *src, size_t size) {
-  this->currentDefaultQueue->submit([&](handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  this->currentDefaultQueue->submit([&](cl::sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
 }
 
 void ConcreteAPI::copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width, size_t height) {
@@ -46,7 +46,7 @@ void ConcreteAPI::copyToAsync(void *dst, const void *src, size_t count, void *st
     throw std::invalid_argument(getDeviceInfoAsText(currentDeviceId)
                                     .append("tried to prefetch usm on a queue that is not known to this device"));
 
-  targetQueue->submit([&](handler &cgh) { cgh.memcpy(dst, src, count); });
+  targetQueue->submit([&](cl::sycl::handler &cgh) { cgh.memcpy(dst, src, count); });
 }
 
 void ConcreteAPI::copyFromAsync(void *dst, const void *src, size_t count, void *streamPtr) {
@@ -63,5 +63,5 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void *devPtr, siz
     throw std::invalid_argument(getDeviceInfoAsText(currentDeviceId)
                                     .append("tried to prefetch usm on a queue that is not known to this device"));
 
-  asQueue->submit([&](handler &cgh) { cgh.prefetch(devPtr, count); });
+  asQueue->submit([&](cl::sycl::handler &cgh) { cgh.prefetch(devPtr, count); });
 }

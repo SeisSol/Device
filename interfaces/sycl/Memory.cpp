@@ -69,7 +69,7 @@ std::string ConcreteAPI::getMemLeaksReport() {
 
 size_t ConcreteAPI::getMaxAvailableMem() {
   auto device = this->currentDefaultQueue->get_device();
-  return device.get_info<info::device::global_mem_size>();
+  return device.get_info<cl::sycl::info::device::global_mem_size>();
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() { return this->currentStatistics->allocatedMemBytes; }

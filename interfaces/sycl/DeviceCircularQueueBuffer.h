@@ -6,8 +6,6 @@
 #include <stack>
 #include <string.h>
 
-using namespace cl::sycl;
-using namespace std;
 
 namespace device {
 class DeviceCircularQueueBuffer {
@@ -16,7 +14,7 @@ public:
    * Creates a new circular buffer containing sycl queues. The buffer needs
    * an async exception handler and a capacity that is currently per default 8.
    */
-  DeviceCircularQueueBuffer(cl::sycl::device dev, std::function<void(exception_list l)> f, size_t capacity = 8);
+  DeviceCircularQueueBuffer(cl::sycl::device dev, std::function<void(cl::sycl::exception_list l)> f, size_t capacity = 8);
   /*
    * Returns the default queue created by a device.
    */
