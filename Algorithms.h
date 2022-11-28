@@ -16,6 +16,8 @@ public:
 
   template <typename T> void fillArray(T *devArray, T scalar, size_t numElements, void* streamPtr);
 
+  void incrementalAdd(real** out, real *base, size_t increment, size_t numElements, void* streamPtr);
+
   void touchMemory(real *ptr, size_t size, bool clean, void* streamPtr);
 
   void touchBatchedMemory(real **basePtr,

@@ -61,4 +61,23 @@ void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr
     });
   });
 }
+
+void Algorithms::incrementalAdd(
+  real** out,
+  real *base,
+  size_t increment,
+  size_t numElements,
+  void* streamPtr) {
+
+  auto rng = computeExecutionRange1D(256, numElements);
+
+  ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
+    cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
+      int id = item.get_global_id(0);
+      if (id < numElements) {
+        out[id] = base + id * increment;
+      }
+    });
+  });
+}
 } // namespace device

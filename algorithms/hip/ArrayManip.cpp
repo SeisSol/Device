@@ -69,4 +69,39 @@ void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr
   hipLaunchKernelGGL(kernel_touchMemory, grid, block, 0, stream, ptr, size, clean);
   CHECK_ERR;
 }
+
+//--------------------------------------------------------------------------------------------------
+__global__ void kernel_incrementalAdd(
+  real** out,
+  real *base,
+  size_t increment,
+  size_t numElements) {
+  int id = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+  if (id < numElements) {
+    out[id] = base + id * increment;
+  }
+}
+
+
+void Algorithms::incrementalAdd(
+  real** out,
+  real *base,
+  size_t increment,
+  size_t numElements,
+  void* streamPtr) {
+
+  dim3 block(256, 1, 1);
+  dim3 grid = internals::computeGrid1D(block, numElements);
+  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  hipLaunchKernelGGL(kernel_incrementalAdd,
+                     grid,
+                     block,
+                     0,
+                     stream,
+                     out,
+                     base,
+                     increment,
+                     numElements);
+  CHECK_ERR;
+}
 } // namespace device
