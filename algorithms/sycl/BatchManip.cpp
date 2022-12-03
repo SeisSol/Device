@@ -61,6 +61,26 @@ void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsign
   });
 }
 
+void Algorithms::setToValue(real** out,
+                            real value,
+                            size_t elementSize,
+                            size_t numElements,
+                            void* streamPtr) {
+  auto rng = cl::sycl::nd_range<1>{numElements * 256, 256};
+  ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
+    cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
+      const auto elementId = item.get_group().get_group_id(0);
+      if (elementId) {
+        real *element = out[elementId];
+        const auto tid = item.get_local_id(0);
+        for (int i = tid; i < elementSize; i += item.get_local_range(0)) {
+          element[i] = value;
+        }
+      }
+    });
+  });
+}
+
 template <typename T>
 void Algorithms::copyUniformToScatter(T *src,
                                       T **dst,

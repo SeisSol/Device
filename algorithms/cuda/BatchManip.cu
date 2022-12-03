@@ -80,6 +80,26 @@ namespace device {
   }
 
 //--------------------------------------------------------------------------------------------------
+__global__  void kernel_setToValue(real** out, real value, size_t elementSize, size_t numElements) {
+  const int elementId = blockIdx.x;
+  if (elementId < numElements) {
+    real *element = out[elementId];
+    const int tid = threadIdx.x;
+    for (int i = tid; i < elementSize; i += blockDim.x) {
+      element[i] = value;
+    }
+  }
+}
+
+void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t numElements, void* streamPtr) {
+  dim3 block(256, 1, 1);
+  dim3 grid(numElements, 1, 1);
+  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  kernel_setToValue<<<grid, block, 0, stream>>>(out, value, elementSize, numElements);
+  CHECK_ERR;
+}
+
+//--------------------------------------------------------------------------------------------------
   template<typename T>
   __global__ void kernel_copyUniformToScatter(T *src, T **dst, size_t srcOffset, size_t copySize) {
     T *srcElement = &src[blockIdx.x * srcOffset];
