@@ -67,4 +67,31 @@ void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr
   kernel_touchMemory<<<grid, block, 0, stream>>>(ptr, size, clean);
   CHECK_ERR;
 }
+
+//--------------------------------------------------------------------------------------------------
+__global__ void kernel_incrementalAdd(
+  real** out,
+  real *base,
+  size_t increment,
+  size_t numElements) {
+  int id = threadIdx.x + blockIdx.x * blockDim.x;
+  if (id < numElements) {
+    out[id] = base + id * increment;
+  }
+}
+
+
+void Algorithms::incrementalAdd(
+  real** out,
+  real *base,
+  size_t increment,
+  size_t numElements,
+  void* streamPtr) {
+
+  dim3 block(256, 1, 1);
+  dim3 grid = internals::computeGrid1D(block, numElements);
+  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  kernel_incrementalAdd<<<grid, block, 0, stream>>>(out, base, increment, numElements);
+  CHECK_ERR;
+}
 } // namespace device

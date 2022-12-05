@@ -84,6 +84,35 @@ void Algorithms::touchBatchedMemory(real **basePtr,
 }
 
 //--------------------------------------------------------------------------------------------------
+__global__  void kernel_setToValue(real** out, real value, size_t elementSize, size_t numElements) {
+  const int elementId = hipBlockIdx_x;
+  if (elementId < numElements) {
+    real *element = out[elementId];
+    const int tid = hipThreadIdx_x;
+    for (int i = tid; i < elementSize; i += hipBlockDim_x) {
+      element[i] = value;
+    }
+  }
+}
+
+void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t numElements, void* streamPtr) {
+  dim3 block(256, 1, 1);
+  dim3 grid(numElements, 1, 1);
+  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  hipLaunchKernelGGL(kernel_setToValue,
+                     grid,
+                     block,
+                     0,
+                     stream,
+                     out,
+                     value,
+                     elementSize,
+                     numElements);
+
+  CHECK_ERR;
+}
+
+//--------------------------------------------------------------------------------------------------
 template<typename T>
 __global__ void kernel_copyUniformToScatter(T *src, T **dst, size_t srcOffset, size_t copySize) {
   T *srcElement = &src[hipBlockIdx_x * srcOffset];
