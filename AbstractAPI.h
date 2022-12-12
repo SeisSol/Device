@@ -67,6 +67,7 @@ struct AbstractAPI {
   virtual void *getNextCircularStream() = 0;
   virtual void resetCircularStreamCounter() = 0;
   virtual size_t getCircularStreamSize() = 0;
+  virtual bool isStreamReady(void *streamPtr) = 0;
   virtual void syncStreamFromCircularBuffer(void *streamPtr) = 0;
   virtual void syncCircularBuffer() = 0;
   virtual void fastStreamsSync() = 0;
