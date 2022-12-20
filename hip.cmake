@@ -46,6 +46,7 @@ set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Internals.cpp
                         interfaces/hip/Memory.cpp
                         interfaces/hip/Streams.cpp
+                        interfaces/hip/Graphs.cpp
                         algorithms/hip/ArrayManip.cpp
                         algorithms/hip/BatchManip.cpp
                         algorithms/hip/Debugging.cpp

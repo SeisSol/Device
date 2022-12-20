@@ -25,7 +25,7 @@ public:
   unsigned getMaxSharedMemSize() override;
   unsigned getGlobMemAlignment() override;
   std::string getDeviceInfoAsText(int deviceId) override;
-  void synchDevice() override;
+  void syncDevice() override;
   void checkOffloading() override;
 
   void allocateStackMem() override;
@@ -56,13 +56,25 @@ public:
   size_t getCurrentlyOccupiedMem() override;
   size_t getCurrentlyOccupiedUnifiedMem() override;
 
-  void * getDefaultStream() override;
+  void *getDefaultStream() override;
+  void syncDefaultStreamWithHost() override;
+
   void *getNextCircularStream() override;
   void resetCircularStreamCounter() override;
   size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBuffer(void *streamPtr) override;
-  void syncCircularBuffer() override;
-  void fastStreamsSync() override;
+  void syncStreamFromCircularBufferWithHost(void* streamPtr) override;
+  void syncCircularBuffersWithHost() override;
+
+  void forkCircularStreamsFromDefault() override;
+  void joinCircularStreamsToDefault() override;
+  bool isCircularStreamsJoinedWithDefault() override;
+
+  bool isCapableOfGraphCapturing() override;
+  void streamBeginCapture() override;
+  void streamEndCapture() override;
+  DeviceGraphHandle getLastGraphHandle() override;
+  void launchGraph(DeviceGraphHandle graphHandle) override;
+  void syncGraph(DeviceGraphHandle graphHandle) override;
 
   void initialize() override;
   void finalize() override;
@@ -70,13 +82,29 @@ public:
   void popLastProfilingMark() override;
 
 private:
+  void createCircularStreamAndEvents();
+
   device::StatusT status{false};
   int currentDeviceId{-1};
   bool allowedConcurrentManagedAccess{false};
 
   cudaStream_t defaultStream{nullptr};
+  cudaEvent_t defaultStreamEvent{};
+
   std::vector<cudaStream_t> circularStreamBuffer{};
+  std::vector<cudaEvent_t> circularStreamEvents{};
+
+  bool isCircularStreamsForked{false};
   size_t circularStreamCounter{0};
+
+  struct GraphDetails {
+    cudaGraph_t graph;
+    cudaGraphExec_t instance;
+    cudaEvent_t graphCaptureEvent;
+    cudaStream_t graphExecutionStream;
+    bool ready{false};
+  };
+  std::vector<GraphDetails> graphs;
 
   char *stackMemory = nullptr;
   size_t stackMemByteCounter = 0;

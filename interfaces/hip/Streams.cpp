@@ -1,13 +1,26 @@
-#include "utils/logger.h"
 #include "HipWrappedAPI.h"
 #include "Internals.h"
+#include "utils/logger.h"
 #include <algorithm>
+#include <cassert>
 
 using namespace device;
 
-void *ConcreteAPI::getNextCircularStream() {
+void* ConcreteAPI::getDefaultStream() {
   isFlagSet<InterfaceInitialized>(status);
-  void* returnStream = static_cast<void*>(circularStreamBuffer[circularStreamCounter]);
+  return static_cast<void *>(defaultStream);
+}
+
+void ConcreteAPI::syncDefaultStreamWithHost() {
+  isFlagSet<InterfaceInitialized>(status);
+  hipStreamSynchronize(defaultStream);
+  CHECK_ERR;
+}
+
+void* ConcreteAPI::getNextCircularStream() {
+  isFlagSet<CircularStreamBufferInitialized>(status);
+  assert(isCircularStreamsForked && "use a circular stream must be used inside a forked region");
+  auto* returnStream = static_cast<void *>(circularStreamBuffer[circularStreamCounter]);
   circularStreamCounter += 1;
   if (circularStreamCounter >= circularStreamBuffer.size()) {
     circularStreamCounter = 0;
@@ -16,45 +29,72 @@ void *ConcreteAPI::getNextCircularStream() {
 }
 
 void ConcreteAPI::resetCircularStreamCounter() {
-  isFlagSet<InterfaceInitialized>(status);
+  isFlagSet<CircularStreamBufferInitialized>(status);
   circularStreamCounter = 0;
 }
 
 size_t ConcreteAPI::getCircularStreamSize() {
-  isFlagSet<InterfaceInitialized>(status);
+  isFlagSet<CircularStreamBufferInitialized>(status);
   return circularStreamBuffer.size();
 }
 
-void ConcreteAPI::syncStreamFromCircularBuffer(void* streamPtr) {
-  isFlagSet<InterfaceInitialized>(status);
-  hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+void ConcreteAPI::syncStreamFromCircularBufferWithHost(void* userStream) {
+  isFlagSet<CircularStreamBufferInitialized>(status);
+
+  hipStream_t stream = static_cast<hipStream_t>(userStream);
 #ifndef NDEBUG
   auto itr = std::find(circularStreamBuffer.begin(), circularStreamBuffer.end(), stream);
   if (itr == circularStreamBuffer.end()) {
     logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
   }
 #endif
-  hipStreamSynchronize(stream); CHECK_ERR;
+  hipStreamSynchronize(stream);
+  CHECK_ERR;
 }
 
-void ConcreteAPI::syncCircularBuffer() {
-  isFlagSet<InterfaceInitialized>(status);
-  for (auto& stream: circularStreamBuffer) {
-    hipStreamSynchronize(stream); CHECK_ERR;
+void ConcreteAPI::syncCircularBuffersWithHost() {
+  isFlagSet<CircularStreamBufferInitialized>(status);
+
+  for (auto &stream : circularStreamBuffer) {
+    hipStreamSynchronize(stream);
+    CHECK_ERR;
   }
 }
 
-__global__ void kernel_synchAllStreams() {
-  // NOTE: an empty stream. It is supposed to get called with Cuda default stream. It is going to force all
-  // other streams to finish their tasks
+
+void ConcreteAPI::forkCircularStreamsFromDefault() {
+  isFlagSet<CircularStreamBufferInitialized>(status);
+  assert(!isCircularStreamsForked && "circular streams must be joined before forking");
+
+  hipEventRecord(defaultStreamEvent, defaultStream);
+  CHECK_ERR;
+
+  for (auto &stream : circularStreamBuffer) {
+    hipStreamWaitEvent(stream, defaultStreamEvent, 0);
+    CHECK_ERR;
+  }
+  isCircularStreamsForked = true;
 }
 
-void ConcreteAPI::fastStreamsSync() {
-  isFlagSet<DeviceSelected>(status);
-  hipLaunchKernelGGL(kernel_synchAllStreams, dim3(1), dim3(1), 0, 0);
+
+void ConcreteAPI::joinCircularStreamsToDefault() {
+  isFlagSet<CircularStreamBufferInitialized>(status);
+  assert(isCircularStreamsForked && "circular streams must be forked before joining");
+
+  for (size_t i = 0; i < circularStreamBuffer.size(); ++i) {
+    hipEventRecord(circularStreamEvents[i], circularStreamBuffer[i]);
+    CHECK_ERR;
+  }
+
+  for (size_t i = 0; i < circularStreamBuffer.size(); ++i) {
+    hipStreamWaitEvent(defaultStream, circularStreamEvents[i], 0);
+    CHECK_ERR;
+  }
+  isCircularStreamsForked = false;
 }
 
-void *ConcreteAPI::getDefaultStream() {
-  isFlagSet<InterfaceInitialized>(status);
-  return static_cast<void *>(defaultStream);
+
+bool ConcreteAPI::isCircularStreamsJoinedWithDefault() {
+  isFlagSet<CircularStreamBufferInitialized>(status);
+  return !isCircularStreamsForked;
 }

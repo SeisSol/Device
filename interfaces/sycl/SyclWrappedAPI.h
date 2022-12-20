@@ -33,7 +33,7 @@ public:
   unsigned getMaxSharedMemSize() override;
   unsigned getGlobMemAlignment() override;
   std::string getDeviceInfoAsText(int deviceId) override;
-  void synchDevice() override;
+  void syncDevice() override;
   void checkOffloading() override;
 
   void allocateStackMem() override;
@@ -62,12 +62,26 @@ public:
   size_t getCurrentlyOccupiedUnifiedMem() override;
 
   void *getDefaultStream() override;
+  void syncDefaultStreamWithHost() override;
+
   void *getNextCircularStream() override;
   void resetCircularStreamCounter() override;
   size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBuffer(void *streamPtr) override;
-  void syncCircularBuffer() override;
-  void fastStreamsSync() override;
+  void syncStreamFromCircularBufferWithHost(void* streamPtr) override;
+  void syncCircularBuffersWithHost() override;
+
+  void forkCircularStreamsFromDefault() override;
+  void joinCircularStreamsToDefault() override;
+  bool isCircularStreamsJoinedWithDefault() override;
+
+  bool isCapableOfGraphCapturing() override { return false; };
+  void streamBeginCapture() override {};
+  void streamEndCapture() override {};
+  DeviceGraphHandle getLastGraphHandle() override {
+      return DeviceGraphHandle{};
+  };
+  void launchGraph(DeviceGraphHandle graphHandle) override {};
+  void syncGraph(DeviceGraphHandle graphHandle) override {};
 
   void initialize() override;
   void finalize() override;
@@ -76,7 +90,10 @@ public:
 
 private:
   std::vector<DeviceContext *> availableDevices;
+
   cl::sycl::queue *currentDefaultQueue;
+  bool isCircularStreamsForked{false};
+
   DeviceStack *currentDeviceStack;
   DeviceCircularQueueBuffer *currentQueueBuffer;
   Statistics *currentStatistics;

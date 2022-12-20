@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(device_submodule)
 
 #set(CMAKE_CXX_CLANG_TIDY clang-tidy)
+option(USE_GRAPH_CAPTURING "Enable graph capturing if it is supported" OFF)
 
 # check INTERFACE
 if (NOT DEFINED DEVICE_BACKEND)

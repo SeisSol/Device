@@ -32,24 +32,39 @@ void ConcreteAPI::initialize() {
     logError() << "Device has not been selected. Please, select device before calling initialize";
   }
   if (!status[StatusID::InterfaceInitialized]) {
-
-    cudaStreamCreate(&defaultStream); CHECK_ERR;
-    constexpr size_t concurrencyLevel = 32;
-    circularStreamBuffer.resize(concurrencyLevel);
-    for (auto &stream : circularStreamBuffer) {
-      cudaStreamCreate(&stream);
-      CHECK_ERR;
-    }
     status[StatusID::InterfaceInitialized] = true;
+    cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking); CHECK_ERR;
+    cudaEventCreate(&defaultStreamEvent); CHECK_ERR;
+
+    this->createCircularStreamAndEvents();
 
     int result{0};
     cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, currentDeviceId);
     CHECK_ERR;
-    allowedConcurrentManagedAccess = result ? true : false;
+    allowedConcurrentManagedAccess = result != 0;
   }
   else {
     logWarning() << "Device Interface has already been initialized";
   }
+}
+
+void ConcreteAPI::createCircularStreamAndEvents() {
+  isFlagSet<StatusID::InterfaceInitialized>(status);
+
+  constexpr size_t concurrencyLevel{32};
+  circularStreamBuffer.resize(concurrencyLevel);
+  for (auto &stream : circularStreamBuffer) {
+    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); CHECK_ERR;
+    CHECK_ERR;
+  }
+
+  circularStreamEvents.resize(concurrencyLevel);
+  for (auto &event : circularStreamEvents) {
+    cudaEventCreate(&event);
+    CHECK_ERR;
+  }
+
+  status[StatusID::CircularStreamBufferInitialized] = true;
 }
 
 void ConcreteAPI::allocateStackMem() {
@@ -97,13 +112,41 @@ void ConcreteAPI::finalize() {
     status[StatusID::StackMemAllocated] = false;
 
   }
-  if (status[StatusID::InterfaceInitialized]) {
-    cudaStreamDestroy(defaultStream);
+
+  if (status[StatusID::CircularStreamBufferInitialized]) {
     for (auto &stream : circularStreamBuffer) {
       cudaStreamDestroy(stream);
       CHECK_ERR;
     }
     circularStreamBuffer.clear();
+
+    for (auto &event : circularStreamEvents) {
+      cudaEventDestroy(event);
+      CHECK_ERR;
+    }
+    circularStreamEvents.clear();
+
+    for (auto &graphInstance : graphs) {
+      cudaGraphExecDestroy(graphInstance.instance);
+      CHECK_ERR;
+
+      cudaGraphDestroy(graphInstance.graph);
+      CHECK_ERR;
+
+      cudaStreamDestroy(graphInstance.graphExecutionStream);
+      CHECK_ERR;
+
+      cudaEventDestroy(graphInstance.graphCaptureEvent);
+      CHECK_ERR;
+    }
+    graphs.clear();
+
+    status[StatusID::CircularStreamBufferInitialized] = false;
+  }
+
+  if (status[StatusID::InterfaceInitialized]) {
+    cudaStreamDestroy(defaultStream); CHECK_ERR;
+    cudaEventDestroy(defaultStreamEvent); CHECK_ERR;
     status[StatusID::InterfaceInitialized] = false;
   }
 }
@@ -145,7 +188,7 @@ unsigned ConcreteAPI::getGlobMemAlignment() {
   return 128;
 }
 
-void ConcreteAPI::synchDevice() {
+void ConcreteAPI::syncDevice() {
   isFlagSet<DeviceSelected>(status);
   cudaDeviceSynchronize();
   CHECK_ERR;
