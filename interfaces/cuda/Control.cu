@@ -33,8 +33,10 @@ void ConcreteAPI::initialize() {
   }
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
-    cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking); CHECK_ERR;
-    cudaEventCreate(&defaultStreamEvent); CHECK_ERR;
+    cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking);
+    CHECK_ERR;
+    cudaEventCreate(&defaultStreamEvent);
+    CHECK_ERR;
 
     this->createCircularStreamAndEvents();
 
@@ -42,6 +44,32 @@ void ConcreteAPI::initialize() {
     cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, currentDeviceId);
     CHECK_ERR;
     allowedConcurrentManagedAccess = result != 0;
+
+#ifdef DEVICE_USE_MEMORY_COMPRESSION
+    useCompressibleMemory = false;
+
+    CUdevice currentDevice;
+    cuCtxGetDevice(&currentDevice);
+
+    // Check that the selected device supports virtual memory management
+    int vmmSupported = -1;
+    cuDeviceGetAttribute(&vmmSupported, CU_DEVICE_ATTRIBUTE_VIRTUAL_ADDRESS_MANAGEMENT_SUPPORTED, currentDevice);
+    if (vmmSupported == 0) {
+      logInfo() << "Device doesn't support virtual memory management";
+    }
+    else {
+      int isCompressionAvailable{};
+      cuDeviceGetAttribute(&isCompressionAvailable, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, currentDevice);
+      if (isCompressionAvailable == 0) {
+        logInfo() << "Device doesn't support generic memory compression";
+      }
+      else {
+        logInfo() << "Device supports generic memory compression";
+        useCompressibleMemory = true;
+      }
+    }
+#endif // DEVICE_USE_MEMORY_COMPRESSION
+
   }
   else {
     logWarning() << "Device Interface has already been initialized";
@@ -75,18 +103,17 @@ void ConcreteAPI::allocateStackMem() {
 
   try {
     char *valueString = std::getenv("DEVICE_STACK_MEM_SIZE");
-    const auto id = currentDeviceId;
     if (!valueString) {
-      logInfo(id)
+      logInfo()
           << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
           << "The default amount of the device memory (1 GB) "
           << "is going to be used to store temp. variables during execution of compute-algorithms.";
     } else {
       double requestedStackMem = std::stod(std::string(valueString));
       maxStackMem = factor * requestedStackMem;
-      logInfo(id) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
-                  << requestedStackMem << "GB of the device memory is going to be used "
-                  << "to store temp. variables during execution of compute-algorithms.";
+      logInfo() << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
+                << requestedStackMem << "GB of the device memory is going to be used "
+                << "to store temp. variables during execution of compute-algorithms.";
     }
   } catch (const std::invalid_argument &err) {
     logError() << "DEVICE::ERROR: " << err.what() << ". File: " << __FILE__

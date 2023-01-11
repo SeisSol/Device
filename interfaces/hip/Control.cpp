@@ -34,6 +34,10 @@ void ConcreteAPI::initialize() {
     hipEventCreate(&defaultStreamEvent); CHECK_ERR;
 
     this->createCircularStreamAndEvents();
+#ifdef DEVICE_USE_MEMORY_COMPRESSION
+    logInfo() << "Device memory compression is requested but device does not support it. "
+              << " Switching to regular device memory";
+#endif // DEVICE_USE_MEMORY_COMPRESSION
   }
   else {
     logWarning() << "Device Interface has already been initialized";

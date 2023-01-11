@@ -17,6 +17,9 @@ void* ConcreteAPI::allocGlobMem(size_t size) {
   return devPtr;
 }
 
+void *ConcreteAPI::allocCompressibleGlobMem(size_t size) {
+  return this->allocGlobMem(size);
+}
 
 void* ConcreteAPI::allocUnifiedMem(size_t size) {
   isFlagSet<DeviceSelected>(status);
@@ -47,6 +50,9 @@ void ConcreteAPI::freeMem(void *devPtr) {
   hipFree(devPtr); CHECK_ERR;
 }
 
+void ConcreteAPI::freeCompressibleMem(void *devPtr) {
+  this->freeMem(devPtr);
+}
 
 void ConcreteAPI::freePinnedMem(void *devPtr) {
   isFlagSet<DeviceSelected>(status);

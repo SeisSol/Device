@@ -34,6 +34,10 @@ if (USE_GRAPH_CAPTURING)
   target_compile_definitions(device PRIVATE DEVICE_USE_GRAPH_CAPTURING)
 endif()
 
+if (USE_MEMORY_COMPRESSION)
+    target_compile_definitions(device PRIVATE DEVICE_USE_MEMORY_COMPRESSION)
+endif()
+
 target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
         -Xptxas -v;
         --expt-relaxed-constexpr;

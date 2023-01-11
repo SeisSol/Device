@@ -10,6 +10,10 @@ void *ConcreteAPI::allocGlobMem(size_t size) {
   return ptr;
 }
 
+void *ConcreteAPI::allocCompressibleGlobMem(size_t size) {
+  return this->allocGlobMem(size);
+}
+
 void *ConcreteAPI::allocUnifiedMem(size_t size) {
   auto *ptr = malloc_shared(size, *this->currentDefaultQueue);
   this->currentStatistics->allocatedUnifiedMemBytes += size;
@@ -38,6 +42,10 @@ void ConcreteAPI::freeMem(void *devPtr) {
     this->currentMemoryToSizeMap->erase(devPtr);
     free(devPtr, this->currentDefaultQueue->get_context());
   }
+}
+
+void ConcreteAPI::freeCompressibleMem(void *devPtr) {
+  this->freeMem(devPtr);
 }
 
 void ConcreteAPI::freePinnedMem(void *devPtr) {

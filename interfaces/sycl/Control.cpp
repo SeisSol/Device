@@ -46,6 +46,11 @@ void ConcreteAPI::initDevices() {
   }
   logInfo() << s.str();
 
+#ifdef DEVICE_USE_MEMORY_COMPRESSION
+  logInfo() << "Device memory compression is requested but device does not support it. "
+            << "Switching to the regular device memory";
+#endif // DEVICE_USE_MEMORY_COMPRESSION
+
   this->setDevice(this->currentDeviceId);
   this->deviceInitialized = true;
   logInfo() << "device init succeeded";

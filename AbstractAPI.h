@@ -37,10 +37,12 @@ struct AbstractAPI {
 
   virtual void allocateStackMem() = 0;
   virtual void *allocGlobMem(size_t size) = 0;
+  virtual void *allocCompressibleGlobMem(size_t size) = 0;
   virtual void *allocUnifiedMem(size_t size) = 0;
   virtual void *allocPinnedMem(size_t size) = 0;
   virtual char *getStackMemory(size_t requestedBytes) = 0;
   virtual void freeMem(void *devPtr) = 0;
+  virtual void freeCompressibleMem(void *devPtr) = 0;
   virtual void freePinnedMem(void *devPtr) = 0;
   virtual void popStackMemory() = 0;
   virtual std::string getMemLeaksReport() = 0;
