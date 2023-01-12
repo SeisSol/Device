@@ -14,13 +14,30 @@ using real = float;
 
 namespace device {
 struct DeviceGraphHandle {
+  static const size_t invalidId{std::numeric_limits<size_t>::max()};
+public:
+  explicit DeviceGraphHandle() : graphId(invalidId) {}
+  explicit DeviceGraphHandle(size_t id) : graphId(id) {}
+
+  DeviceGraphHandle(const DeviceGraphHandle& other) = default;
+  DeviceGraphHandle& operator=(const DeviceGraphHandle& other) = default;
+
   bool isInitialized() const {
-    return graphID != std::numeric_limits<size_t>::max();
+    return graphId != invalidId;
   }
+
+  operator bool() const {
+    return isInitialized();
+  }
+
   bool operator!() const {
     return !isInitialized();
   }
-  size_t graphID{std::numeric_limits<size_t>::max()};
+
+  size_t getGraphId() { return graphId; }
+
+private:
+  size_t graphId{invalidId};
 };
 } // namespace device
 #endif // DEVICE_DATA_TYPES_H

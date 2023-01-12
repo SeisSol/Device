@@ -78,9 +78,9 @@ DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   isFlagSet<CircularStreamBufferInitialized>(status);
   assert(graphs.back().ready && "a graph has not been fully captured");
-  return DeviceGraphHandle{graphs.size() - 1};
+  return DeviceGraphHandle(graphs.size() - 1);
 #else
-  return DeviceGraphHandle{};
+  return DeviceGraphHandle();
 #endif
 }
 
@@ -89,7 +89,7 @@ void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   isFlagSet<CircularStreamBufferInitialized>(status);
   assert(graphHandle.isInitialized() && "a graph must be captured before launching");
-  auto &graphInstance = graphs[graphHandle.graphID];
+  auto &graphInstance = graphs[graphHandle.getGraphId()];
   cudaGraphLaunch(graphInstance.instance, graphInstance.graphExecutionStream);
   CHECK_ERR;
 #endif
@@ -100,7 +100,7 @@ void ConcreteAPI::syncGraph(DeviceGraphHandle graphHandle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   isFlagSet<CircularStreamBufferInitialized>(status);
   assert(graphHandle.isInitialized() && "a graph must be captured before synchronizing");
-  auto &graphInstance = graphs[graphHandle.graphID];
+  auto &graphInstance = graphs[graphHandle.getGraphId()];
   cudaStreamSynchronize(graphInstance.graphExecutionStream);
   CHECK_ERR;
 #endif
