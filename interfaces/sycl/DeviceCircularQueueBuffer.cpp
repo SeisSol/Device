@@ -3,27 +3,36 @@
 #include "utils/logger.h"
 
 namespace device {
-DeviceCircularQueueBuffer::DeviceCircularQueueBuffer(cl::sycl::device dev, std::function<void(cl::sycl::exception_list)> handler,
-                                                     size_t capacity)
+DeviceCircularQueueBuffer::DeviceCircularQueueBuffer(
+    cl::sycl::device dev,
+    std::function<void(cl::sycl::exception_list)> handler,
+    size_t capacity)
     : queues{std::vector<cl::sycl::queue>(capacity)} {
   if (capacity <= 0)
     throw std::invalid_argument("Capacity must be at least 1!");
 
+  this->defaultQueue = cl::sycl::queue{dev, handler, cl::sycl::property::queue::in_order()};
   for (size_t i = 0; i < capacity; i++) {
     this->queues[i] = cl::sycl::queue{dev, handler, cl::sycl::property::queue::in_order()};
   }
 }
 
-cl::sycl::queue &DeviceCircularQueueBuffer::getDefaultQueue() { return this->queues[0]; }
+cl::sycl::queue& DeviceCircularQueueBuffer::getDefaultQueue() {
+  return defaultQueue;
+}
 
-cl::sycl::queue &DeviceCircularQueueBuffer::getNextQueue() {
+cl::sycl::queue& DeviceCircularQueueBuffer::getNextQueue() {
   (++this->counter) %= getCapacity();
   return (this->queues[this->counter]);
 }
 
-void DeviceCircularQueueBuffer::resetIndex() { this->counter = 0; }
+void DeviceCircularQueueBuffer::resetIndex() {
+  this->counter = 0;
+}
 
-size_t DeviceCircularQueueBuffer::getCapacity() { return queues.size(); }
+size_t DeviceCircularQueueBuffer::getCapacity() {
+  return queues.size();
+}
 
 void DeviceCircularQueueBuffer::syncQueueWithHost(cl::sycl::queue *queuePtr) {
   if (!this->exists(queuePtr))
@@ -33,20 +42,24 @@ void DeviceCircularQueueBuffer::syncQueueWithHost(cl::sycl::queue *queuePtr) {
 }
 
 void DeviceCircularQueueBuffer::syncAllQueuesWithHost() {
+  defaultQueue.wait_and_throw();
   for (auto &q : this->queues) {
     q.wait_and_throw();
   }
 }
 
-void DeviceCircularQueueBuffer::fastSync() { this->syncAllQueuesWithHost(); }
-
 bool DeviceCircularQueueBuffer::exists(cl::sycl::queue *queuePtr) {
-  auto itr = std::find(this->queues.begin(), this->queues.end(), *queuePtr);
-  if (itr == this->queues.end()) {
-    return false;
+  bool isDefaultQueue = queuePtr == (&defaultQueue);
+
+  bool isReservedQueue{true};
+  for (auto& reservedQueue : queues) {
+    if (queuePtr != (&reservedQueue)) {
+      isReservedQueue = false;
+      break;
+    }
   }
 
-  return true;
+  return isDefaultQueue || isReservedQueue;
 }
 
 } // namespace device

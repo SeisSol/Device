@@ -9,6 +9,7 @@ enum StatusID {
   DriverApiInitialized = 0,
   DeviceSelected,
   InterfaceInitialized,
+  CircularStreamBufferInitialized,
   StackMemAllocated,
   Count
 };

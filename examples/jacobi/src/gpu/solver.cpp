@@ -50,7 +50,7 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
     launch_multMatVec(*devLU, devX, devTemp, defaultStream);
     launch_manipVectors(range, devRhs, devTemp, devX, VectorManipOps::Subtraction, defaultStream);
     launch_manipVectors(range, devInvDiag, devX, devX, VectorManipOps::Multiply, defaultStream);
-    device.api->synchDevice();
+    device.api->syncDevice();
     computeStat.stop();
 
     commStat.start();
@@ -86,7 +86,7 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
     ++currentIter;
   }
 
-  device.api->synchDevice();
+  device.api->syncDevice();
   assembler.assemble<SystemType::OnDevice>(devX, devTempX);
   device.api->copyFrom(const_cast<real *>(x.data()), devTempX, x.size() * sizeof(real));
 

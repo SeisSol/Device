@@ -7,6 +7,7 @@ add_library(device SHARED device.cpp
                  interfaces/cuda/Memory.cu
                  interfaces/cuda/Copy.cu
                  interfaces/cuda/Streams.cu
+                 interfaces/cuda/Graphs.cu
                  interfaces/cuda/Internals.cu
                  algorithms/cuda/ArrayManip.cu
                  algorithms/cuda/BatchManip.cu
@@ -28,6 +29,10 @@ target_compile_definitions(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
         -DDEVICE_${BACKEND_UPPER_CASE}_LANG;
         -DREAL_SIZE=${REAL_SIZE_IN_BYTES}
         >)
+
+if (USE_GRAPH_CAPTURING)
+  target_compile_definitions(device PRIVATE DEVICE_USE_GRAPH_CAPTURING)
+endif()
 
 target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
         -Xptxas -v;

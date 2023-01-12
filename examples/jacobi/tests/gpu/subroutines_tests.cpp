@@ -36,6 +36,7 @@ TEST(Subroutines, MultMatrixVec) {
   api->copyTo(devRes, res, size * sizeof(real));
 
   launch_multMatVec(matrix, devV, devRes, defaultStream);
+  api->syncDevice();
 
   //we dont need a sync here; all API queues are in order and this memory copy is synchronous
   api->copyFrom(res, devRes, size * sizeof(real));
@@ -69,6 +70,7 @@ TEST(Subroutines, VectorManips) {
   }
 
   launch_manipVectors(rng, devA, devB, devRes, VectorManipOps::Addition, defaultStream);
+  api->syncDevice();
   api->copyFrom(&res[0], devRes, size * sizeof(real));
   ASSERT_THAT(res, ElementsAreArray(ref));
 
@@ -76,6 +78,7 @@ TEST(Subroutines, VectorManips) {
     ref[i] = i * i;
 
   launch_manipVectors(rng, devA, devB, devRes, VectorManipOps::Multiply, defaultStream);
+  api->syncDevice();
   api->copyFrom(&res[0], devRes, size * sizeof(real));
   ASSERT_THAT(res, ElementsAreArray(ref));
 
@@ -83,6 +86,7 @@ TEST(Subroutines, VectorManips) {
     ref[i] = 0;
 
   launch_manipVectors(rng, devA, devB, devRes, VectorManipOps::Subtraction, defaultStream);
+  api->syncDevice();
   api->copyFrom(&res[0], devRes, size * sizeof(real));
   ASSERT_THAT(res, ElementsAreArray(ref));
 }

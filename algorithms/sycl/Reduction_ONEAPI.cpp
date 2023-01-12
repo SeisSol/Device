@@ -64,7 +64,7 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
     throw std::invalid_argument("reduction type is not implemented");
   }
   }
-  api->synchDevice();
+  api->syncDevice();
 
   T results{};
   api->copyFrom(&results, redPtr, sizeof(T));

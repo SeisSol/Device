@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
 
   // call a kernel
   device.api->checkOffloading();
-  device.api->synchDevice();
+  device.api->syncDevice();
 
   // copy data from a device
   device.api->copyFrom(outputArray, dOutputArray, sizeof(real) * size);

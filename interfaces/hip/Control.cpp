@@ -27,20 +27,36 @@ void ConcreteAPI::initialize() {
   if (!status[StatusID::DeviceSelected]) {
     logError() << "Device has not been selected. Please, select device before calling initialize";
   }
-  if (!status[StatusID::InterfaceInitialized]) {
 
-    hipStreamCreate(&defaultStream); CHECK_ERR;
-    constexpr size_t concurrencyLevel = 32;
-    circularStreamBuffer.resize(concurrencyLevel);
-    for (auto &stream : circularStreamBuffer) {
-      hipStreamCreate(&stream);
-      CHECK_ERR;
-    }
+  if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
+    hipStreamCreateWithFlags(&defaultStream, hipStreamNonBlocking); CHECK_ERR;
+    hipEventCreate(&defaultStreamEvent); CHECK_ERR;
+
+    this->createCircularStreamAndEvents();
   }
   else {
     logWarning() << "Device Interface has already been initialized";
   }
+}
+
+void ConcreteAPI::createCircularStreamAndEvents() {
+  isFlagSet<StatusID::InterfaceInitialized>(status);
+
+  constexpr size_t concurrencyLevel{32};
+  circularStreamBuffer.resize(concurrencyLevel);
+  for (auto &stream : circularStreamBuffer) {
+    hipStreamCreateWithFlags(&stream, hipStreamNonBlocking); CHECK_ERR;
+    CHECK_ERR;
+  }
+
+  circularStreamEvents.resize(concurrencyLevel);
+  for (auto &event : circularStreamEvents) {
+    hipEventCreate(&event);
+    CHECK_ERR;
+  }
+
+  status[StatusID::CircularStreamBufferInitialized] = true;
 }
 
 void ConcreteAPI::allocateStackMem() {
@@ -76,7 +92,7 @@ void ConcreteAPI::allocateStackMem() {
   CHECK_ERR;
 
   status[StatusID::StackMemAllocated] = true;
-};
+}
 
 void ConcreteAPI::finalize() {
   if (status[StatusID::StackMemAllocated]) {
@@ -86,18 +102,45 @@ void ConcreteAPI::finalize() {
     stackMemByteCounter = 0;
     stackMemMeter = std::stack<size_t>{};
     status[StatusID::StackMemAllocated] = false;
-
   }
-  if (status[StatusID::InterfaceInitialized]) {
-    hipStreamDestroy(defaultStream);
+
+  if (status[StatusID::CircularStreamBufferInitialized]) {
     for (auto &stream : circularStreamBuffer) {
       hipStreamDestroy(stream);
       CHECK_ERR;
     }
     circularStreamBuffer.clear();
+
+    for (auto &event : circularStreamEvents) {
+      hipEventDestroy(event);
+      CHECK_ERR;
+    }
+    circularStreamEvents.clear();
+
+    for (auto &graphInstance : graphs) {
+      hipGraphExecDestroy(graphInstance.instance);
+      CHECK_ERR;
+
+      hipGraphDestroy(graphInstance.graph);
+      CHECK_ERR;
+
+      hipStreamDestroy(graphInstance.graphExecutionStream);
+      CHECK_ERR;
+
+      hipEventDestroy(graphInstance.graphCaptureEvent);
+      CHECK_ERR;
+    }
+    graphs.clear();
+
+    status[StatusID::CircularStreamBufferInitialized] = false;
+  }
+
+  if (status[StatusID::InterfaceInitialized]) {
+    hipStreamDestroy(defaultStream); CHECK_ERR;
+    hipEventDestroy(defaultStreamEvent); CHECK_ERR;
     status[StatusID::InterfaceInitialized] = false;
   }
-};
+}
 
 
 int ConcreteAPI::getNumDevices() {
@@ -138,7 +181,7 @@ unsigned ConcreteAPI::getGlobMemAlignment() {
   return 128;
 }
 
-void ConcreteAPI::synchDevice() {
+void ConcreteAPI::syncDevice() {
   isFlagSet<DeviceSelected>(status);
   hipDeviceSynchronize();
   CHECK_ERR;

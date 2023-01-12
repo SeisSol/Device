@@ -5,7 +5,7 @@ stages:
 
 
 image:
-  name: "seissol/gpu-ci-image:v0.0.2"
+  name: "seissol/gpu-ci-image:v0.0.4"
   entrypoint: [""]
 
 
