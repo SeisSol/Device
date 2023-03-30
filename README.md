@@ -14,7 +14,7 @@ The folder structure sets up like this:
 Currently, there are three implementations available
 * Nvidia's C CUDA
 * AMD's HIP
-* SYCL implemented by Intel's OneAPI and hipSYCL (https://github.com/illuhad/hipSYCL)
+* SYCL implemented by Intel's OneAPI and OpenSYCL (https://github.com/OpenSYCL/OpenSYCL.git)
 
 ## Setup and Build
 The setup is explained with linux commands; for windows, see the belonging batch reference.
@@ -39,7 +39,7 @@ If you want to run the examples, follow the instructions in the belonging packag
 
 ### Device options for OneAPI
 * use `-DDEVICE_BACKEND:STRING=oneapi` to build the OneAPI implementation
-* currently, OneAPI is mainly used to target Intel devices; for CUDA or HIP as device backend, use hipSYCL and set the right environment variables, respectively
+* currently, OneAPI is mainly used to target Intel devices; for CUDA or HIP as device backend, use openSYCL and set the right environment variables, respectively
 * Set the environment variable `PREFERRED_DEVICE_TYPE` to compile for the defined `DEVICE_ARCH`
 * If `PREFERRED_DEVICE_TYPE` is not specified on build, JIT compilation is assumed and the value of `DEVICE_ARCH` is ignored
 * Options for `PREFERRED_DEVICE_TYPE` are `GPU`, `CPU`, or `FPGA`
@@ -47,10 +47,10 @@ If you want to run the examples, follow the instructions in the belonging packag
 * If `PREFERRED_DEVICE_TYPE` was not specified on build but before running an application, the JIT compiler will generate the kernels and allows switching the device type at runtime
 * Complete example call: `export PREFERRED_DEVICE_TYPE=GPU` and `cmake .. -DDEVICE_BACKEND:STRING=oneapi -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=dg1`
 
-### Device options for hipSYCL
-* use `-DDEVICE_BACKEND:STRING=hipsycl` to build for hipSYCL
-* hipSYCL does currently not require the definition of a sub architecture, but it has to be specified in the cmake
-*  Complete example call: `cmake .. -DDEVICE_BACKEND:STRING=hipsycl -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=dg1`
+### Device options for openSYCL
+* use `-DDEVICE_BACKEND:STRING=opensycl` to build for openSYCL
+* openSYCL does currently not require the definition of a sub architecture, but it has to be specified in the cmake
+*  Complete example call: `cmake .. -DDEVICE_BACKEND:STRING=opensycl -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=dg1`
 
 ## Add another API
 * Extend the CMakeLists.txt with the new API

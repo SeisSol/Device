@@ -37,13 +37,6 @@ add_executable(solver src/main.cpp
                       src/gpu/solver.cpp
                       src/matrix_manip.cpp)
 
-if (${DEVICE_BACKEND} STREQUAL "hipsycl")
-    find_package(OpenMP REQUIRED)
-    target_link_libraries(solver PUBLIC OpenMP::OpenMP_CXX)
-    target_link_libraries(device PUBLIC OpenMP::OpenMP_CXX)
-    target_link_libraries(kernel PUBLIC OpenMP::OpenMP_CXX)
-endif()
-
 target_include_directories(solver PUBLIC src
                                          root
                                          ${__MPI_INCLUDES})

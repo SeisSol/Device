@@ -35,7 +35,7 @@ tests:
     - atsccs68-docker-executor
   parallel:
     matrix:
-      - BACKEND: [cuda, hip, hipsycl]
+      - BACKEND: [cuda, hip, opensycl]
   script:
     - *common_test_script
     - mkdir -p tests/build
@@ -51,7 +51,7 @@ basic_example:
     - atsccs68-docker-executor
   parallel:
     matrix:
-      - BACKEND: [cuda, hip, hipsycl]
+      - BACKEND: [cuda, hip, opensycl]
   script:
     - *common_test_script
     - export WORKDIR=./examples/basic/build
@@ -67,7 +67,7 @@ jacobi_example:
     - atsccs68-docker-executor
   parallel:
     matrix:
-      - BACKEND: [cuda, hip, hipsycl]
+      - BACKEND: [cuda, hip, opensycl]
   before_script:
     - git clone --depth 1 --branch release-1.10.0 https://github.com/google/googletest
     - mkdir -p googletest/build && cd googletest/build
