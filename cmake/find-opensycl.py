@@ -22,7 +22,7 @@ def get_config():
         break
   
   if not config_file:
-    print("failed to find opensycl config file", file=sys.stderr)
+    print("failed to find Open SYCL config file", file=sys.stderr)
     sys.exit(1)
   
   with open(config_file, 'r') as file:
