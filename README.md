@@ -43,7 +43,7 @@ If you want to run the examples, follow the instructions in the belonging packag
 * Set the environment variable `PREFERRED_DEVICE_TYPE` to compile for the defined `DEVICE_ARCH`
 * If `PREFERRED_DEVICE_TYPE` is not specified on build, JIT compilation is assumed and the value of `DEVICE_ARCH` is ignored
 * Options for `PREFERRED_DEVICE_TYPE` are `GPU`, `CPU`, or `FPGA`
-* The environment variable must be also set before running any code using this lib. The runtime needs this hint to select the right device the code was compile for. If the value was not specified or illegal, the runtime applies a default selection strategy, preferring GPUs over CPUs and CPUs over the host. This might crashes the application if the targeted compilation architecture differs from the runtime target
+* The environment variable must be also set before running any code using this lib. The runtime needs this hint to select the right device the code was compile for. If the value was not specified or illegal, the runtime applies a default selection strategy, preferring GPUs over CPUs and CPUs over the host. This might crash the application if the targeted compilation architecture differs from the runtime target
 * If `PREFERRED_DEVICE_TYPE` was not specified on build but before running an application, the JIT compiler will generate the kernels and allows switching the device type at runtime
 * Complete example call: `export PREFERRED_DEVICE_TYPE=GPU` and `cmake .. -DDEVICE_BACKEND:STRING=oneapi -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=dg1`
 

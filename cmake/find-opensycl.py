@@ -7,6 +7,9 @@ import json
 
 def get_package_dir():
   exe_name = which("syclcc")
+  if not exe_name:
+    sys.exit(1)
+
   bin_dir = os.path.dirname(exe_name)
   return os.path.dirname(bin_dir)
 
@@ -79,5 +82,3 @@ if __name__ == '__main__':
 
   if (args.vendor):
     get_vendor_name()
-
-  

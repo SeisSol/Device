@@ -10,21 +10,22 @@ if (NOT TARGET opensycl-settings::interface)
     message(FATAL_ERROR "`DEVICE_ARCH` env. variable is not provided.")
   else()
 
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
   add_library(opensycl-settings::interface INTERFACE IMPORTED)
  
-  execute_process(COMMAND python3 ${CMAKE_CURRENT_LIST_DIR}/find-opensycl.py -i
+  execute_process(COMMAND "${Python3_EXECUTABLE}" ${CMAKE_CURRENT_LIST_DIR}/find-opensycl.py -i
                   OUTPUT_VARIABLE _OPENSYCL_INLCUDE_DIR)
 
   target_include_directories(opensycl-settings::interface INTERFACE ${_OPENSYCL_INLCUDE_DIR}
                                                                   ${_OPENSYCL_INLCUDE_DIR}/sycl)
 
-  execute_process(COMMAND python3 ${CMAKE_CURRENT_LIST_DIR}/find-opensycl.py --vendor
+  execute_process(COMMAND "${Python3_EXECUTABLE}" ${CMAKE_CURRENT_LIST_DIR}/find-opensycl.py --vendor
                   OUTPUT_VARIABLE _OPENSYCL_VENDOR)
 
   target_compile_definitions(opensycl-settings::interface INTERFACE SYCL_PLATFORM_"${_OPENSYCL_VENDOR}")
 
 
-  execute_process(COMMAND python3 ${CMAKE_CURRENT_LIST_DIR}/find-opensycl.py -t -a "${DEVICE_ARCH}"
+  execute_process(COMMAND "${Python3_EXECUTABLE}" ${CMAKE_CURRENT_LIST_DIR}/find-opensycl.py -t -a "${DEVICE_ARCH}"
                   OUTPUT_VARIABLE _OPENSYCL_FULL_TARGET_NAME)
  
   set(HIPSYCL_TARGETS "${_OPENSYCL_FULL_TARGET_NAME}")

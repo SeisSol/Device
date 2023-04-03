@@ -29,8 +29,9 @@ if (NOT TARGET dpcpp::device_flags)
   
   target_compile_definitions(dpcpp::device_flags INTERFACE __DPCPP_COMPILER)
   target_compile_definitions(dpcpp::interface INTERFACE __DPCPP_COMPILER)
-  
-  execute_process(COMMAND python3 ${CMAKE_CURRENT_LIST_DIR}/find-dpcpp.py
+
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  execute_process(COMMAND "${Python3_EXECUTABLE}" ${CMAKE_CURRENT_LIST_DIR}/find-dpcpp.py
                   OUTPUT_VARIABLE _DPCPP_ROOT)
 
   target_include_directories(dpcpp::interface INTERFACE ${_DPCPP_ROOT}/include

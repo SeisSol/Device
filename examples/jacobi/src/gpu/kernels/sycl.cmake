@@ -15,7 +15,7 @@ target_compile_definitions(${TARGET_NAME} PRIVATE DEVICE_${DEVICE_BACKEND}_LANG 
 target_include_directories(${TARGET_NAME} PUBLIC root)
 target_link_libraries(${TARGET_NAME} PUBLIC device)
 
-set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/root/cmake" "${CMAKE_ROOT}/Modules")
+set(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/root/cmake")
 if (${DEVICE_BACKEND} STREQUAL "opensycl")
     find_package(OpenSYCLSettings REQUIRED)
     find_package(OpenSYCL REQUIRED)

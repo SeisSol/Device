@@ -40,8 +40,7 @@ else()
     endif()
 endif()
 
-set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
-
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 option(ENABLE_PROFILING_MARKERS "enable profiling markers if available" OFF)
 
 string(TOLOWER ${DEVICE_BACKEND} BACKEND_FOLDER)
