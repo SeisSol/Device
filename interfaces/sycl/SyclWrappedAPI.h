@@ -83,6 +83,11 @@ public:
   void launchGraph(DeviceGraphHandle graphHandle) override {};
   void syncGraph(DeviceGraphHandle graphHandle) override {};
 
+  void* createGenericStream() override;
+  void destroyGenericStream(void* streamPtr) override;
+  void syncStreamWithHost(void* streamPtr) override;
+  bool isStreamWorkDone(void* streamPtr) override;
+
   void initialize() override;
   void finalize() override;
   void putProfilingMark(const std::string &name, ProfilingColors color) override;

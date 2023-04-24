@@ -3,6 +3,10 @@
 #include <algorithm>
 #include <cassert>
 
+#ifdef ONEAPI_UNDERHOOD
+#include <sycl/queue.hpp>
+#endif // ONEAPI_UNDERHOOD
+
 using namespace device;
 
 void *ConcreteAPI::getDefaultStream() {
@@ -52,4 +56,46 @@ void ConcreteAPI::joinCircularStreamsToDefault() {
 
 bool ConcreteAPI::isCircularStreamsJoinedWithDefault() {
   return !isCircularStreamsForked;
+}
+
+
+void* ConcreteAPI::createGenericStream() {
+  // Note: in contrast to CUDA/HIP which can
+  // create and handle an infinite number of stream,
+  // SYCL support a limited number of streams.
+  // This wrapper SYCL API creates and handles only
+  // a single queue for generic stream operations
+  // e.g., asynchronous data transfers
+  return &(this->currentQueueBuffer->getGenericQueue());
+}
+
+
+void ConcreteAPI::destroyGenericStream(void*) {
+  // no implementation is required
+}
+
+
+void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
+  auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
+  this->currentQueueBuffer->syncQueueWithHost(queuePtr);
+}
+
+
+bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
+  auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
+#ifdef HIPSYCL_UNDERHOOD
+  // Note: there is no way to check whether the queue
+  // is empty or not in SYCL
+  this->currentQueueBuffer->syncQueueWithHost(queuePtr);
+  return true;
+#endif // HIPSYCL_UNDERHOOD
+
+#ifdef ONEAPI_UNDERHOOD
+  // NOTE: use `ext_oneapi_empty` instead after
+  // the next official release of dpc++
+  this->currentQueueBuffer->syncQueueWithHost(queuePtr);
+  return true;
+#pragma message("switch to `ext_oneapi_empty` for the latest version of dpc++")
+  //return queuePtr->ext_oneapi_empty();
+#endif // ONEAPI_UNDERHOOD
 }

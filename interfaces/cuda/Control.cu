@@ -75,18 +75,18 @@ void ConcreteAPI::allocateStackMem() {
 
   try {
     char *valueString = std::getenv("DEVICE_STACK_MEM_SIZE");
-    const auto id = currentDeviceId;
+    const auto rank = getMpiRankFromEnv();
     if (!valueString) {
-      logInfo(id)
+      logInfo(rank)
           << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
           << "The default amount of the device memory (1 GB) "
           << "is going to be used to store temp. variables during execution of compute-algorithms.";
     } else {
       double requestedStackMem = std::stod(std::string(valueString));
       maxStackMem = factor * requestedStackMem;
-      logInfo(id) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
-                  << requestedStackMem << "GB of the device memory is going to be used "
-                  << "to store temp. variables during execution of compute-algorithms.";
+      logInfo(rank) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
+                    << requestedStackMem << "GB of the device memory is going to be used "
+                    << "to store temp. variables during execution of compute-algorithms.";
     }
   } catch (const std::invalid_argument &err) {
     logError() << "DEVICE::ERROR: " << err.what() << ". File: " << __FILE__
@@ -147,6 +147,13 @@ void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
     cudaStreamDestroy(defaultStream); CHECK_ERR;
     cudaEventDestroy(defaultStreamEvent); CHECK_ERR;
+    if (!genericStreams.empty()) {
+      logInfo(currentDeviceId) << "DEVICE::WARNING:" << genericStreams.size()
+                               << "device generic stream(s) were not deleted.";
+      for (auto stream : genericStreams) {
+        cudaStreamDestroy(stream); CHECK_ERR;
+      }
+    }
     status[StatusID::InterfaceInitialized] = false;
   }
 }
