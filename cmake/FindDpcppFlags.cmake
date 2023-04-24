@@ -75,6 +75,7 @@ if (NOT TARGET dpcpp::device_flags)
 
   if (_USE_DEFAULT_COMPILATION)
     target_compile_options(dpcpp::device_flags INTERFACE -fsycl -fsycl-unnamed-lambda)
+    target_link_options(dpcpp::device_flags INTERFACE -fsycl)
   endif()
   
   set(CMAKE_REQUIRED_FLAGS "-fsycl") 
