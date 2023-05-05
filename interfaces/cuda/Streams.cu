@@ -3,6 +3,8 @@
 #include "utils/logger.h"
 #include <algorithm>
 #include <cassert>
+#include <sstream>
+
 
 using namespace device;
 
@@ -97,4 +99,49 @@ void ConcreteAPI::joinCircularStreamsToDefault() {
 bool ConcreteAPI::isCircularStreamsJoinedWithDefault() {
   isFlagSet<CircularStreamBufferInitialized>(status);
   return !isCircularStreamsForked;
+}
+
+
+void* ConcreteAPI::createGenericStream() {
+  isFlagSet<InterfaceInitialized>(status);
+  cudaStream_t stream;
+  cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); CHECK_ERR;
+  genericStreams.insert(stream);
+  return reinterpret_cast<void*>(stream);
+}
+
+
+void ConcreteAPI::destroyGenericStream(void* streamPtr) {
+  isFlagSet<InterfaceInitialized>(status);
+  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+  auto it = genericStreams.find(stream);
+  if (it != genericStreams.end()) {
+    genericStreams.erase(it);
+  }
+  cudaStreamDestroy(stream);
+  CHECK_ERR;
+}
+
+
+void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
+  isFlagSet<InterfaceInitialized>(status);
+  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+  cudaStreamSynchronize(stream);
+  CHECK_ERR;
+}
+
+
+bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
+  isFlagSet<InterfaceInitialized>(status);
+  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+  auto streamStatus = cudaStreamQuery(stream);
+
+  if (streamStatus == cudaSuccess) {
+    return true;
+  }
+  else {
+    // dump the last error e.g., cudaErrorInvalidResourceHandle
+    cudaGetLastError();
+    return false;
+  }
 }

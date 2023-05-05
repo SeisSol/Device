@@ -13,7 +13,8 @@ void ConcreteAPI::initDevices() {
   if (this->deviceInitialized)
     throw new std::invalid_argument("can not init devices twice!");
 
-  logInfo() << "init SYCL API devices ...";
+  const auto rank = getMpiRankFromEnv();
+  logInfo(rank) << "init SYCL API devices ...";
   for (auto const &platform : cl::sycl::platform::get_platforms()) {
     for (auto const &device : platform.get_devices()) {
 
@@ -44,11 +45,11 @@ void ConcreteAPI::initDevices() {
   for (auto &dev : this->availableDevices) {
     s << this->getDeviceInfoAsText(dev->queueBuffer.getDefaultQueue().get_device());
   }
-  logInfo() << s.str();
+  logInfo(rank) << s.str();
 
   this->setDevice(this->currentDeviceId);
   this->deviceInitialized = true;
-  logInfo() << "device init succeeded";
+  logInfo(rank) << "device init succeeded";
 }
 
 void ConcreteAPI::setDevice(int id) {
@@ -70,9 +71,10 @@ void ConcreteAPI::setDevice(int id) {
 void ConcreteAPI::initialize() {}
 
 void ConcreteAPI::allocateStackMem() {
-  logInfo() << "allocating stack memory for device: \n"
-            << this->getCurrentDeviceInfoAsText()
-            << "if DEVICE_STACK_MEM_SIZE is not set, the specified default value is used\n";
+  const auto rank = getMpiRankFromEnv();
+  logInfo(rank) << "allocating stack memory for device: \n"
+                << this->getCurrentDeviceInfoAsText()
+                << "if DEVICE_STACK_MEM_SIZE is not set, the specified default value is used\n";
 
   this->currentDeviceStack->initMemory();
 }

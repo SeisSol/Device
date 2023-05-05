@@ -7,8 +7,6 @@
 
 
 namespace device {
-
-
 template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type, void* queuePtr) {
   if (api == nullptr)
     throw std::invalid_argument("api has not been attached to algorithms sub-system");

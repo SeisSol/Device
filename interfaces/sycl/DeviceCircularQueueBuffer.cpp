@@ -12,6 +12,7 @@ DeviceCircularQueueBuffer::DeviceCircularQueueBuffer(
     throw std::invalid_argument("Capacity must be at least 1!");
 
   this->defaultQueue = cl::sycl::queue{dev, handler, cl::sycl::property::queue::in_order()};
+  this->genericQueue = cl::sycl::queue{dev, handler, cl::sycl::property::queue::in_order()};
   for (size_t i = 0; i < capacity; i++) {
     this->queues[i] = cl::sycl::queue{dev, handler, cl::sycl::property::queue::in_order()};
   }
@@ -19,6 +20,10 @@ DeviceCircularQueueBuffer::DeviceCircularQueueBuffer(
 
 cl::sycl::queue& DeviceCircularQueueBuffer::getDefaultQueue() {
   return defaultQueue;
+}
+
+cl::sycl::queue& DeviceCircularQueueBuffer::getGenericQueue() {
+  return genericQueue;
 }
 
 cl::sycl::queue& DeviceCircularQueueBuffer::getNextQueue() {
@@ -50,6 +55,7 @@ void DeviceCircularQueueBuffer::syncAllQueuesWithHost() {
 
 bool DeviceCircularQueueBuffer::exists(cl::sycl::queue *queuePtr) {
   bool isDefaultQueue = queuePtr == (&defaultQueue);
+  bool isGenericQueue = queuePtr == (&genericQueue);
 
   bool isReservedQueue{true};
   for (auto& reservedQueue : queues) {
@@ -59,7 +65,7 @@ bool DeviceCircularQueueBuffer::exists(cl::sycl::queue *queuePtr) {
     }
   }
 
-  return isDefaultQueue || isReservedQueue;
+  return isDefaultQueue || isGenericQueue || isReservedQueue;
 }
 
 } // namespace device

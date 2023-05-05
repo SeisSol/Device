@@ -3,6 +3,7 @@
 #include "utils/logger.h"
 #include <algorithm>
 #include <cassert>
+#include <sstream>
 
 using namespace device;
 
@@ -97,4 +98,50 @@ void ConcreteAPI::joinCircularStreamsToDefault() {
 bool ConcreteAPI::isCircularStreamsJoinedWithDefault() {
   isFlagSet<CircularStreamBufferInitialized>(status);
   return !isCircularStreamsForked;
+}
+
+
+
+void* ConcreteAPI::createGenericStream() {
+  isFlagSet<InterfaceInitialized>(status);
+  hipStream_t stream;
+  hipStreamCreateWithFlags(&stream, hipStreamNonBlocking); CHECK_ERR;
+  genericStreams.insert(stream);
+  return reinterpret_cast<void*>(stream);
+}
+
+
+void ConcreteAPI::destroyGenericStream(void* streamPtr) {
+  isFlagSet<InterfaceInitialized>(status);
+  hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+  auto it = genericStreams.find(stream);
+  if (it != genericStreams.end()) {
+    genericStreams.erase(it);
+  }
+  hipStreamDestroy(stream);
+  CHECK_ERR;
+}
+
+
+void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
+  isFlagSet<InterfaceInitialized>(status);
+  hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+  hipStreamSynchronize(stream);
+  CHECK_ERR;
+}
+
+
+bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
+  isFlagSet<InterfaceInitialized>(status);
+  hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+  auto streamStatus = hipStreamQuery(stream);
+
+  if (streamStatus == hipSuccess) {
+    return true;
+  }
+  else {
+    // dump the last error e.g., hipErrorInvalidResourceHandle
+    hipGetLastError();
+    return false;
+  }
 }

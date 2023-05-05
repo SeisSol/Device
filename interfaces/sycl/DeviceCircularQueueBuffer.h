@@ -15,12 +15,21 @@ public:
    * Creates a new circular buffer containing sycl queues. The buffer needs
    * an async exception handler and a capacity that is currently per default 8.
    */
-  DeviceCircularQueueBuffer(cl::sycl::device dev, std::function<void(cl::sycl::exception_list l)> f, size_t capacity = 7);
+  DeviceCircularQueueBuffer(cl::sycl::device dev,
+                            std::function<void(cl::sycl::exception_list l)> f,
+                            size_t capacity = 6);
 
   /*
    * Returns the default queue created by a device.
    */
   cl::sycl::queue &getDefaultQueue();
+
+  /*
+   * Returns the generic queue created by a device.
+   * Note, this queue can be used for asynchronous
+   * memory copies
+   */
+  cl::sycl::queue &getGenericQueue();
 
   /*
    * Returns the next queue within the capacity of this buffer.
@@ -54,6 +63,7 @@ public:
 
 private:
   cl::sycl::queue defaultQueue;
+  cl::sycl::queue genericQueue;
   std::vector<cl::sycl::queue> queues;
   size_t counter;
 };

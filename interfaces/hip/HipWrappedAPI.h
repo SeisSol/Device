@@ -10,6 +10,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <unordered_set>
 #include <cassert>
 
 
@@ -79,6 +80,11 @@ public:
   void launchGraph(DeviceGraphHandle graphHandle) override;
   void syncGraph(DeviceGraphHandle graphHandle) override;
 
+  void* createGenericStream() override;
+  void destroyGenericStream(void* streamPtr) override;
+  void syncStreamWithHost(void* streamPtr) override;
+  bool isStreamWorkDone(void* streamPtr) override;
+
   void initialize() override;
   void finalize() override;
   void putProfilingMark(const std::string &name, ProfilingColors color) override;
@@ -95,6 +101,8 @@ private:
 
   std::vector<hipStream_t> circularStreamBuffer{};
   std::vector<hipEvent_t> circularStreamEvents{};
+  std::unordered_set<hipStream_t> genericStreams{};
+
 
   bool isCircularStreamsForked{false};
   size_t circularStreamCounter{0};
