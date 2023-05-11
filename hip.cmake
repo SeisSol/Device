@@ -34,7 +34,7 @@ if (IS_NVCC_PLATFORM)
 else()
     set(DEVICE_HIPCC -std=c++14;
                      -O3;
-                     --amdgpu-target=${DEVICE_ARCH};
+                     --offload-arch=${DEVICE_ARCH};
                      -DDEVICE_${BACKEND_UPPER_CASE}_LANG)
 endif()
 
