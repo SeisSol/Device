@@ -24,6 +24,10 @@ void ConcreteAPI::setDevice(int deviceId) {
   cudaSetDevice(currentDeviceId);
   CHECK_ERR;
 
+  // Note: the following sets the initial CUDA context
+  cudaFree(nullptr);
+  CHECK_ERR;
+
   status[StatusID::DeviceSelected] = true;
 }
 
