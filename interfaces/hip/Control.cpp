@@ -20,6 +20,10 @@ void ConcreteAPI::setDevice(int deviceId) {
   hipSetDevice(currentDeviceId);
   CHECK_ERR;
 
+  // Note: the following sets the initial HIP context
+  hipFree(nullptr);
+  CHECK_ERR;
+
   status[StatusID::DeviceSelected] = true;
 }
 
