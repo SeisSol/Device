@@ -47,7 +47,11 @@ void ConcreteAPI::initialize() {
 void ConcreteAPI::createCircularStreamAndEvents() {
   isFlagSet<StatusID::InterfaceInitialized>(status);
 
+#ifdef CUDA_UNDERHOOD
   constexpr size_t concurrencyLevel{32};
+#else
+  constexpr size_t concurrencyLevel{8};
+#endif
   circularStreamBuffer.resize(concurrencyLevel);
   for (auto &stream : circularStreamBuffer) {
     hipStreamCreateWithFlags(&stream, hipStreamNonBlocking); CHECK_ERR;
