@@ -44,4 +44,14 @@ inline int getMpiRankFromEnv() {
   return (value != defaultValue) ? value : 0;
 }
 
+inline size_t getMaxConcurrencyLevel(int defaultValue) {
+  auto concurrencyLevel = utils::Env::get("DEVICE_MAX_CONCURRENCY_LEVEL",
+                                          defaultValue);
+  if (concurrencyLevel <= 0) {
+    concurrencyLevel = defaultValue;
+  }
+
+  return static_cast<size_t>(concurrencyLevel);
+}
+
 #endif // DEVICE_INTERFACE_STATUS_H
