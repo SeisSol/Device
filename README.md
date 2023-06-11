@@ -16,6 +16,12 @@ Currently, there are three implementations available
 * AMD's HIP
 * SYCL implemented by Intel's OneAPI and hipSYCL (https://github.com/illuhad/hipSYCL)
 
+## Environment Variables
+
+* `DEVICE_STACK_MEM_SIZE` - the size (in GB) of the device memory to be allocated for the stack (`1` GB by default)
+* `DEVICE_MAX_CONCURRENCY_LEVEL` - the num. streams/queues to be allocated for the circular stream buffer (`4` by
+  default)
+
 ## Setup and Build
 The setup is explained with linux commands; for windows, see the belonging batch reference.
 
