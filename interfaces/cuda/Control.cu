@@ -1,4 +1,5 @@
 #include "utils/logger.h"
+#include "utils/env.h"
 #include <cuda.h>
 #include <iostream>
 #include <sstream>
@@ -55,7 +56,7 @@ void ConcreteAPI::initialize() {
 void ConcreteAPI::createCircularStreamAndEvents() {
   isFlagSet<StatusID::InterfaceInitialized>(status);
 
-  constexpr size_t concurrencyLevel{32};
+  auto concurrencyLevel = getMaxConcurrencyLevel(4);
   circularStreamBuffer.resize(concurrencyLevel);
   for (auto &stream : circularStreamBuffer) {
     cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); CHECK_ERR;

@@ -13,6 +13,7 @@ void ConcreteAPI::initDevices() {
   if (this->deviceInitialized)
     throw new std::invalid_argument("can not init devices twice!");
 
+  const auto concurrencyLevel = getMaxConcurrencyLevel(4);
   const auto rank = getMpiRankFromEnv();
   logInfo(rank) << "init SYCL API devices ...";
   for (auto const &platform : cl::sycl::platform::get_platforms()) {
@@ -31,7 +32,7 @@ void ConcreteAPI::initDevices() {
         }
       }
 
-      DeviceContext *context = new DeviceContext{device};
+      DeviceContext *context = new DeviceContext{device, concurrencyLevel};
       this->availableDevices.push_back(context);
     }
   }
