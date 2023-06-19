@@ -4,6 +4,7 @@
 #include <numeric>
 #include <random>
 #include <vector>
+#include <limits>
 #include "BaseTestSuite.h"
 
 using namespace device;
@@ -15,7 +16,7 @@ class Reductions : public BaseTestSuite {
 
 
 TEST_F(Reductions, Add) {
-  constexpr size_t size = 1000;
+  constexpr size_t size = 1001;
   std::vector<unsigned> vector(size, 0);
 
   std::uniform_int_distribution<> distribution(10, 50);
@@ -34,7 +35,7 @@ TEST_F(Reductions, Add) {
 }
 
 TEST_F(Reductions, Max) {
-  constexpr size_t size = 1000;
+  constexpr size_t size = 2001;
   std::vector<unsigned> vector(size, 0);
 
   auto* devVector = reinterpret_cast<unsigned *>(device->api->getStackMemory(sizeof(unsigned) * size));
@@ -48,7 +49,8 @@ TEST_F(Reductions, Max) {
   device->api->copyTo(devVector, vector.data(), sizeof(unsigned) * size);
 
   auto max = [](unsigned a, unsigned b) -> unsigned { return a > b ? a : b; };
-  auto expectedResult = std::accumulate(vector.begin(), vector.end(), 0, max);
+  auto initValue = std::numeric_limits<unsigned>::min();
+  auto expectedResult = std::accumulate(vector.begin(), vector.end(), initValue, max);
 
   auto testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Max, device->api->getDefaultStream());
   device->api->popStackMemory();
@@ -56,7 +58,7 @@ TEST_F(Reductions, Max) {
 }
 
 TEST_F(Reductions, Min) {
-  constexpr size_t size = 1000;
+  constexpr size_t size = 3002;
   std::vector<unsigned> vector(size, 0);
 
   std::uniform_int_distribution<> distribution(10, 100);
@@ -68,7 +70,8 @@ TEST_F(Reductions, Min) {
   device->api->copyTo(devVector, vector.data(), sizeof(unsigned) * size);
 
   auto min = [](unsigned a, unsigned b) -> unsigned { return a > b ? b : a; };
-  auto expectedResult = std::accumulate(vector.begin(), vector.end(), 0, min);
+  auto initValue = std::numeric_limits<unsigned>::max();
+  auto expectedResult = std::accumulate(vector.begin(), vector.end(), initValue, min);
 
   auto testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Min, device->api->getDefaultStream());
   device->api->popStackMemory();

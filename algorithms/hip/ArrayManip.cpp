@@ -44,6 +44,7 @@ template <typename T> void Algorithms::fillArray(T *devArray,
 }
 template void Algorithms::fillArray(real *devArray, real scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::fillArray(int *devArray, int scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::fillArray(unsigned *devArray, unsigned scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::fillArray(char *devArray, char scalar, const size_t numElements, void* streamPtr);
 
 //--------------------------------------------------------------------------------------------------
