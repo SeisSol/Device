@@ -49,7 +49,7 @@ void ConcreteAPI::streamBeginCapture() {
   hipStreamCreateWithFlags(&graphInstance.graphExecutionStream, hipStreamNonBlocking); CHECK_ERR;
   hipEventCreate(&(graphInstance.graphCaptureEvent)); CHECK_ERR;
 
-  hipStreamBeginCapture(defaultStream, hipStreamCaptureModeGlobal);
+  hipStreamBeginCapture(defaultStream, hipStreamCaptureModeThreadLocal);
 
   hipLaunchKernelGGL(device::graph_capturing::kernel_firstCapturingKernel, dim3(1), dim3(1), 0, defaultStream);
   CHECK_ERR;
