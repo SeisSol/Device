@@ -49,7 +49,7 @@ void ConcreteAPI::streamBeginCapture() {
   cudaStreamCreateWithFlags(&graphInstance.graphExecutionStream, cudaStreamNonBlocking); CHECK_ERR;
   cudaEventCreate(&(graphInstance.graphCaptureEvent)); CHECK_ERR;
 
-  cudaStreamBeginCapture(defaultStream, cudaStreamCaptureModeGlobal);
+  cudaStreamBeginCapture(defaultStream, cudaStreamCaptureModeThreadLocal);
 
   device::graph_capturing::kernel_firstCapturingKernel<<<1, 1, 0, defaultStream>>>();
   CHECK_ERR;
