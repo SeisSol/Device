@@ -2,6 +2,7 @@
 #define DEVICE_ABSTRACT_API_H
 
 #include "DataTypes.h"
+#include <cstdint>
 #include <cstdlib>
 #include <string>
 
