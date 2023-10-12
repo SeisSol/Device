@@ -19,7 +19,7 @@ else()
     list(APPEND DEVICE_SOURCE_FILES "algorithms/sycl/Reduction.cpp")
 endif()
 
-add_library(device SHARED ${DEVICE_SOURCE_FILES})
+add_library(device STATIC ${DEVICE_SOURCE_FILES})
 
 if (${DEVICE_BACKEND} STREQUAL "hipsycl")
     set(HIPSYCL_TARGETS "cuda:${DEVICE_ARCH}")

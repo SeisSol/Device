@@ -1,7 +1,7 @@
 enable_language(CUDA)
 set(CMAKE_CUDA_STANDARD 14)
 
-add_library(device SHARED device.cpp
+add_library(device STATIC device.cpp
                  interfaces/cuda/Control.cu
                  interfaces/cuda/Aux.cu
                  interfaces/cuda/Memory.cu
