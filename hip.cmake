@@ -70,10 +70,3 @@ if (IS_NVCC_PLATFORM)
 else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
 endif()
-
-if (USE_GRAPH_CAPTURING)
-    target_compile_definitions(device PRIVATE DEVICE_USE_GRAPH_CAPTURING)
-endif()
-
-target_compile_options(device PRIVATE "-std=c++11")
-
