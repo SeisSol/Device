@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(device_submodule)
 
 #set(CMAKE_CXX_CLANG_TIDY clang-tidy)
-option(USE_GRAPH_CAPTURING "Enable graph capturing if it is supported" OFF)
+option(USE_GRAPH_CAPTURING "Enable graph capturing (if it is supported)" ON)
 
 # check INTERFACE
 if (NOT DEFINED DEVICE_BACKEND)
@@ -42,11 +42,12 @@ endif()
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
-option(ENABLE_PROFILING_MARKERS "enable profiling markers if available" OFF)
+option(ENABLE_PROFILING_MARKERS "Enable profiling markers (if available)" OFF)
 
 string(TOLOWER ${DEVICE_BACKEND} BACKEND_FOLDER)
 string(TOUPPER ${DEVICE_BACKEND} BACKEND_UPPER_CASE)
 
+# define device library
 if (${DEVICE_BACKEND} STREQUAL "cuda")
     set(BACKEND_FOLDER "cuda")
     include(cuda.cmake)
@@ -58,6 +59,16 @@ elseif((${DEVICE_BACKEND} STREQUAL "oneapi") OR (${DEVICE_BACKEND} STREQUAL "hip
     include(sycl.cmake)
 endif()
 
+# common options
+target_compile_features(device PRIVATE cxx_std_14)
+
+if (USE_GRAPH_CAPTURING)
+  target_compile_definitions(device PRIVATE DEVICE_USE_GRAPH_CAPTURING)
+endif()
+if (ENABLE_PROFILING_MARKERS)
+  target_compile_definitions(device PRIVATE PROFILING_ENABLED)
+endif()
+
 target_compile_definitions(device PRIVATE DEVICE_${BACKEND_UPPER_CASE}_LANG REAL_SIZE=${REAL_SIZE_IN_BYTES})
 
 target_include_directories(device PRIVATE .
@@ -65,7 +76,3 @@ target_include_directories(device PRIVATE .
                                           interfaces/common
                                           algorithms/${BACKEND_FOLDER}
                                           submodules)
-
-target_compile_options(device PRIVATE -fPIC)
-
-

@@ -33,6 +33,3 @@ else()
     target_link_libraries(device PRIVATE dpcpp::device_flags)
     target_compile_definitions(device PRIVATE ONEAPI_UNDERHOOD)
 endif()
-
-target_compile_options(device PRIVATE  "-O3")
-target_link_libraries(device PUBLIC stdc++fs)
