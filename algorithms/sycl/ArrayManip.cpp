@@ -52,7 +52,7 @@ void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr
         if (clean) {
           ptr[id] = 0;
         } else {
-          real value = ptr[id];
+          real& value = ptr[id];
           // See CUDA for explanation
           value += 1;
           value -= 1;

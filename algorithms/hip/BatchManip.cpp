@@ -64,7 +64,7 @@ __global__ void kernel_touchBatchedMemory(real **basePtr,
       if (clean) {
         element[index] = 0.0;
       } else {
-        real value = element[index];
+        real& value = element[index];
         // Do something dummy here. We just need to check the pointers point to valid memory locations.
         // Avoid compiler optimization. Possibly, implement a dummy code with asm.
         value += 1.0;

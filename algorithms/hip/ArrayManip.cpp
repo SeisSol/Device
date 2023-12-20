@@ -54,7 +54,7 @@ __global__ void kernel_touchMemory(real *ptr, size_t size, bool clean) {
     if (clean) {
       ptr[id] = 0;
     } else {
-      real value = ptr[id];
+      real& value = ptr[id];
       // Do something dummy here. We just need to check the pointers point to valid memory locations.
       // Avoid compiler optimization. Possibly, implement a dummy code with asm.
       value += 1;
