@@ -60,7 +60,7 @@ elseif((${DEVICE_BACKEND} STREQUAL "oneapi") OR (${DEVICE_BACKEND} STREQUAL "hip
 endif()
 
 # common options
-target_compile_features(device PRIVATE cxx_std_14)
+target_compile_features(device PRIVATE cxx_std_17)
 
 if (USE_GRAPH_CAPTURING)
   target_compile_definitions(device PRIVATE DEVICE_USE_GRAPH_CAPTURING)
