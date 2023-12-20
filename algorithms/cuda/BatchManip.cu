@@ -10,7 +10,8 @@ namespace device {
 
     real *srcElement = baseSrcPtr[blockIdx.x];
     real *dstElement = baseDstPtr[blockIdx.x];
-    for (int index = threadIdx.x; index < elementSize; index += blockDim.x) {
+#pragma unroll 4
+    for (int index = threadIdx.x; index < elementSize; index += DefaultBlockDim) {
       dstElement[index] = srcElement[index];
     }
   }
@@ -20,10 +21,11 @@ namespace device {
                                      unsigned elementSize,
                                      unsigned numElements,
                                      void* streamPtr) {
-    dim3 block(internals::WARP_SIZE, 1, 1);
+    dim3 block(DefaultBlockDim, 1, 1);
     dim3 grid(numElements, 1, 1);
     auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
-    kernel_streamBatchedData<<<grid, block, 0, stream>>>(baseSrcPtr, baseDstPtr, elementSize); CHECK_ERR;
+    kernel_streamBatchedData<<<grid, block, 0, stream>>>(baseSrcPtr, baseDstPtr, elementSize);
+    CHECK_ERR;
   }
 
 
@@ -34,7 +36,8 @@ namespace device {
 
     real *srcElement = baseSrcPtr[blockIdx.x];
     real *dstElement = baseDstPtr[blockIdx.x];
-    for (int index = threadIdx.x; index < elementSize; index += blockDim.x) {
+#pragma unroll 4
+    for (int index = threadIdx.x; index < elementSize; index += DefaultBlockDim) {
       dstElement[index] += srcElement[index];
     }
   }
@@ -44,27 +47,29 @@ namespace device {
                                          unsigned elementSize,
                                          unsigned numElements,
                                          void* streamPtr) {
-    dim3 block(internals::WARP_SIZE, 1, 1);
+    dim3 block(DefaultBlockDim, 1, 1);
     dim3 grid(numElements, 1, 1);
     auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
-    kernel_accumulateBatchedData<<<grid, block, 0, stream>>>(baseSrcPtr, baseDstPtr, elementSize); CHECK_ERR;
+    kernel_accumulateBatchedData<<<grid, block, 0, stream>>>(baseSrcPtr, baseDstPtr, elementSize);
+    CHECK_ERR;
   }
 
 //--------------------------------------------------------------------------------------------------
   __global__ void kernel_touchBatchedMemory(real **basePtr, unsigned elementSize, bool clean) {
     real *element = basePtr[blockIdx.x];
-    int id = threadIdx.x;
-    while (id < elementSize) {
-      if (clean) {
-        element[id] = 0.0;
-      } else {
-        real value = element[id];
-        // Do something dummy here. We just need to check the pointers point to valid memory locations.
-        // Avoid compiler optimization. Possibly, implement a dummy code with asm.
-        value += 1.0;
-        value -= 1.0;
+    if (element != nullptr) {
+#pragma unroll 4
+      for (int index = threadIdx.x; index < elementSize; index += DefaultBlockDim) {
+        if (clean) {
+          element[index] = 0.0;
+        } else {
+          real value = element[index];
+          // Do something dummy here. We just need to check the pointers point to valid memory locations.
+          // Avoid compiler optimization. Possibly, implement a dummy code with asm.
+          value += 1.0;
+          value -= 1.0;
+        }
       }
-      id += blockDim.x;
     }
   }
 
@@ -73,10 +78,11 @@ namespace device {
                                       unsigned numElements,
                                       bool clean,
                                       void* streamPtr) {
-    dim3 block(256, 1, 1);
+    dim3 block(DefaultBlockDim, 1, 1);
     dim3 grid(numElements, 1, 1);
     auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
-    kernel_touchBatchedMemory<<<grid, block, 0, stream>>>(basePtr, elementSize, clean); CHECK_ERR;
+    kernel_touchBatchedMemory<<<grid, block, 0, stream>>>(basePtr, elementSize, clean);
+    CHECK_ERR;
   }
 
 //--------------------------------------------------------------------------------------------------
@@ -85,14 +91,15 @@ __global__  void kernel_setToValue(real** out, real value, size_t elementSize, s
   if (elementId < numElements) {
     real *element = out[elementId];
     const int tid = threadIdx.x;
-    for (int i = tid; i < elementSize; i += blockDim.x) {
-      element[i] = value;
+#pragma unroll 4
+    for (int index = threadIdx.x; index < elementSize; index += DefaultBlockDim) {
+      element[index] = value;
     }
   }
 }
 
 void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t numElements, void* streamPtr) {
-  dim3 block(256, 1, 1);
+  dim3 block(DefaultBlockDim, 1, 1);
   dim3 grid(numElements, 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_setToValue<<<grid, block, 0, stream>>>(out, value, elementSize, numElements);
@@ -104,7 +111,8 @@ void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t n
   __global__ void kernel_copyUniformToScatter(T *src, T **dst, size_t srcOffset, size_t copySize) {
     T *srcElement = &src[blockIdx.x * srcOffset];
     T *dstElement = dst[blockIdx.x];
-    for (int index = threadIdx.x; index < copySize; index += blockDim.x) {
+#pragma unroll 4
+    for (int index = threadIdx.x; index < copySize; index += DefaultBlockDim) {
       dstElement[index] = srcElement[index];
     }
   }
@@ -116,7 +124,7 @@ void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t n
                                         size_t copySize,
                                         size_t numElements,
                                         void* streamPtr) {
-    dim3 block(256, 1, 1);
+    dim3 block(DefaultBlockDim, 1, 1);
     dim3 grid(numElements, 1, 1);
     auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
     kernel_copyUniformToScatter<<<grid, block, 0, stream>>>(src, dst, srcOffset, copySize); CHECK_ERR;
@@ -148,7 +156,8 @@ void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t n
   __global__ void kernel_copyScatterToUniform(T **src, T *dst, size_t dstOffset, size_t copySize) {
     T *srcElement = src[blockIdx.x];
     T *dstElement = &dst[blockIdx.x * dstOffset];
-    for (int index = threadIdx.x; index < copySize; index += blockDim.x) {
+#pragma unroll 4
+    for (int index = threadIdx.x; index < copySize; index += DefaultBlockDim) {
       dstElement[index] = srcElement[index];
     }
   }
@@ -160,10 +169,10 @@ void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t n
                                         size_t copySize,
                                         size_t numElements,
                                         void* streamPtr) {
-    dim3 block(256, 1, 1);
+    dim3 block(DefaultBlockDim, 1, 1);
     dim3 grid(numElements, 1, 1);
     auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
-    kernel_copyScatterToUniform<<<grid, block, 0, stream>>>(src, dst, dstOffset, copySize); CHECK_ERR;
+    kernel_copyScatterToUniform<<<grid, block, 0, stream>>>(src, dst, dstOffset, copySize);
     CHECK_ERR;
   }
   template void Algorithms::copyScatterToUniform(real **src,

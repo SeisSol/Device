@@ -10,7 +10,8 @@ __global__ void kernel_streamBatchedData(real **baseSrcPtr,
 
   real *srcElement = baseSrcPtr[hipBlockIdx_x];
   real *dstElement = baseDstPtr[hipBlockIdx_x];
-  for (int index = hipThreadIdx_x; index < elementSize; index += hipBlockDim_x) {
+#pragma unroll 4
+  for (int index = hipThreadIdx_x; index < elementSize; index += DefaultBlockDim) {
     dstElement[index] = srcElement[index];
   }
 }
@@ -20,7 +21,7 @@ void Algorithms::streamBatchedData(real **baseSrcPtr,
                                    unsigned elementSize, 
                                    unsigned numElements, 
                                    void* streamPtr) {
-  dim3 block(internals::WARP_SIZE, 1, 1);
+  dim3 block(DefaultBlockDim, 1, 1);
   dim3 grid(numElements, 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   hipLaunchKernelGGL(kernel_streamBatchedData, grid, block, 0, stream, baseSrcPtr, baseDstPtr, elementSize);
@@ -34,7 +35,8 @@ __global__ void kernel_accumulateBatchedData(real **baseSrcPtr,
 
   real *srcElement = baseSrcPtr[hipBlockIdx_x];
   real *dstElement = baseDstPtr[hipBlockIdx_x];
-  for (int index = hipThreadIdx_x; index < elementSize; index += hipBlockDim_x) {
+#pragma unroll 4
+  for (int index = hipThreadIdx_x; index < elementSize; index += DefaultBlockDim) {
     dstElement[index] += srcElement[index];
   }
 }
@@ -44,7 +46,7 @@ void Algorithms::accumulateBatchedData(real **baseSrcPtr,
                                        unsigned elementSize,
                                        unsigned numElements,
                                        void* streamPtr) {
-  dim3 block(internals::WARP_SIZE, 1, 1);
+  dim3 block(DefaultBlockDim, 1, 1);
   dim3 grid(numElements, 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   hipLaunchKernelGGL(kernel_accumulateBatchedData, grid, block, 0, stream, baseSrcPtr, baseDstPtr, elementSize);
@@ -56,18 +58,19 @@ __global__ void kernel_touchBatchedMemory(real **basePtr,
                                           unsigned elementSize, 
                                           bool clean) {
   real *element = basePtr[hipBlockIdx_x];
-  int id = hipThreadIdx_x;
-  while (id < elementSize) {
-    if (clean) {
-      element[id] = 0.0;
-    } else {
-      real value = element[id];
-      // Do something dummy here. We just need to check the pointers point to valid memory locations.
-      // Avoid compiler optimization. Possibly, implement a dummy code with asm.
-      value += 1.0;
-      value -= 1.0;
+  if (element != nullptr) {
+#pragma unroll 4
+    for (int index = hipThreadIdx_x; index < elementSize; index += DefaultBlockDim) {
+      if (clean) {
+        element[index] = 0.0;
+      } else {
+        real value = element[index];
+        // Do something dummy here. We just need to check the pointers point to valid memory locations.
+        // Avoid compiler optimization. Possibly, implement a dummy code with asm.
+        value += 1.0;
+        value -= 1.0;
+      }
     }
-    id += hipBlockDim_x;
   }
 }
 
@@ -76,7 +79,7 @@ void Algorithms::touchBatchedMemory(real **basePtr,
                                     unsigned numElements, 
                                     bool clean,
                                     void* streamPtr) {
-  dim3 block(256, 1, 1);
+  dim3 block(DefaultBlockDim, 1, 1);
   dim3 grid(numElements, 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   hipLaunchKernelGGL(kernel_touchBatchedMemory, grid, block, 0, stream, basePtr, elementSize, clean);
@@ -88,15 +91,15 @@ __global__  void kernel_setToValue(real** out, real value, size_t elementSize, s
   const int elementId = hipBlockIdx_x;
   if (elementId < numElements) {
     real *element = out[elementId];
-    const int tid = hipThreadIdx_x;
-    for (int i = tid; i < elementSize; i += hipBlockDim_x) {
-      element[i] = value;
+#pragma unroll 4
+    for (int index = hipThreadIdx_x; index < elementSize; index += DefaultBlockDim) {
+      element[index] = value;
     }
   }
 }
 
 void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t numElements, void* streamPtr) {
-  dim3 block(256, 1, 1);
+  dim3 block(DefaultBlockDim, 1, 1);
   dim3 grid(numElements, 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   hipLaunchKernelGGL(kernel_setToValue,
@@ -117,7 +120,8 @@ template<typename T>
 __global__ void kernel_copyUniformToScatter(T *src, T **dst, size_t srcOffset, size_t copySize) {
   T *srcElement = &src[hipBlockIdx_x * srcOffset];
   T *dstElement = dst[hipBlockIdx_x];
-  for (int index = hipThreadIdx_x; index < copySize; index += blockDim.x) {
+#pragma unroll 4
+  for (int index = hipThreadIdx_x; index < copySize; index += DefaultBlockDim) {
     dstElement[index] = srcElement[index];
   }
 }
@@ -129,7 +133,7 @@ void Algorithms::copyUniformToScatter(T *src,
                                       size_t copySize,
                                       size_t numElements,
                                       void* streamPtr) {
-  dim3 block(256, 1, 1);
+  dim3 block(DefaultBlockDim, 1, 1);
   dim3 grid(numElements, 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   hipLaunchKernelGGL(kernel_copyUniformToScatter, grid, block, 0, stream, src, dst, srcOffset, copySize);
@@ -161,7 +165,8 @@ template<typename T>
 __global__ void kernel_copyScatterToUniform(T **src, T *dst, size_t dstOffset, size_t copySize) {
   T *srcElement = src[hipBlockIdx_x];
   T *dstElement = &dst[hipBlockIdx_x * dstOffset];
-  for (int index = hipThreadIdx_x; index < copySize; index += blockDim.x) {
+#pragma unroll 4
+  for (int index = hipThreadIdx_x; index < copySize; index += DefaultBlockDim) {
     dstElement[index] = srcElement[index];
   }
 }
@@ -173,7 +178,7 @@ void Algorithms::copyScatterToUniform(T **src,
                                       size_t copySize,
                                       size_t numElements,
                                       void* streamPtr) {
-  dim3 block(256, 1, 1);
+  dim3 block(DefaultBlockDim, 1, 1);
   dim3 grid(numElements, 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   hipLaunchKernelGGL(kernel_copyScatterToUniform, grid, block, 0, stream, src, dst, dstOffset, copySize);
