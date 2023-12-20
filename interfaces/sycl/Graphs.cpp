@@ -1,4 +1,4 @@
-#include "HipWrappedAPI.h"
+#include "SyclWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
 #include <cassert>
