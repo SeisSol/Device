@@ -33,7 +33,7 @@ class BatchManip : public BaseTestSuite {
 
 TEST_F(BatchManip, fill) {
   const int N = 100;
-  testWrapper<int>(N, false, [](int** batch, int* data) {
+  testWrapper<int>(N, false, [&](int** batch, int* data) {
     int scalar = 502;
 
     device->algorithms.fillArray(batch, scalar, N, device->api->getDefaultStream());
@@ -51,7 +51,7 @@ TEST_F(BatchManip, fill) {
 
 TEST_F(BatchManip, touchClean) {
   const int N = 100;
-  testWrapper<real>(N, false, [](real** batch, real* data) {
+  testWrapper<real>(N, false, [&](real** batch, real* data) {
     device->algorithms.touchMemory(batch, N, true, device->api->getDefaultStream());
     std::vector<real> hostVector(N, 1);
 
@@ -64,7 +64,7 @@ TEST_F(BatchManip, touchClean) {
     }
   });
 
-  testWrapper<real>(N, true, [](real** batch, real* data) {
+  testWrapper<real>(N, true, [&](real** batch, real* data) {
     device->algorithms.touchMemory(batch, N, true, device->api->getDefaultStream());
     std::vector<real> hostVector(N, 0);
 
@@ -86,7 +86,7 @@ TEST_F(BatchManip, touchClean) {
 TEST_F(BatchManip, touchNoClean) {
 
   const int N = 100;
-  testWrapper<real>(N, true, [](real** batch, real* data) {
+  testWrapper<real>(N, true, [&](real** batch, real* data) {
     std::vector<real> hostVector(N, 1);
 
     device->api->copyToAsync(arr, &hostVector[0], N * sizeof(real), device->api->getDefaultStream());
@@ -103,7 +103,7 @@ TEST_F(BatchManip, touchNoClean) {
 
 TEST_F(BatchManip, scale) {
   const int N = 100;
-  testWrapper<int>(N, true, [](int** batch, int* data) {
+  testWrapper<int>(N, true, [&](int** batch, int* data) {
     std::vector<int> hostVector(N, 1);
 
     device->api->copyToAsync(data, &hostVector[0], N * sizeof(int), device->api->getDefaultStream());
