@@ -25,7 +25,7 @@ public:
       }
     }
 
-    std::invoke(std::forward<F>(inner), batch, data);
+    std::forward<F>(inner)(batch, data);
 
     device->api->freeMem(data);
     device->api->freeMem(batch);
@@ -125,7 +125,7 @@ TEST_F(BatchManip, scatterToUniform) {
   device->api->freeMem(data2);
 }
 
-TEST_F(BatchManip, scatterToUniform) {
+TEST_F(BatchManip, uniformToScatter) {
   const int N = 100;
   const int M = 120;
 
