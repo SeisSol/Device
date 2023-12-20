@@ -2,6 +2,7 @@ set(DEVICE_SOURCE_FILES device.cpp
         interfaces/sycl/Aux.cpp
         interfaces/sycl/Control.cpp
         interfaces/sycl/Copy.cpp
+        interfaces/sycl/Graphs.cpp
         interfaces/sycl/Memory.cpp
         interfaces/sycl/Streams.cpp
         interfaces/sycl/DeviceContext.cpp

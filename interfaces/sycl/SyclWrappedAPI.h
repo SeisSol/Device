@@ -82,14 +82,12 @@ public:
   void joinCircularStreamsToDefault() override;
   bool isCircularStreamsJoinedWithDefault() override;
 
-  bool isCapableOfGraphCapturing() override { return false; };
-  void streamBeginCapture() override {};
-  void streamEndCapture() override {};
-  DeviceGraphHandle getLastGraphHandle() override {
-      return DeviceGraphHandle{};
-  };
-  void launchGraph(DeviceGraphHandle graphHandle) override {};
-  void syncGraph(DeviceGraphHandle graphHandle) override {};
+  bool isCapableOfGraphCapturing() override;
+  void streamBeginCapture() override;
+  void streamEndCapture() override;
+  DeviceGraphHandle getLastGraphHandle() override;
+  void launchGraph(DeviceGraphHandle graphHandle) override;
+  void syncGraph(DeviceGraphHandle graphHandle) override;
 
   void* createGenericStream() override;
   void destroyGenericStream(void* streamPtr) override;
@@ -114,9 +112,10 @@ private:
 
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   struct GraphDetails {
-    std::optional<cl::sycl::ext::oneapi::experimental::command_graph> graph;
-    cl::sycl::ext::oneapi::experimental::command_graph<cl::sycl::ext::oneapi::experimental::graph_state::modifiable> recordingGraph;
+    std::optional<sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::executable>> instance;
+    sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::modifiable> graph;
     cl::sycl::queue queue;
+    cl::sycl::event event;
     bool ready{false};
   };
 #else

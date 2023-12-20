@@ -4,10 +4,10 @@
 
 namespace device {
 DeviceCircularQueueBuffer::DeviceCircularQueueBuffer(
-    cl::sycl::device dev,
-    std::function<void(cl::sycl::exception_list)> handler,
+    const cl::sycl::device& dev,
+    const std::function<void(cl::sycl::exception_list)>& handler,
     size_t capacity)
-    : queues{std::vector<cl::sycl::queue>(capacity)} {
+    : queues{std::vector<cl::sycl::queue>(capacity)}, deviceReference(dev), handlerReference(handler) {
   if (capacity <= 0)
     throw std::invalid_argument("Capacity must be at least 1!");
 
@@ -29,6 +29,10 @@ cl::sycl::queue& DeviceCircularQueueBuffer::getGenericQueue() {
 cl::sycl::queue& DeviceCircularQueueBuffer::getNextQueue() {
   (++this->counter) %= getCapacity();
   return (this->queues[this->counter]);
+}
+
+cl::sycl::queue DeviceCircularQueueBuffer::newQueue() {
+  return cl::sycl::queue{deviceReference, handlerReference, cl::sycl::property::queue::in_order()};
 }
 
 void DeviceCircularQueueBuffer::resetIndex() {
