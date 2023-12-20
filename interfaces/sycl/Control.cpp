@@ -164,7 +164,8 @@ std::string ConcreteAPI::getDeviceName(int deviceId) {
   auto device = this->availableDevices[id]->queueBuffer.getDefaultQueue().get_device();
 
   std::ostringstream info{};
-  info << device.get_info<cl::sycl::info::device::name>() << " (" << convertToString(dev.get_info<cl::sycl::info::device::device_type>()) << ")";
+  info << device.get_info<cl::sycl::info::device::name>()
+        << " (" << convertToString(device.get_info<cl::sycl::info::device::device_type>()) << ")";
 
   return info.str();
 }
