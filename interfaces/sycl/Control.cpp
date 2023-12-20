@@ -91,6 +91,8 @@ void ConcreteAPI::finalize() {
   this->availableDevices.clear();
   this->availableDevices.shrink_to_fit();
 
+  this->graphs.clear();
+
   this->currentDeviceStack = nullptr;
   this->currentStatistics = nullptr;
   this->currentQueueBuffer = nullptr;
@@ -150,6 +152,19 @@ std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
   info << "    driver_version: " << dev.get_info<cl::sycl::info::device::driver_version>() << "\n";
   // if (dev.get_info<info::device::device_type>() != cl::sycl::info::device_type::host)
   // info << "    device id: " << dev.get() << "\n";
+
+  return info.str();
+}
+
+std::string ConcreteAPI::getApiName() {
+  return "SYCL";
+}
+
+std::string ConcreteAPI::getDeviceName(int deviceId) {
+  auto device = this->availableDevices[id]->queueBuffer.getDefaultQueue().get_device();
+
+  std::ostringstream info{};
+  info << device.get_info<cl::sycl::info::device::name>() << " (" << convertToString(dev.get_info<cl::sycl::info::device::device_type>()) << ")";
 
   return info.str();
 }

@@ -11,7 +11,12 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <optional>
 
+
+#if defined(DEVICE_USE_GRAPH_CAPTURING) && defined(SYCL_EXT_ONEAPI_GRAPH)
+#define DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+#endif
 
 namespace device {
 class ConcreteAPI : public AbstractAPI {
@@ -45,6 +50,9 @@ public:
   void freePinnedMem(void *devPtr) override;
   void popStackMemory() override;
   std::string getMemLeaksReport() override;
+
+  std::string getApiName() override;
+  std::string getDeviceName(int deviceId) override;
 
   void copyTo(void *dst, const void *src, size_t count) override;
   void copyFrom(void *dst, const void *src, size_t count) override;
@@ -103,6 +111,21 @@ private:
   DeviceCircularQueueBuffer *currentQueueBuffer;
   Statistics *currentStatistics;
   std::unordered_map<void *, size_t> *currentMemoryToSizeMap;
+
+#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+  struct GraphDetails {
+    std::optional<cl::sycl::ext::oneapi::experimental::command_graph> graph;
+    cl::sycl::ext::oneapi::experimental::command_graph<cl::sycl::ext::oneapi::experimental::graph_state::modifiable> recordingGraph;
+    cl::sycl::queue queue;
+    bool ready{false};
+  };
+#else
+  struct GraphDetails {
+    bool ready{false};
+  };
+#endif
+
+  std::vector<GraphDetails> graphs;
 
   void initDevices();
 

@@ -40,6 +40,9 @@ public:
   void popStackMemory() override;
   std::string getMemLeaksReport() override;
 
+  std::string getApiName() override;
+  std::string getDeviceName(int deviceId) override;
+
   void copyTo(void *dst, const void *src, size_t count) override;
   void copyFrom(void *dst, const void *src, size_t count) override;
   void copyBetween(void *dst, const void *src, size_t count) override;
