@@ -10,6 +10,7 @@ using namespace ::testing;
 class BatchManip : public BaseTestSuite {
   using BaseTestSuite::BaseTestSuite;
 
+public:
   template<typename T, typename F>
   void testWrapper(size_t N, bool sparse, F&& inner) {
     int *data = (int *)device->api->allocGlobMem(N * sizeof(T));
