@@ -8,14 +8,14 @@ using namespace device::internals;
 
 namespace device {
 void Algorithms::streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize, unsigned numElements, void* streamPtr) {
-  auto rng = cl::sycl::nd_range<1>{numElements * DefaultBlockDim, DefaultBlockDim};
+  auto rng = cl::sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim, device::internals::DefaultBlockDim};
 
 ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
       real *srcElement = baseSrcPtr[item.get_group().get_group_id(0)];
       real *dstElement = baseDstPtr[item.get_group().get_group_id(0)];
 #pragma unroll 4
-      for (int index = item.get_local_id(0); index < elementSize; index += DefaultBlockDim) {
+      for (int index = item.get_local_id(0); index < elementSize; index += device::internals::DefaultBlockDim) {
         dstElement[index] = srcElement[index];
       }
     });
@@ -24,14 +24,14 @@ void Algorithms::streamBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigne
 
 void Algorithms::accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, unsigned elementSize,
                                        unsigned numElements, void* streamPtr) {
-  auto rng = cl::sycl::nd_range<1>{numElements * DefaultBlockDim, DefaultBlockDim};
+  auto rng = cl::sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim, device::internals::DefaultBlockDim};
 
   ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
       real *srcElement = baseSrcPtr[item.get_group().get_group_id(0)];
       real *dstElement = baseDstPtr[item.get_group().get_group_id(0)];
 #pragma unroll 4
-      for (int index = item.get_local_id(0); index < elementSize; index += DefaultBlockDim) {
+      for (int index = item.get_local_id(0); index < elementSize; index += device::internals::DefaultBlockDim) {
         dstElement[index] += srcElement[index];
       }
     });
@@ -39,14 +39,14 @@ void Algorithms::accumulateBatchedData(real **baseSrcPtr, real **baseDstPtr, uns
 }
 
 void Algorithms::touchBatchedMemory(real **basePtr, unsigned elementSize, unsigned numElements, bool clean, void* streamPtr) {
-  auto rng = cl::sycl::nd_range<1>{numElements * DefaultBlockDim, DefaultBlockDim};
+  auto rng = cl::sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim, device::internals::DefaultBlockDim};
 
   ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
       real *element = basePtr[item.get_group().get_group_id(0)];
       if (element != nullptr) {
 #pragma unroll 4
-        for (int index = item.get_local_id(0); index < elementSize; index += DefaultBlockDim) {
+        for (int index = item.get_local_id(0); index < elementSize; index += device::internals::DefaultBlockDim) {
           if (clean) {
             element[index] = 0.0;
           } else {
@@ -67,14 +67,14 @@ void Algorithms::setToValue(real** out,
                             size_t elementSize,
                             size_t numElements,
                             void* streamPtr) {
-  auto rng = cl::sycl::nd_range<1>{numElements * DefaultBlockDim, DefaultBlockDim};
+  auto rng = cl::sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim, device::internals::DefaultBlockDim};
   ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
       const auto elementId = item.get_group().get_group_id(0);
       if (elementId < numElements) {
         real *element = out[elementId];
 #pragma unroll 4
-        for (int i = item.get_local_id(0); i < elementSize; i += DefaultBlockDim) {
+        for (int i = item.get_local_id(0); i < elementSize; i += device::internals::DefaultBlockDim) {
           element[i] = value;
         }
       }
@@ -89,7 +89,7 @@ void Algorithms::copyUniformToScatter(T *src,
                                       size_t copySize,
                                       size_t numElements,
                                       void *streamPtr) {
-  auto rng = cl::sycl::nd_range<1>{numElements * DefaultBlockDim, DefaultBlockDim};
+  auto rng = cl::sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim, device::internals::DefaultBlockDim};
 
   ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
@@ -97,7 +97,7 @@ void Algorithms::copyUniformToScatter(T *src,
       T *dstElement = dst[item.get_group().get_group_id(0)];
 
 #pragma unroll 4
-      for (int index = item.get_local_id(0); index < copySize; index += DefaultBlockDim) {
+      for (int index = item.get_local_id(0); index < copySize; index += device::internals::DefaultBlockDim) {
         dstElement[index] = srcElement[index];
       }
     });
@@ -132,7 +132,7 @@ void Algorithms::copyScatterToUniform(T **src,
                                       size_t copySize,
                                       size_t numElements,
                                       void *streamPtr) {
-  auto rng = cl::sycl::nd_range<1>{numElements * DefaultBlockDim, DefaultBlockDim};
+  auto rng = cl::sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim, device::internals::DefaultBlockDim};
 
   ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
@@ -140,7 +140,7 @@ void Algorithms::copyScatterToUniform(T **src,
       T *dstElement = &dst[item.get_group().get_group_id(0) * dstOffset];
   
 #pragma unroll 4
-      for (int index = item.get_local_id(0); index < copySize; index += DefaultBlockDim) {
+      for (int index = item.get_local_id(0); index < copySize; index += device::internals::DefaultBlockDim) {
         dstElement[index] = srcElement[index];
       }
     });

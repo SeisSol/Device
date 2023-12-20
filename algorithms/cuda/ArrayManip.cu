@@ -15,7 +15,7 @@ template <typename T> void Algorithms::scaleArray(T *devArray,
                                                   T scalar,
                                                   const size_t numElements,
                                                   void* streamPtr) {
-  dim3 block(DefaultBlockDim, 1, 1);
+  dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid = internals::computeGrid1D(block, numElements);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_scaleArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
@@ -34,7 +34,7 @@ template <typename T> __global__ void kernel_fillArray(T *array, T scalar, const
 }
 
 template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, const size_t numElements, void* streamPtr) {
-  dim3 block(DefaultBlockDim, 1, 1);
+  dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid = internals::computeGrid1D(block, numElements);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_fillArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
@@ -62,7 +62,7 @@ __global__ void kernel_touchMemory(real *ptr, size_t size, bool clean) {
 }
 
 void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr) {
-  dim3 block(DefaultBlockDim, 1, 1);
+  dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid = internals::computeGrid1D(block, size);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_touchMemory<<<grid, block, 0, stream>>>(ptr, size, clean);
@@ -89,7 +89,7 @@ void Algorithms::incrementalAdd(
   size_t numElements,
   void* streamPtr) {
 
-  dim3 block(DefaultBlockDim, 1, 1);
+  dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid = internals::computeGrid1D(block, numElements);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_incrementalAdd<<<grid, block, 0, stream>>>(out, base, increment, numElements);
