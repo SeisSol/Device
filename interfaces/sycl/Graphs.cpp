@@ -37,11 +37,10 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 
 void ConcreteAPI::streamBeginCapture() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  isFlagSet<CircularStreamBufferInitialized>(status);
   assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
 
   {
-    auto localQueue = availableDevices[currentDeviceId]->newQueue();
+    auto localQueue = availableDevices[currentDeviceId]->queueBuffer.newQueue();
     auto recordingGraph = sycl::ext::oneapi::experimental::command_graph
       <sycl::ext::oneapi::experimental::graph_state::modifiable>(
         localQueue.get_context(),
@@ -50,8 +49,8 @@ void ConcreteAPI::streamBeginCapture() {
     auto startEvent = cl::sycl::event();
 
     graphs.emplace_back(GraphDetails {
+      std::nullopt,
       std::move(recordingGraph),
-      std::optional::nullopt_t,
       std::move(localQueue),
       std::move(startEvent),
       false
@@ -67,11 +66,9 @@ void ConcreteAPI::streamBeginCapture() {
 
 void ConcreteAPI::streamEndCapture() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
-
+  auto &graphInstance = graphs.back();
   graphInstance.graph.end_recording();
-  graphInstance.instance = std::make_optional<decltype(graphInstance.instance)>(graphInstance.graph.finalize());
+  graphInstance.instance = std::move(std::optional<sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::executable>>(graphInstance.graph.finalize()));
 
   graphInstance.ready = true;
 #endif
@@ -80,7 +77,6 @@ void ConcreteAPI::streamEndCapture() {
 
 DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  isFlagSet<CircularStreamBufferInitialized>(status);
   assert(graphs.back().ready && "a graph has not been fully captured");
   return DeviceGraphHandle(graphs.size() - 1);
 #else
@@ -91,23 +87,19 @@ DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
 
 void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  isFlagSet<CircularStreamBufferInitialized>(status);
   assert(graphHandle.isInitialized() && "a graph must be captured before launching");
   auto &graphInstance = graphs[graphHandle.getGraphId()];
   graphInstance.queue.submit([&](sycl::handler& handler) {
     handler.ext_oneapi_graph(graphInstance.instance.value());
   });
-  CHECK_ERR;
 #endif
 }
 
 
 void ConcreteAPI::syncGraph(DeviceGraphHandle graphHandle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  isFlagSet<CircularStreamBufferInitialized>(status);
   assert(graphHandle.isInitialized() && "a graph must be captured before synchronizing");
   auto &graphInstance = graphs[graphHandle.getGraphId()];
   graphInstance.queue.wait_and_throw();
-  CHECK_ERR;
 #endif
 }
