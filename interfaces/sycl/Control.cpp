@@ -10,12 +10,13 @@ using namespace device;
 
 void ConcreteAPI::initDevices() {
 
-  if (this->deviceInitialized)
-    throw new std::invalid_argument("can not init devices twice!");
+  if (this->deviceInitialized) {
+    throw new std::invalid_argument("Cannot initialize the devices twice!");
+  }
 
   const auto concurrencyLevel = getMaxConcurrencyLevel(4);
   const auto rank = getMpiRankFromEnv();
-  logInfo(rank) << "init SYCL API devices ...";
+  logDebug(rank) << "Init SYCL API devices ...";
   for (auto const &platform : cl::sycl::platform::get_platforms()) {
     for (auto const &device : platform.get_devices()) {
 
@@ -26,7 +27,7 @@ void ConcreteAPI::initDevices() {
       if (type == cl::sycl::info::device_type::gpu) {
         if (devName.find("Intel") != std::string::npos) {
           if (platName.find("Level-Zero") == std::string::npos) {
-            logDebug() << "skip non level-zero Intel GPU " << devName << " on platform " << platName;
+            logDebug(rank) << "Skipping non level-zero Intel GPU" << devName << "on platform" << platName;
             continue;
           }
         }
@@ -41,22 +42,27 @@ void ConcreteAPI::initDevices() {
     return compare(c1->queueBuffer.getDefaultQueue().get_device(), c2->queueBuffer.getDefaultQueue().get_device());
   });
 
-  std::stringstream s;
+  std::ostringstream s;
   s << "Sorted available devices: ";
-  for (auto &dev : this->availableDevices) {
-    s << this->getDeviceInfoAsText(dev->queueBuffer.getDefaultQueue().get_device());
+  int index = 0;
+  for (int i = 0; i < this->availableDevices.size(); ++i) {
+    if (i > 0) {
+      s << "; ";
+    }
+    s << "(" << index << ") " << this->getDeviceName(i);
   }
-  logInfo(rank) << s.str();
+  logDebug(rank) << s.str().c_str();
 
   this->setDevice(this->currentDeviceId);
   this->deviceInitialized = true;
-  logInfo(rank) << "device init succeeded";
+  logDebug(rank) << "Device initialization succeeded";
 }
 
 void ConcreteAPI::setDevice(int id) {
 
-  if (id < 0 || id >= this->getNumDevices())
-    throw std::out_of_range{"device index out of range"};
+  if (id < 0 || id >= this->getNumDevices()) {
+    throw std::out_of_range{"Device index out of range"};
+  }
 
   this->currentDeviceId = id;
   auto *next = this->availableDevices[id];
@@ -66,23 +72,23 @@ void ConcreteAPI::setDevice(int id) {
   this->currentDefaultQueue = &this->currentQueueBuffer->getDefaultQueue();
   this->currentMemoryToSizeMap = &next->memoryToSizeMap;
 
-  logDebug() << "switched to device: " << this->getCurrentDeviceInfoAsText() << " by index " << id;
+  const auto rank = getMpiRankFromEnv();
+  logDebug(rank) << "Switched to device: " << this->getDeviceName(id) << " by index " << id;
 }
 
 void ConcreteAPI::initialize() {}
 
 void ConcreteAPI::allocateStackMem() {
   const auto rank = getMpiRankFromEnv();
-  logInfo(rank) << "allocating stack memory for device: \n"
-                << this->getCurrentDeviceInfoAsText()
-                << "if DEVICE_STACK_MEM_SIZE is not set, the specified default value is used\n";
+  logDebug(rank) << "Allocating stack memory for device" << this->getDeviceName(this->currentDeviceId);
 
   this->currentDeviceStack->initMemory();
 }
 
 void ConcreteAPI::finalize() {
   if (m_isFinalized) {
-    logWarning() << "SYCL API is already finalized!";
+    const auto rank = getMpiRankFromEnv();
+    logWarning(rank) << "SYCL API is already finalized.";
     return;
   }
   for (auto *device : this->availableDevices) {
@@ -136,7 +142,7 @@ void ConcreteAPI::syncDevice() { this->currentQueueBuffer->syncAllQueuesWithHost
 
 std::string ConcreteAPI::getDeviceInfoAsText(int id) {
   if (id < 0 || id >= this->getNumDevices())
-    throw std::out_of_range{"device index out of range"};
+    throw std::out_of_range{"Device index out of range"};
 
   auto device = this->availableDevices[id]->queueBuffer.getDefaultQueue().get_device();
   return this->getDeviceInfoAsText(device);
