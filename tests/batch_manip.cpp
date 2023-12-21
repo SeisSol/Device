@@ -13,8 +13,8 @@ class BatchManip : public BaseTestSuite {
 public:
   template<typename T, typename F>
   void testWrapper(size_t N, size_t M, bool sparse, F&& inner) {
-    int *data = (int *)device->api->allocGlobMem(N * M * sizeof(T));
-    int **batch = (int **)device->api->allocUnifiedMem(N * sizeof(T*));
+    T *data = (T *)device->api->allocGlobMem(N * M * sizeof(T));
+    T **batch = (T **)device->api->allocUnifiedMem(N * sizeof(T*));
 
     for (size_t i = 0; i < N; ++i) {
       if (!(sparse && i % 2 == 0)) {
@@ -36,12 +36,12 @@ TEST_F(BatchManip, fill) {
   const int N = 100;
   const int M = 120;
   testWrapper<real>(N, M, false, [&](real** batch, real* data) {
-    int scalar = 502;
+    real scalar = 502;
 
     device->algorithms.setToValue(batch, scalar, M, N, device->api->getDefaultStream());
 
-    std::vector<int> hostVector(N * M, 0);
-    device->api->copyFromAsync(&hostVector[0], data, N * M * sizeof(int), device->api->getDefaultStream());
+    std::vector<real> hostVector(N * M, 0);
+    device->api->copyFromAsync(&hostVector[0], data, N * M * sizeof(real), device->api->getDefaultStream());
 
     device->api->syncDefaultStreamWithHost();
 
@@ -67,20 +67,23 @@ TEST_F(BatchManip, touchClean) {
     }
   });
 
-  testWrapper<real>(N, true, [&](real** batch, real* data) {
-    device->algorithms.touchBatchedMemory(batch, M, N, true, device->api->getDefaultStream());
-    std::vector<real> hostVector(N * M, 0);
+  testWrapper<real>(N, M, true, [&](real** batch, real* data) {
+    std::vector<real> hostVector(N * M, 1);
 
+    device->api->copyToAsync(data, &hostVector[0], N * M * sizeof(real), device->api->getDefaultStream());
+    device->algorithms.touchBatchedMemory(batch, M, N, true, device->api->getDefaultStream());
     device->api->copyFromAsync(&hostVector[0], data, M * N * sizeof(real), device->api->getDefaultStream());
 
     device->api->syncDefaultStreamWithHost();
 
-    for (size_t i = 0; i < hostVector.size(); ++i) {
-      if (i % 2 == 0) {
-        EXPECT_EQ(0, hostVector[i]);
-      }
-      else {
-        EXPECT_EQ(1, hostVector[i]);
+    for (size_t i = 0; i < N; ++i) {
+      for (size_t j = 0; j < M; ++j) {
+        if (i % 2 == 0) {
+          EXPECT_EQ(1, hostVector[i * M + j]);
+        }
+        else {
+          EXPECT_EQ(0, hostVector[i * M + j]);
+        }
       }
     }
   });
@@ -92,14 +95,14 @@ TEST_F(BatchManip, touchNoClean) {
   testWrapper<real>(N, M, false, [&](real** batch, real* data) {
     std::vector<real> hostVector(N * M, 1);
 
-    device->api->copyToAsync(data, &hostVector[0], N * sizeof(real), device->api->getDefaultStream());
+    device->api->copyToAsync(data, &hostVector[0], N * M * sizeof(real), device->api->getDefaultStream());
     device->algorithms.touchBatchedMemory(batch, M, N, false, device->api->getDefaultStream());
-    device->api->copyFromAsync(&hostVector[0], data, N * sizeof(real), device->api->getDefaultStream());
+    device->api->copyFromAsync(&hostVector[0], data, N * M * sizeof(real), device->api->getDefaultStream());
 
     device->api->syncDefaultStreamWithHost();
 
     for (auto &i : hostVector) {
-      EXPECT_EQ(0, i);
+      EXPECT_EQ(1, i);
     }
   });
 }
@@ -108,13 +111,13 @@ TEST_F(BatchManip, scatterToUniform) {
   const int N = 100;
   const int M = 120;
 
-  real *data2 = (real *)device->api->allocGlobMem(N * M * sizeof(T));
+  real *data2 = (real *)device->api->allocGlobMem(N * M * sizeof(real));
   testWrapper<real>(N, M, false, [&](real** batch, real* data) {
-    std::vector<int> hostVector(N * M, 1);
+    std::vector<real> hostVector(N * M, 1);
 
-    device->api->copyToAsync(data, &hostVector[0], N * sizeof(int), device->api->getDefaultStream());
+    device->api->copyToAsync(data, &hostVector[0], N * M * sizeof(real), device->api->getDefaultStream());
     device->algorithms.copyScatterToUniform(batch, data2, M, M, N, device->api->getDefaultStream());
-    device->api->copyFromAsync(&hostVector[0], data2, N * sizeof(int), device->api->getDefaultStream());
+    device->api->copyFromAsync(&hostVector[0], data2, N * M * sizeof(real), device->api->getDefaultStream());
 
     device->api->syncDefaultStreamWithHost();
 
@@ -129,13 +132,13 @@ TEST_F(BatchManip, uniformToScatter) {
   const int N = 100;
   const int M = 120;
 
-  real *data2 = (real *)device->api->allocGlobMem(N * M * sizeof(T));
+  real *data2 = (real *)device->api->allocGlobMem(N * M * sizeof(real));
   testWrapper<real>(N, M, false, [&](real** batch, real* data) {
-    std::vector<int> hostVector(N * M, 1);
+    std::vector<real> hostVector(N * M, 1);
 
-    device->api->copyToAsync(data2, &hostVector[0], N * sizeof(int), device->api->getDefaultStream());
+    device->api->copyToAsync(data2, &hostVector[0], N * M * sizeof(real), device->api->getDefaultStream());
     device->algorithms.copyUniformToScatter(data2, batch, M, M, N, device->api->getDefaultStream());
-    device->api->copyFromAsync(&hostVector[0], data, N * sizeof(int), device->api->getDefaultStream());
+    device->api->copyFromAsync(&hostVector[0], data, N * M * sizeof(real), device->api->getDefaultStream());
 
     device->api->syncDefaultStreamWithHost();
 
