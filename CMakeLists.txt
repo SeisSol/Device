@@ -24,7 +24,6 @@ if (NOT DEFINED DEVICE_ARCH)
             "Supported for example: sm_60, sm_61, sm_70, sm_71, gfx906, gfx908, dg1, bdw, skl, Gen8, Gen9, Gen11, Gen12LP")
 endif()
 
-
 #check REAL_SIZE
 if (NOT DEFINED REAL_SIZE_IN_BYTES)
     message(FATAL_ERROR "REAL_SIZE_IN_BYTES variable has not been provided into the submodule")
@@ -70,6 +69,10 @@ if (ENABLE_PROFILING_MARKERS)
 endif()
 
 target_compile_definitions(device PRIVATE DEVICE_${BACKEND_UPPER_CASE}_LANG REAL_SIZE=${REAL_SIZE_IN_BYTES})
+
+if (LOG_LEVEL_MASTER)
+  target_compile_definitions(device PRIVATE LOG_LEVEL=${LOG_LEVEL_MASTER})
+endif()
 
 target_include_directories(device PRIVATE .
                                           interfaces/${BACKEND_FOLDER}
