@@ -12,8 +12,8 @@ void QueueWrapper::synchronize() {
 }
 void QueueWrapper::dependency(QueueWrapper& other) {
   // improvising... Adding an empty event here, mimicking a CUDA-like event dependency
-  auto queueEvent = other.queue.submit([&](sycl::handler& h) {});
-  queue.submit([&](sycl::handler& h) {
+  auto queueEvent = other.queue.submit([&](cl::sycl::handler& h) {});
+  queue.submit([&](cl::sycl::handler& h) {
     h.depends_on(queueEvent);
   });
 }
