@@ -115,7 +115,6 @@ private:
     std::optional<sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::executable>> instance;
     sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::modifiable> graph;
     cl::sycl::queue queue;
-    cl::sycl::event event;
     bool ready{false};
   };
 #else

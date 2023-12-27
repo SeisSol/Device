@@ -46,20 +46,18 @@ void ConcreteAPI::streamBeginCapture() {
         localQueue.get_context(),
         localQueue.get_device()
       );
-    auto startEvent = cl::sycl::event();
 
     graphs.emplace_back(GraphDetails {
       std::nullopt,
       std::move(recordingGraph),
       std::move(localQueue),
-      std::move(startEvent),
       false
     });
   }
 
   GraphDetails &graphInstance = graphs.back();
 
-  graphInstance.graph.begin_recording(this->currentQueueBuffer->getDefaultQueue());
+  graphInstance.graph.begin_recording(this->currentQueueBuffer->allQueues());
 #endif
 }
 

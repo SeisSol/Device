@@ -169,11 +169,7 @@ std::string ConcreteAPI::getApiName() {
 std::string ConcreteAPI::getDeviceName(int deviceId) {
   auto device = this->availableDevices[deviceId]->queueBuffer.getDefaultQueue().get_device();
 
-  std::ostringstream info{};
-  info << device.get_info<cl::sycl::info::device::name>()
-        << " (" << convertToString(device.get_info<cl::sycl::info::device::device_type>()) << ")";
-
-  return info.str();
+  return device.get_info<cl::sycl::info::device::name>();
 }
 
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
