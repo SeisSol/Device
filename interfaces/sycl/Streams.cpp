@@ -43,14 +43,14 @@ void ConcreteAPI::syncCircularBuffersWithHost() {
 void ConcreteAPI::forkCircularStreamsFromDefault() {
   assert(!isCircularStreamsForked && "circular streams must be joined before forking");
 
-  this->syncDefaultStreamWithHost();
+  this->currentQueueBuffer->forkQueueDepencency();
   isCircularStreamsForked = true;
 }
 
 void ConcreteAPI::joinCircularStreamsToDefault() {
   assert(isCircularStreamsForked && "circular streams must be forked before joining");
 
-  this->syncCircularBuffersWithHost();
+  this->currentQueueBuffer->joinQueueDepencency();
   isCircularStreamsForked = false;
 }
 
@@ -83,19 +83,13 @@ void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
 
 bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
-#ifdef HIPSYCL_UNDERHOOD
-  // Note: there is no way to check whether the queue
-  // is empty or not in SYCL
-  this->currentQueueBuffer->syncQueueWithHost(queuePtr);
-  return true;
-#endif // HIPSYCL_UNDERHOOD
 
-#ifdef ONEAPI_UNDERHOOD
-  // NOTE: use `ext_oneapi_empty` instead after
-  // the next official release of dpc++
+  // if we have the oneAPI extension available, only check for an empty queue here
+  // otherwise, synchronize
+#ifdef SYCL_EXT_ONEAPI_QUEUE_EMPTY
+  return queuePtr->ext_oneapi_empty();
+#else
   this->currentQueueBuffer->syncQueueWithHost(queuePtr);
   return true;
-#pragma message("switch to `ext_oneapi_empty` for the latest version of dpc++")
-  //return queuePtr->ext_oneapi_empty();
-#endif // ONEAPI_UNDERHOOD
+#endif
 }
