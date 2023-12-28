@@ -232,6 +232,18 @@ std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
   return info.str();
 }
 
+std::string ConcreteAPI::getApiName() {
+  return "CUDA";
+}
+
+std::string ConcreteAPI::getDeviceName(int deviceId) {
+  cudaDeviceProp property;
+  cudaGetDeviceProperties(&property, deviceId);
+  CHECK_ERR;
+
+  return property.name;
+}
+
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
 #ifdef PROFILING_ENABLED
   isFlagSet<DeviceSelected>(status);

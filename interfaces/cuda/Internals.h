@@ -8,6 +8,8 @@ namespace device {
 namespace internals {
 using deviceStreamT = cudaStream_t;
 
+constexpr static int DefaultBlockDim = 256;
+
 void checkErr(const std::string &file, int line);
 inline dim3 computeGrid1D(const dim3 &block, const size_t size) {
   int numBlocks = (size + block.x - 1) / block.x;

@@ -2,6 +2,7 @@ set(DEVICE_SOURCE_FILES device.cpp
         interfaces/sycl/Aux.cpp
         interfaces/sycl/Control.cpp
         interfaces/sycl/Copy.cpp
+        interfaces/sycl/Graphs.cpp
         interfaces/sycl/Memory.cpp
         interfaces/sycl/Streams.cpp
         interfaces/sycl/DeviceContext.cpp
@@ -33,6 +34,3 @@ else()
     target_link_libraries(device PRIVATE dpcpp::device_flags)
     target_compile_definitions(device PRIVATE ONEAPI_UNDERHOOD)
 endif()
-
-target_compile_options(device PRIVATE  "-O3")
-target_link_libraries(device PUBLIC stdc++fs)

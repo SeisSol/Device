@@ -11,7 +11,12 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <optional>
 
+
+#if defined(DEVICE_USE_GRAPH_CAPTURING) && defined(SYCL_EXT_ONEAPI_GRAPH)
+#define DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+#endif
 
 namespace device {
 class ConcreteAPI : public AbstractAPI {
@@ -46,6 +51,9 @@ public:
   void popStackMemory() override;
   std::string getMemLeaksReport() override;
 
+  std::string getApiName() override;
+  std::string getDeviceName(int deviceId) override;
+
   void copyTo(void *dst, const void *src, size_t count) override;
   void copyFrom(void *dst, const void *src, size_t count) override;
   void copyBetween(void *dst, const void *src, size_t count) override;
@@ -74,14 +82,12 @@ public:
   void joinCircularStreamsToDefault() override;
   bool isCircularStreamsJoinedWithDefault() override;
 
-  bool isCapableOfGraphCapturing() override { return false; };
-  void streamBeginCapture() override {};
-  void streamEndCapture() override {};
-  DeviceGraphHandle getLastGraphHandle() override {
-      return DeviceGraphHandle{};
-  };
-  void launchGraph(DeviceGraphHandle graphHandle) override {};
-  void syncGraph(DeviceGraphHandle graphHandle) override {};
+  bool isCapableOfGraphCapturing() override;
+  void streamBeginCapture() override;
+  void streamEndCapture() override;
+  DeviceGraphHandle getLastGraphHandle() override;
+  void launchGraph(DeviceGraphHandle graphHandle) override;
+  void syncGraph(DeviceGraphHandle graphHandle) override;
 
   void* createGenericStream() override;
   void destroyGenericStream(void* streamPtr) override;
@@ -103,6 +109,21 @@ private:
   DeviceCircularQueueBuffer *currentQueueBuffer;
   Statistics *currentStatistics;
   std::unordered_map<void *, size_t> *currentMemoryToSizeMap;
+
+#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+  struct GraphDetails {
+    std::optional<sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::executable>> instance;
+    sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::modifiable> graph;
+    cl::sycl::queue queue;
+    bool ready{false};
+  };
+#else
+  struct GraphDetails {
+    bool ready{false};
+  };
+#endif
+
+  std::vector<GraphDetails> graphs;
 
   void initDevices();
 

@@ -22,7 +22,6 @@ int main(int argc, char* argv[]) {
   return 0;
 }")
 
-
 if (NOT TARGET dpcpp::device_flags)
   add_library(dpcpp::device_flags INTERFACE IMPORTED)
   add_library(dpcpp::interface INTERFACE IMPORTED)
@@ -35,25 +34,34 @@ if (NOT TARGET dpcpp::device_flags)
 
   target_include_directories(dpcpp::interface INTERFACE ${_DPCPP_ROOT}/include
                                                         ${_DPCPP_ROOT}/include/sycl)
-  
-  if (NOT DEFINED DEVICE_ARCH)
-    message(WARNING "DEVICE_ARCH is not set. "
-                    "AOT and other platform specific details may be disabled")
-    set(_USE_DEFAULT_COMPILATION ON)
+
+  set(DPCPP_PREFERRED_DEVICE_TYPE "GPU" CACHE STRING "The preferred device type to let DPC++ compile for")
+  set(DPCPP_PREFERRED_DEVICE_TYPE_OPTIONS GPU CPU FPGA)
+  set_property(CACHE DPCPP_PREFERRED_DEVICE_TYPE PROPERTY STRINGS ${DPCPP_PREFERRED_DEVICE_TYPE_OPTIONS})
+
+  if(DEFINED ENV{PREFERRED_DEVICE_TYPE})
+    set(DPCPP_PREFERRED_DEVICE_TYPE "$ENV{PREFERRED_DEVICE_TYPE}" CACHE STRING "" FORCE)
   endif()
 
-  if("$ENV{PREFERRED_DEVICE_TYPE}" STREQUAL "FPGA")
-    message(NOTICE "FPGA is used as target device, compilation will take several hours to complete!")
+  if("${DPCPP_PREFERRED_DEVICE_TYPE}" STREQUAL "FPGA")
+    message(NOTICE "FPGA is used as target device, building may take a long time to complete.")
     set(_DPCPP_DEVICE_FLAGS -fsycl -fintelfpga)
     target_compile_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS} -fsycl-unnamed-lambda)
     target_link_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS} -Xshardware)
   
-  elseif("$ENV{PREFERRED_DEVICE_TYPE}" STREQUAL "GPU")
+  elseif("${DPCPP_PREFERRED_DEVICE_TYPE}" STREQUAL "GPU")
     if(${DEVICE_ARCH} MATCHES "sm_*")
       set(_DPCPP_DEVICE_FLAGS -fsycl
-                              -Xsycl-target-backend
+                              -Xsycl-target-backend=nvptx64-nvidia-cuda
                               --cuda-gpu-arch=${DEVICE_ARCH}
                               -fsycl-targets=nvptx64-nvidia-cuda)
+      target_compile_options(dpcpp::device_flags INTERFACE -std=c++17 ${_DPCPP_DEVICE_FLAGS})
+      target_link_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS})
+    elseif(${DEVICE_ARCH} MATCHES "gfx*")
+      set(_DPCPP_DEVICE_FLAGS -fsycl
+                              -Xsycl-target-backend=amdgcn-amd-amdhsa
+                              --offload-arch=${DEVICE_ARCH}
+                              -fsycl-targets=amdgcn-amd-amdhsa)
       target_compile_options(dpcpp::device_flags INTERFACE -std=c++17 ${_DPCPP_DEVICE_FLAGS})
       target_link_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS})
     else()
@@ -62,20 +70,16 @@ if (NOT TARGET dpcpp::device_flags)
       target_link_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS} -Xs -device ${DEVICE_ARCH})
     endif()
   
-  elseif("$ENV{PREFERRED_DEVICE_TYPE}" STREQUAL "CPU")
+  elseif("${DPCPP_PREFERRED_DEVICE_TYPE}" STREQUAL "CPU")
     set(_DPCPP_DEVICE_FLAGS -fsycl -fsycl-targets=spir64_x86_64)
     target_compile_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS} -fsycl-unnamed-lambda)
     target_link_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS} -Xs \"-march=${DEVICE_ARCH}\")
   
   else()
-    set(_USE_DEFAULT_COMPILATION ON)
-    message(WARNING "No device type specified for compilation(env. PREFERRED_DEVICE_TYPE), "
-                    "AOT and other platform specific details may be disabled")
-  endif()
-
-  if (_USE_DEFAULT_COMPILATION)
     target_compile_options(dpcpp::device_flags INTERFACE -fsycl -fsycl-unnamed-lambda)
     target_link_options(dpcpp::device_flags INTERFACE -fsycl)
+    message(WARNING "No device type specified for the build (variable DPCPP_PREFERRED_DEVICE_TYPE), "
+                    "AOT and other platform specific details may be disabled")
   endif()
   
   set(CMAKE_REQUIRED_FLAGS "-fsycl") 
