@@ -12,10 +12,19 @@ void QueueWrapper::synchronize() {
 }
 void QueueWrapper::dependency(QueueWrapper& other) {
   // improvising... Adding an empty event here, mimicking a CUDA-like event dependency
-  auto queueEvent = other.queue.submit([&](cl::sycl::handler& h) {});
+#ifdef SYCL_EXT_ONEAPI_ENQUEUE_BARRIER
+  auto queueEvent = other.queue.ext_oneapi_submit_barrier();
+  queue.ext_oneapi_submit_barrier({queueEvent});
+#else
+  // mimick generically using a cheap dummy task
+  auto queueEvent = other.queue.submit([&](cl::sycl::handler& h) {
+    h.single_task([=](){});
+  });
   queue.submit([&](cl::sycl::handler& h) {
     h.depends_on(queueEvent);
+    h.single_task([=](){});
   });
+#endif
 }
 
 DeviceCircularQueueBuffer::DeviceCircularQueueBuffer(
