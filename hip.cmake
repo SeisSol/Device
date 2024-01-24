@@ -1,4 +1,5 @@
-#Ensure that we have an set HIP_PATH
+
+# ensure that we have an set HIP_PATH
 if(NOT DEFINED HIP_PATH)
     if(NOT DEFINED ENV{HIP_PATH})
         set(HIP_PATH "/opt/rocm/hip" CACHE PATH "Path to which HIP has been installed")
@@ -7,10 +8,9 @@ if(NOT DEFINED HIP_PATH)
     endif()
 endif()
 
-#set the CMAKE_MODULE_PATH for the helper cmake files from HIP
-set(CMAKE_MODULE_PATH "${HIP_PATH}/cmake" ${CMAKE_MODULE_PATH})
+# set the CMAKE_MODULE_PATH for the helper cmake files from HIP
+set(CMAKE_MODULE_PATH "${HIP_PATH}/cmake" "${HIP_PATH}/lib/cmake/hip" ${CMAKE_MODULE_PATH})
 
-set(HIP_COMPILER hcc)
 find_package(HIP REQUIRED)
 
 # Can set different FLAGS for the compilers via HCC_OPTIONS and NVCC_OPTIONS keywords;
@@ -18,7 +18,6 @@ find_package(HIP REQUIRED)
 # Set the flags here, use them later
 # Only need NVCC at the time no AMD system to deploy to
 set(DEVICE_HIPCC)
-set(DEVICE_HCC)
 set(IS_NVCC_PLATFORM OFF)
 if (DEFINED ENV{HIP_PLATFORM})
     if ($ENV{HIP_PLATFORM} STREQUAL "nvidia")
@@ -59,7 +58,6 @@ set_source_files_properties(${DEVICE_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERT
 hip_reset_flags()
 hip_add_library(device SHARED ${DEVICE_SOURCE_FILES}
                        HIPCC_OPTIONS ${DEVICE_HIPCC}
-                       HCC_OPTIONS ${DEVICE_HCC}
                        NVCC_OPTIONS ${DEVICE_NVCC})
 
 set_property(TARGET device PROPERTY HIP_ARCHITECTURES OFF)
