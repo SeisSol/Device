@@ -54,20 +54,20 @@ if (NOT TARGET dpcpp::device_flags)
       set(_DPCPP_DEVICE_FLAGS -fsycl
                               -Xsycl-target-backend=nvptx64-nvidia-cuda
                               --cuda-gpu-arch=${DEVICE_ARCH}
-                              -fsycl-targets=nvptx64-nvidia-cuda)
-      target_compile_options(dpcpp::device_flags INTERFACE -std=c++17 ${_DPCPP_DEVICE_FLAGS})
+                              -fsycl-targets=nvidia_gpu_${DEVICE_ARCH})
+      target_compile_options(dpcpp::device_flags INTERFACE -std=c++17 ${_DPCPP_DEVICE_FLAGS} -fsycl-unnamed-lambda)
       target_link_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS})
     elseif(${DEVICE_ARCH} MATCHES "gfx*")
       set(_DPCPP_DEVICE_FLAGS -fsycl
                               -Xsycl-target-backend=amdgcn-amd-amdhsa
                               --offload-arch=${DEVICE_ARCH}
-                              -fsycl-targets=amdgcn-amd-amdhsa)
-      target_compile_options(dpcpp::device_flags INTERFACE -std=c++17 ${_DPCPP_DEVICE_FLAGS})
+                              -fsycl-targets=amd_gpu_${DEVICE_ARCH})
+      target_compile_options(dpcpp::device_flags INTERFACE -std=c++17 ${_DPCPP_DEVICE_FLAGS} -fsycl-unnamed-lambda)
       target_link_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS})
     else()
-      set(_DPCPP_DEVICE_FLAGS -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice)
-      target_compile_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS} -fsycl-unnamed-lambda)
-      target_link_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS} -Xs -device ${DEVICE_ARCH})
+      set(_DPCPP_DEVICE_FLAGS -fsycl -fsycl-targets=intel_gpu_${DEVICE_ARCH})
+      target_compile_options(dpcpp::device_flags INTERFACE -std=c++17 ${_DPCPP_DEVICE_FLAGS} -fsycl-unnamed-lambda)
+      target_link_options(dpcpp::device_flags INTERFACE ${_DPCPP_DEVICE_FLAGS})
     endif()
   
   elseif("${DPCPP_PREFERRED_DEVICE_TYPE}" STREQUAL "CPU")
