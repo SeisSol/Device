@@ -8,6 +8,8 @@
 #include "interfaces/sycl/SyclWrappedAPI.h"
 #elif DEVICE_HIPSYCL_LANG
 #include "interfaces/sycl/SyclWrappedAPI.h"
+#elif DEVICE_OMPTARGET_LANG
+#include "interfaces/omptarget/OMPTargetWrappedAPI.h"
 #else
 #error "Unknown interface for the device wrapper"
 #endif
