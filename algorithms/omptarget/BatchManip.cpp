@@ -11,7 +11,7 @@ namespace device {
                                      unsigned numElements,
                                      void* streamPtr) {
     int* stream = reinterpret_cast<int*>(streamPtr);
-    #pragma omp target teams distribute depend(inout: stream) nowait
+    #pragma omp target teams distribute depend(inout: stream[0]) nowait
     for (size_t i = 0; i < numElements; ++i) {
         #pragma omp parallel
         {
@@ -31,7 +31,7 @@ namespace device {
                                          unsigned numElements,
                                          void* streamPtr) {
     int* stream = reinterpret_cast<int*>(streamPtr);
-    #pragma omp target teams distribute depend(inout: stream) nowait
+    #pragma omp target teams distribute depend(inout: stream[0]) nowait
     for (size_t i = 0; i < numElements; ++i) {
         #pragma omp parallel
         {
@@ -51,7 +51,7 @@ namespace device {
                                       bool clean,
                                       void* streamPtr) {
     int* stream = reinterpret_cast<int*>(streamPtr);
-    #pragma omp target teams distribute depend(inout: stream) nowait
+    #pragma omp target teams distribute depend(inout: stream[0]) nowait
     for (size_t i = 0; i < numElements; ++i) {
         #pragma omp parallel
         {
@@ -80,7 +80,7 @@ namespace device {
 
 void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t numElements, void* streamPtr) {
   int* stream = reinterpret_cast<int*>(streamPtr);
-    #pragma omp target teams distribute depend(inout: stream) nowait
+    #pragma omp target teams distribute depend(inout: stream[0]) nowait
     for (size_t i = 0; i < numElements; ++i) {
         #pragma omp parallel
         {
@@ -101,7 +101,7 @@ void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t n
                                         size_t numElements,
                                         void* streamPtr) {
                                             int* stream = reinterpret_cast<int*>(streamPtr);
-    #pragma omp target teams distribute depend(inout: stream) nowait
+    #pragma omp target teams distribute depend(inout: stream[0]) nowait
     for (size_t i = 0; i < numElements; ++i) {
         #pragma omp parallel
         {
@@ -143,7 +143,7 @@ void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t n
                                         size_t numElements,
                                         void* streamPtr) {
                                             int* stream = reinterpret_cast<int*>(streamPtr);
-    #pragma omp target teams distribute depend(inout: stream) nowait
+    #pragma omp target teams distribute depend(inout: stream[0]) nowait
     for (size_t i = 0; i < numElements; ++i) {
         #pragma omp parallel
         {

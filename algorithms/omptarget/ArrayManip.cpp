@@ -9,7 +9,7 @@ template <typename T> void Algorithms::scaleArray(T *devArray,
                                                   const size_t numElements,
                                                   void* streamPtr) {
                                                     int* stream = reinterpret_cast<int*>(streamPtr);
-  #pragma omp target teams distribute parallel for depend(inout: stream) nowait
+  #pragma omp target teams distribute parallel for depend(inout: stream[0]) nowait
     for (size_t i = 0; i < numElements; ++i) {
             devArray[i] *= scalar;
     }
@@ -21,7 +21,7 @@ template void Algorithms::scaleArray(char *devArray, char scalar, const size_t n
 
 template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, const size_t numElements, void* streamPtr) {
     int* stream = reinterpret_cast<int*>(streamPtr);
-  #pragma omp target teams distribute parallel for depend(inout: stream) nowait
+  #pragma omp target teams distribute parallel for depend(inout: stream[0]) nowait
     for (size_t i = 0; i < numElements; ++i) {
             devArray[i] = scalar;
     }
@@ -33,7 +33,7 @@ template void Algorithms::fillArray(char *devArray, char scalar, const size_t nu
 
 void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr) {
     int* stream = reinterpret_cast<int*>(streamPtr);
-  #pragma omp target teams distribute parallel for depend(inout: stream) nowait
+  #pragma omp target teams distribute parallel for depend(inout: stream[0]) nowait
     for (size_t i = 0; i < size; ++i) {
             if (clean) {
             ptr[i] = 0;
@@ -55,7 +55,7 @@ void Algorithms::incrementalAdd(
   size_t numElements,
   void* streamPtr) {
 int* stream = reinterpret_cast<int*>(streamPtr);
-   #pragma omp target teams distribute parallel for depend(inout: stream) nowait
+   #pragma omp target teams distribute parallel for depend(inout: stream[0]) nowait
     for (size_t i = 0; i < numElements; ++i) {
         out[i] = base + i * increment;
     }
