@@ -3,6 +3,7 @@
 #include "utils/logger.h"
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <sstream>
 
 
@@ -144,4 +145,20 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
     cudaGetLastError();
     return false;
   }
+}
+
+void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
+  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+  cudaEvent_t event = static_cast<cudaEvent_t>(eventPtr);
+  cudaStreamWaitEvent(stream, event, CUDA__TODO);
+  CHECK_ERR;
+}
+
+void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
+  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+  auto callback = [function](void*) {
+    function();
+  };
+  cudaLaunchHostFunc(stream, callback, nullptr);
+  CHECK_ERR;
 }

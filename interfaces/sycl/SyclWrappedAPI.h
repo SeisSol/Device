@@ -53,6 +53,7 @@ public:
 
   std::string getApiName() override;
   std::string getDeviceName(int deviceId) override;
+  std::string getPciAddress(int deviceId) override;
 
   void copyTo(void *dst, const void *src, size_t count) override;
   void copyFrom(void *dst, const void *src, size_t count) override;
@@ -83,16 +84,24 @@ public:
   bool isCircularStreamsJoinedWithDefault() override;
 
   bool isCapableOfGraphCapturing() override;
-  void streamBeginCapture() override;
+  void streamBeginCapture(std::vector<void*>& streamPtrs) override;
   void streamEndCapture() override;
   DeviceGraphHandle getLastGraphHandle() override;
-  void launchGraph(DeviceGraphHandle graphHandle) override;
-  void syncGraph(DeviceGraphHandle graphHandle) override;
+  void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
 
   void* createGenericStream() override;
   void destroyGenericStream(void* streamPtr) override;
   void syncStreamWithHost(void* streamPtr) override;
   bool isStreamWorkDone(void* streamPtr) override;
+  void syncStreamWithEvent(void* streamPtr, void* eventPtr) override;
+  void streamHostFunction(void* streamPtr, const std::function<void()>& function) override;
+
+  void* createEvent() override;
+  void destroyEvent(void* eventPtr) override;
+  void syncEventWithHost(void* eventPtr) override;
+  bool isEventCompleted(void* eventPtr) override;
+  void recordEventOnHost(void* eventPtr) override;
+  void recordEventOnStream(void* eventPtr, void* streamPtr) override;
 
   void initialize() override;
   void finalize() override;
@@ -100,7 +109,7 @@ public:
   void popLastProfilingMark() override;
 
 private:
-  std::vector<DeviceContext *> availableDevices;
+  std::vector<DeviceContext*> availableDevices;
 
   cl::sycl::queue *currentDefaultQueue;
   bool isCircularStreamsForked{false};
@@ -114,7 +123,6 @@ private:
   struct GraphDetails {
     std::optional<sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::executable>> instance;
     sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::modifiable> graph;
-    cl::sycl::queue queue;
     bool ready{false};
   };
 #else

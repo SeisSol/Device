@@ -241,6 +241,16 @@ std::string ConcreteAPI::getDeviceName(int deviceId) {
   return property.name;
 }
 
+std::string ConcreteAPI::getPciAddress(int deviceId) {
+  hipDeviceProp_t property;
+  hipGetDeviceProperties(&property, deviceId);
+  CHECK_ERR;
+
+  std::ostringstream str;
+  str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":" << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
+  return str.str();
+}
+
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
 #ifdef PROFILING_ENABLED
   isFlagSet<DeviceSelected>(status);

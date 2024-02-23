@@ -75,16 +75,8 @@ void ConcreteAPI::copy2dArrayFrom(void *dst,
 void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void* devPtr, size_t count, void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = (streamPtr == nullptr) ? 0 : (static_cast<hipStream_t>(streamPtr));
-#ifndef NDEBUG
-  auto itr = std::find(circularStreamBuffer.begin(), circularStreamBuffer.end(), streamPtr);
-  if (itr == circularStreamBuffer.end()) {
-    logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
-  }
-#endif
-  //hipMemPrefetchAsync - Not supported by HIP
-  if(type == Destination::CurrentDevice){
-    hipMemcpyAsync((void*) devPtr, devPtr, count, hipMemcpyHostToDevice, stream);
-  }else{
-    hipMemcpyAsync((void*) devPtr, devPtr, count, hipMemcpyDeviceToHost, stream);
-  }
+  hipMemPrefetchAsync(devPtr,
+                       count,
+                       type == Destination::CurrentDevice ? currentDeviceId : hipCpuDeviceId,
+                       stream);
 }

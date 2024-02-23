@@ -172,6 +172,16 @@ std::string ConcreteAPI::getDeviceName(int deviceId) {
   return device.get_info<cl::sycl::info::device::name>();
 }
 
+std::string ConcreteAPI::getPciAddress(int deviceId) {
+#ifdef SYCL_EXT_INTEL_DEVICE_INFO
+  auto device = this->availableDevices[deviceId]->queueBuffer.getDefaultQueue().get_device();
+
+  return device.get_info<sycl::ext::intel::info::device::pci_address>();
+#else
+  return "(unknown)";
+#endif
+}
+
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
   // ToDo: check if there is some similar functionality in VTUNE
 }

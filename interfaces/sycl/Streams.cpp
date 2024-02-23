@@ -93,3 +93,19 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   return true;
 #endif
 }
+
+void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
+  auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
+
+  queuePtr->submit([&](cl::sycl::handler& h) {
+#ifdef HIPSYCL_EXT_ENQUEUE_CUSTOM_OPERATION
+    h.hipSYCL_enqueue_custom_operation([&](auto&) {
+      function();
+    });
+#else
+    h.host_task([&](auto&) {
+      function();
+    });
+#endif
+  });
+}

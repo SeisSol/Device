@@ -46,12 +46,10 @@ void ConcreteAPI::streamBeginCapture() {
   GraphDetails &graphInstance = graphs.back();
   graphInstance.ready = false;
 
-  hipStreamCreateWithFlags(&graphInstance.graphExecutionStream, hipStreamNonBlocking); CHECK_ERR;
-  hipEventCreate(&(graphInstance.graphCaptureEvent)); CHECK_ERR;
-
-  hipStreamBeginCapture(defaultStream, hipStreamCaptureModeThreadLocal);
-
-  hipLaunchKernelGGL(device::graph_capturing::kernel_firstCapturingKernel, dim3(1), dim3(1), 0, defaultStream);
+  for (void* streamPtr : streamPtrs) {
+    hipStreamBeginCapture(reinterpret_cast<hipStream_t>(streamPtr), hipStreamCaptureModeThreadLocal);
+    CHECK_ERR;
+  }
   CHECK_ERR;
 #endif
 }
@@ -66,7 +64,7 @@ void ConcreteAPI::streamEndCapture() {
   hipStreamEndCapture(defaultStream, &(graphInstance.graph));
   CHECK_ERR;
 
-  hipGraphInstantiate(&(graphInstance.instance), graphInstance.graph, NULL, NULL, 0);
+  hipGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0);
   CHECK_ERR;
 
   graphInstance.ready = true;
@@ -85,23 +83,12 @@ DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
 }
 
 
-void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle) {
+void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   isFlagSet<CircularStreamBufferInitialized>(status);
   assert(graphHandle.isInitialized() && "a graph must be captured before launching");
   auto &graphInstance = graphs[graphHandle.getGraphId()];
-  hipGraphLaunch(graphInstance.instance, graphInstance.graphExecutionStream);
-  CHECK_ERR;
-#endif
-}
-
-
-void ConcreteAPI::syncGraph(DeviceGraphHandle graphHandle) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  assert(graphHandle.isInitialized() && "a graph must be captured before synchronizing");
-  auto &graphInstance = graphs[graphHandle.getGraphId()];
-  hipStreamSynchronize(graphInstance.graphExecutionStream);
+  hipGraphLaunch(graphInstance.instance, reinterpret_cast<hipStream_t>(streamPtr));
   CHECK_ERR;
 #endif
 }

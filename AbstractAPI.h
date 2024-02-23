@@ -38,6 +38,7 @@ struct AbstractAPI {
 
   virtual std::string getApiName() = 0;
   virtual std::string getDeviceName(int deviceId) = 0;
+  virtual std::string getPciAddress(int deviceId) = 0;
 
   virtual void allocateStackMem() = 0;
   virtual void *allocGlobMem(size_t size) = 0;
@@ -81,16 +82,25 @@ struct AbstractAPI {
   virtual bool isCircularStreamsJoinedWithDefault() = 0;
 
   virtual bool isCapableOfGraphCapturing() = 0;
-  virtual void streamBeginCapture() = 0;
+  virtual void streamBeginCapture(std::vector<void*>& streamPtrs) = 0;
   virtual void streamEndCapture() = 0;
   virtual DeviceGraphHandle getLastGraphHandle() = 0;
-  virtual void launchGraph(DeviceGraphHandle graphHandle) = 0;
-  virtual void syncGraph(DeviceGraphHandle graphHandle) = 0;
+  virtual void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) = 0;
 
   virtual void* createGenericStream() = 0;
   virtual void destroyGenericStream(void* streamPtr) = 0;
   virtual void syncStreamWithHost(void* streamPtr) = 0;
   virtual bool isStreamWorkDone(void* streamPtr) = 0;
+  virtual void syncStreamWithEvent(void* streamPtr, void* eventPtr) = 0;
+  virtual void streamHostFunction(void* streamPtr, const std::function<void()>& function) = 0;
+
+  virtual void* createEvent() = 0;
+  virtual void destroyEvent(void* eventPtr) = 0;
+  virtual void syncEventWithHost(void* eventPtr) = 0;
+  virtual bool isEventCompleted(void* eventPtr) = 0;
+  virtual void recordEventOnHost(void* eventPtr) = 0;
+  virtual void recordEventOnStream(void* eventPtr, void* streamPtr) = 0;
+  virtual bool resetEvent(void* eventPtr) = 0;
 
   virtual void initialize() = 0;
   virtual void finalize() = 0;
