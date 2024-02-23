@@ -1,6 +1,7 @@
 #include "utils/logger.h"
 #include "utils/env.h"
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 #include "hip/hip_runtime.h"

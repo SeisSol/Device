@@ -150,7 +150,7 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
 void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
   cudaEvent_t event = static_cast<cudaEvent_t>(eventPtr);
-  cudaStreamWaitEvent(stream, event, CUDA__TODO);
+  cudaStreamWaitEvent(stream, event);
   CHECK_ERR;
 }
 

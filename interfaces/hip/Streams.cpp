@@ -150,15 +150,15 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
-  hipStreamWaitEvent(stream, event, CUDA__TODO);
+  hipStreamWaitEvent(stream, event);
   CHECK_ERR;
 }
 
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
-  auto callback = [function](void*) {
+  auto callback = [function](hipStream_t, hipError_t, void*) {
     function();
   };
-  hipLaunchHostFunc(stream, callback, nullptr);
+  hipStreamAddCallback(stream, callback, nullptr, 0);
   CHECK_ERR;
 }

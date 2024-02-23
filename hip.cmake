@@ -42,6 +42,7 @@ set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Aux.cpp
                         interfaces/hip/Control.cpp
                         interfaces/hip/Copy.cpp
+                        interfaces/hip/Events.cpp
                         interfaces/hip/Internals.cpp
                         interfaces/hip/Memory.cpp
                         interfaces/hip/Streams.cpp

@@ -2,6 +2,7 @@
 #include "utils/env.h"
 #include <cuda.h>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 
@@ -136,12 +137,6 @@ void ConcreteAPI::finalize() {
       CHECK_ERR;
 
       cudaGraphDestroy(graphInstance.graph);
-      CHECK_ERR;
-
-      cudaStreamDestroy(graphInstance.graphExecutionStream);
-      CHECK_ERR;
-
-      cudaEventDestroy(graphInstance.graphCaptureEvent);
       CHECK_ERR;
     }
     graphs.clear();
