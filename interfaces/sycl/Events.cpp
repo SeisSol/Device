@@ -12,7 +12,7 @@ using namespace device;
 
 namespace {
 struct Event {
-    std::optional<sycl::Event> syclEvent;
+    std::optional<cl::sycl::Event> syclEvent;
 };
 } // namespace
 
@@ -39,17 +39,17 @@ bool ConcreteAPI::isEventCompleted(void* eventPtr) {
 
 void ConcreteAPI::recordEventOnHost(void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
-  event->syclEvent = std::make_optional<sycl::event>();
+  event->syclEvent = std::make_optional<cl::sycl::event>();
 }
 
 void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
-  auto* queue = static_cast<sycl::Queue*>(streamPtr);
+  auto* queue = static_cast<cl::sycl::Queue*>(streamPtr);
   auto* event = static_cast<Event*>(eventPtr);
 
 #ifdef SYCL_EXT_ONEAPI_ENQUEUE_BARRIER
-  event->syclEvent = std::make_optional<sycl::event>(queue->ext_oneapi_submit_barrier());
+  event->syclEvent = std::make_optional<cl::sycl::event>(queue->ext_oneapi_submit_barrier());
 #else
-  event->syclEvent = std::make_optional<sycl::event>(queue->submit([&](cl::sycl::handler& h) {
+  event->syclEvent = std::make_optional<cl::sycl::event>(queue->submit([&](cl::sycl::handler& h) {
     h.single_task([=](){});
   }));
 #endif

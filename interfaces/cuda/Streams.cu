@@ -154,11 +154,17 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   CHECK_ERR;
 }
 
+namespace {
+static void streamCallback(void* data) {
+  auto* function = reinterpret_cast<std::function<void()>*>(data);
+  (*function)();
+  delete function;
+}
+} // namespace
+
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
-  auto callback = [function](void*) {
-    function();
-  };
-  cudaLaunchHostFunc(stream, callback, nullptr);
+  auto* functionData = new std::function<void()>(function);
+  cudaLaunchHostFunc(stream, &streamCallback, functionData);
   CHECK_ERR;
 }
