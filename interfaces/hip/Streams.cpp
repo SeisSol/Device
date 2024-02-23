@@ -150,7 +150,7 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
-  hipStreamWaitEvent(stream, event);
+  hipStreamWaitEvent(stream, event, 0);
   CHECK_ERR;
 }
 

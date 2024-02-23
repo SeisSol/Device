@@ -12,7 +12,7 @@ using namespace device;
 
 namespace {
 struct Event {
-    std::optional<cl::sycl::Event> syclEvent;
+    std::optional<cl::sycl::event> syclEvent;
 };
 } // namespace
 
@@ -43,7 +43,7 @@ void ConcreteAPI::recordEventOnHost(void* eventPtr) {
 }
 
 void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
-  auto* queue = static_cast<cl::sycl::Queue*>(streamPtr);
+  auto* queue = static_cast<cl::sycl::queue*>(streamPtr);
   auto* event = static_cast<Event*>(eventPtr);
 
 #ifdef SYCL_EXT_ONEAPI_ENQUEUE_BARRIER
