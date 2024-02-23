@@ -5,7 +5,10 @@
 #include <sstream>
 #include <string>
 #include "hip/hip_runtime.h"
+
+#ifdef PROFILING_ENABLED
 #include "roctx.h"
+#endif
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
