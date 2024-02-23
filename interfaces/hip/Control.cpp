@@ -4,6 +4,7 @@
 #include <sstream>
 #include <string>
 #include "hip/hip_runtime.h"
+#include "roctx.h"
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
@@ -252,22 +253,16 @@ std::string ConcreteAPI::getPciAddress(int deviceId) {
 }
 
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
+  // colors are not yet supported here
 #ifdef PROFILING_ENABLED
   isFlagSet<DeviceSelected>(status);
-  nvtxEventAttributes_t eventAttrib = {0};
-  eventAttrib.version = NVTX_VERSION;
-  eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
-  eventAttrib.colorType = NVTX_COLOR_ARGB;
-  eventAttrib.color = static_cast<uint32_t>(color);
-  eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
-  eventAttrib.message.ascii = name.c_str();
-  nvtxRangePushEx(&eventAttrib);
+  roctxRangePush(name.c_str());
 #endif
 }
 
 void ConcreteAPI::popLastProfilingMark() {
 #ifdef PROFILING_ENABLED
   isFlagSet<DeviceSelected>(status);
-  nvtxRangePop();
+  roctxRangePop();
 #endif
 }

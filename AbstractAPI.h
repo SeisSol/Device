@@ -4,7 +4,9 @@
 #include "DataTypes.h"
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <string>
+#include <vector>
 
 namespace device {
 
@@ -100,7 +102,6 @@ struct AbstractAPI {
   virtual bool isEventCompleted(void* eventPtr) = 0;
   virtual void recordEventOnHost(void* eventPtr) = 0;
   virtual void recordEventOnStream(void* eventPtr, void* streamPtr) = 0;
-  virtual bool resetEvent(void* eventPtr) = 0;
 
   virtual void initialize() = 0;
   virtual void finalize() = 0;
