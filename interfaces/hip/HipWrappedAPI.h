@@ -122,6 +122,7 @@ private:
   struct GraphDetails {
     hipGraph_t graph;
     hipGraphExec_t instance;
+    void* streamPtr;
     bool ready{false};
   };
   std::vector<GraphDetails> graphs;

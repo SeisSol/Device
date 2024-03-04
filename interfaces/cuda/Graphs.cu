@@ -46,10 +46,10 @@ void ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
   GraphDetails &graphInstance = graphs.back();
   graphInstance.ready = false;
 
-  for (void* streamPtr : streamPtrs) {
-    cudaStreamBeginCapture(reinterpret_cast<cudaStream_t>(streamPtr), cudaStreamCaptureModeThreadLocal);
-    CHECK_ERR;
-  }
+  graphInstance.streamPtr = streamPtrs[0];
+
+  cudaStreamBeginCapture(static_cast<cudaStream_t>(streamPtrs[0]), cudaStreamCaptureModeThreadLocal);
+  CHECK_ERR;
 #endif
 }
 
@@ -60,7 +60,7 @@ void ConcreteAPI::streamEndCapture() {
   assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
 
   auto& graphInstance = graphs.back();
-  cudaStreamEndCapture(defaultStream, &(graphInstance.graph));
+  cudaStreamEndCapture(static_cast<cudaStream_t>(graphInstance.streamPtr), &(graphInstance.graph));
   CHECK_ERR;
 
   cudaGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0);
