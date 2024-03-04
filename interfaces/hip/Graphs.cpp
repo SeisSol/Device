@@ -36,7 +36,7 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 }
 
 
-void ConcreteAPI::streamBeginCapture() {
+void ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   isFlagSet<CircularStreamBufferInitialized>(status);
   assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
