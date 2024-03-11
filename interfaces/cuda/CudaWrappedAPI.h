@@ -123,6 +123,7 @@ private:
   struct GraphDetails {
     cudaGraph_t graph;
     cudaGraphExec_t instance;
+    void* streamPtr;
     bool ready{false};
   };
   std::vector<GraphDetails> graphs;

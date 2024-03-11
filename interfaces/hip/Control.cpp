@@ -142,12 +142,6 @@ void ConcreteAPI::finalize() {
 
       hipGraphDestroy(graphInstance.graph);
       CHECK_ERR;
-
-      hipStreamDestroy(graphInstance.graphExecutionStream);
-      CHECK_ERR;
-
-      hipEventDestroy(graphInstance.graphCaptureEvent);
-      CHECK_ERR;
     }
     graphs.clear();
 
