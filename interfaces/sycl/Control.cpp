@@ -162,7 +162,7 @@ std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
   return info.str();
 }
 
-bool isUnifiedMemoryDefault() {
+bool ConcreteAPI::isUnifiedMemoryDefault() {
   // suboptimal (i.e. we'd need to query if USM needs to be migrated or not), but there's probably nothing better for now
   auto device = this->availableDevices[this->currentDeviceId]->queueBuffer.getDefaultQueue().get_device();
   return device.has<cl::sycl::aspect::usm_system_allocations>();
