@@ -162,6 +162,11 @@ std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
   return info.str();
 }
 
+bool isUnifiedMemoryDefault() {
+  // suboptimal (i.e. we'd need to query if USM needs to be migrated or not), but there's probably nothing better for now
+  return device.has<cl::sycl::aspect::usm_system_allocations>();
+}
+
 std::string ConcreteAPI::getApiName() {
   return "SYCL";
 }

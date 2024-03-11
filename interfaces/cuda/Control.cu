@@ -30,7 +30,15 @@ void ConcreteAPI::setDevice(int deviceId) {
   cudaFree(nullptr);
   CHECK_ERR;
 
+  int result;
+  cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, currentDeviceId);
+  usmDefault = result != 0;
+
   status[StatusID::DeviceSelected] = true;
+}
+
+bool ConcreteAPI::isUnifiedMemoryDefault() {
+  return usmDefault;
 }
 
 void ConcreteAPI::initialize() {

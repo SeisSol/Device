@@ -99,12 +99,16 @@ public:
   void putProfilingMark(const std::string &name, ProfilingColors color) override;
   void popLastProfilingMark() override;
 
+  bool isUnifiedMemoryDefault() override;
+
 private:
   void createCircularStreamAndEvents();
 
   device::StatusT status{false};
   int currentDeviceId{-1};
   bool allowedConcurrentManagedAccess{false};
+  
+  bool usmDefault{false};
 
   cudaStream_t defaultStream{nullptr};
   cudaEvent_t defaultStreamEvent{};

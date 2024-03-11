@@ -30,7 +30,16 @@ void ConcreteAPI::setDevice(int deviceId) {
   hipFree(nullptr);
   CHECK_ERR;
 
+  int result;
+  hipDeviceGetAttribute(&result, hipDeviceAttributeDirectManagedMemAccessFromHost, currentDeviceId);
+  CHECK_ERR;
+  usmDefault = result != 0;
+
   status[StatusID::DeviceSelected] = true;
+}
+
+bool ConcreteAPI::isUnifiedMemoryDefault() {
+  return usmDefault;
 }
 
 void ConcreteAPI::initialize() {

@@ -103,6 +103,8 @@ struct AbstractAPI {
   virtual void recordEventOnHost(void* eventPtr) = 0;
   virtual void recordEventOnStream(void* eventPtr, void* streamPtr) = 0;
 
+  virtual bool isUnifiedMemoryDefault() = 0;
+
   virtual void initialize() = 0;
   virtual void finalize() = 0;
   virtual void putProfilingMark(const std::string &name, ProfilingColors color) = 0;

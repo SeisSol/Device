@@ -108,6 +108,8 @@ public:
   void putProfilingMark(const std::string &name, ProfilingColors color) override;
   void popLastProfilingMark() override;
 
+  bool isUnifiedMemoryDefault() override;
+
 private:
   std::vector<DeviceContext*> availableDevices;
 
