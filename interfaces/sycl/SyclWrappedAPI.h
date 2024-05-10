@@ -47,9 +47,15 @@ public:
   void *allocPinnedMem(size_t size) override;
   char *getStackMemory(size_t requestedBytes) override;
   void freeMem(void *devPtr) override;
+  void freeGlobMem(void *devPtr) override;
+  void freeUnifiedMem(void *devPtr) override;
   void freePinnedMem(void *devPtr) override;
   void popStackMemory() override;
   std::string getMemLeaksReport() override;
+
+  void pinMemory(void* ptr, size_t size) override;
+  void unpinMemory(void* ptr) override;
+  void* devicePointer(void* ptr) override;
 
   std::string getApiName() override;
   std::string getDeviceName(int deviceId) override;
