@@ -163,7 +163,7 @@ static void streamCallback(hipStream_t, hipError_t, void* data) {
 } // namespace
 
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
-  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+  hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   auto* functionData = new std::function<void()>(function);
   hipStreamAddCallback(stream, streamCallback, functionData, 0);
   CHECK_ERR;
