@@ -48,9 +48,15 @@ struct AbstractAPI {
   virtual void *allocPinnedMem(size_t size) = 0;
   virtual char *getStackMemory(size_t requestedBytes) = 0;
   virtual void freeMem(void *devPtr) = 0;
+  virtual void freeGlobMem(void *devPtr) = 0;
+  virtual void freeUnifiedMem(void *devPtr) = 0;
   virtual void freePinnedMem(void *devPtr) = 0;
   virtual void popStackMemory() = 0;
   virtual std::string getMemLeaksReport() = 0;
+
+  virtual void pinMemory(void* ptr, size_t size) = 0;
+  virtual void unpinMemory(void* ptr) = 0;
+  virtual void* devicePointer(void* ptr) = 0;
 
   virtual void copyTo(void *dst, const void *src, size_t count) = 0;
   virtual void copyFrom(void *dst, const void *src, size_t count) = 0;
