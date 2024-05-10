@@ -32,7 +32,7 @@ void* ConcreteAPI::allocUnifiedMem(size_t size) {
 void* ConcreteAPI::allocPinnedMem(size_t size) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
-  hipHostMalloc(&devPtr, size, hipHostAllocDefault); CHECK_ERR;
+  hipHostMalloc(&devPtr, size, hipHostMallocDefault); CHECK_ERR;
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
   return devPtr;
