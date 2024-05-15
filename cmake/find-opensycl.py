@@ -64,7 +64,7 @@ def get_include_dir():
   print(include_dir, end = '')
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser(description='Extracts info from opensycl')
+  parser = argparse.ArgumentParser(description='Extracts info from AdaptiveCpp')
   parser.add_argument('-t', '--target', action='store_true', help='get default target')
   parser.add_argument('-i', '--include_dir', action='store_true', help='get include dir')
   parser.add_argument('-a', '--arch', type=str, help='architecture name')

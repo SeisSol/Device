@@ -6,7 +6,7 @@
 #include "HipWrappedAPI.h"
 #elif DEVICE_ONEAPI_LANG
 #include "interfaces/sycl/SyclWrappedAPI.h"
-#elif DEVICE_OPENSYCL_LANG
+#elif DEVICE_ACPP_LANG
 #include "interfaces/sycl/SyclWrappedAPI.h"
 #else
 #error "Unknown interface for the device wrapper"

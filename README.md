@@ -12,9 +12,9 @@ The folder structure sets up like this:
 
 ## Current implementations
 Currently, there are three implementations available
-* Nvidia's C CUDA
-* AMD's HIP
-* SYCL implemented by Intel's OneAPI and Open SYCL (https://github.com/OpenSYCL/OpenSYCL.git)
+* Nvidia CUDA
+* AMD HIP
+* SYCL implemented by Intel OneAPI and AdaptiveCpp (https://github.com/AdaptiveCpp/AdaptiveCpp.git)
 
 ## Environment Variables
 
@@ -53,10 +53,10 @@ If you want to run the examples, follow the instructions in the belonging packag
 * If `PREFERRED_DEVICE_TYPE` was not specified on build but before running an application, the JIT compiler will generate the kernels and allows switching the device type at runtime
 * Complete example call: `export PREFERRED_DEVICE_TYPE=GPU` and `cmake .. -DDEVICE_BACKEND:STRING=oneapi -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=dg1`
 
-### Device options for Open SYCL
-* use `-DDEVICE_BACKEND:STRING=opensycl` to build for Open SYCL
-* Open SYCL does currently not require the definition of a sub architecture, but it has to be specified in the cmake
-*  Complete example call: `cmake .. -DDEVICE_BACKEND:STRING=opensycl -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=dg1`
+### Device options for AdaptiveCpp
+* use `-DDEVICE_BACKEND:STRING=acpp` to build for AdaptiveCpp
+* AdaptiveCpp does currently not require the definition of a sub architecture, but it has to be specified in the cmake
+*  Complete example call: `cmake .. -DDEVICE_BACKEND:STRING=acpp -DREAL_SIZE_IN_BYTES=4 -DDEVICE_ARCH=dg1`
 
 ## Add another API
 * Extend the CMakeLists.txt with the new API

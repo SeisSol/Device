@@ -9,7 +9,7 @@ set(REAL_SIZE_IN_BYTES "8" CACHE STRING "size of the floating point data type")
 set_property(CACHE REAL_SIZE_IN_BYTES PROPERTY STRINGS "8" "4")
 
 set(DEVICE_BACKEND "cuda" CACHE STRING "type of an interface")
-set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "cuda" "hip" "oneapi" "opensycl")
+set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "cuda" "hip" "oneapi" "acpp")
 
 set(DEVICE_ARCH "sm_60" CACHE STRING "model of Streaming Multiprocessor")
 set(DEVICE_ARCH_OPTIONS "sm_50" "sm_60" "sm_70" "sm_71" "sm_75" "sm_80" "sm_86"

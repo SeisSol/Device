@@ -12,7 +12,7 @@ set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
 set(DEVICE_ARCH ${SM})
 
 set(DEVICE_BACKEND "cuda" CACHE STRING "type of an interface")
-set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "cuda" "hip" "oneapi" "opensycl")
+set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "cuda" "hip" "oneapi" "acpp")
 
 set(REAL_SIZE_IN_BYTES "8" CACHE STRING "size of the floating point data type")
 set_property(CACHE REAL_SIZE_IN_BYTES PROPERTY STRINGS "8" "4")
