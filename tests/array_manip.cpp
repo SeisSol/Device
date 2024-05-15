@@ -6,12 +6,11 @@
 using namespace device;
 using namespace ::testing;
 
-class ArrayManips : public BaseTestSuite {
+class ArrayManip : public BaseTestSuite {
   using BaseTestSuite::BaseTestSuite;
 };
 
-TEST_F(ArrayManips, fill) {
-
+TEST_F(ArrayManip, fill) {
   const int N = 100;
   int *arr = (int *)device->api->allocGlobMem(N * sizeof(int));
   int scalar = 502;
@@ -19,7 +18,9 @@ TEST_F(ArrayManips, fill) {
   device->algorithms.fillArray(arr, scalar, N, device->api->getDefaultStream());
 
   std::vector<int> hostVector(N, 0);
-  device->api->copyFrom(&hostVector[0], arr, N * sizeof(int));
+  device->api->copyFromAsync(&hostVector[0], arr, N * sizeof(int), device->api->getDefaultStream());
+
+  device->api->syncDefaultStreamWithHost();
 
   for (auto &i : hostVector) {
     EXPECT_EQ(scalar, i);
@@ -28,14 +29,16 @@ TEST_F(ArrayManips, fill) {
   device->api->freeMem(arr);
 }
 
-TEST_F(ArrayManips, touchClean) {
+TEST_F(ArrayManip, touchClean) {
 
   const int N = 100;
   real *arr = (real *)device->api->allocGlobMem(N * sizeof(real));
   device->algorithms.touchMemory(arr, N, true, device->api->getDefaultStream());
-  std::vector<real> hostVector(N, 0);
+  std::vector<real> hostVector(N, 1);
 
-  device->api->copyFrom(&hostVector[0], arr, N * sizeof(real));
+  device->api->copyFromAsync(&hostVector[0], arr, N * sizeof(real), device->api->getDefaultStream());
+
+  device->api->syncDefaultStreamWithHost();
 
   for (auto &i : hostVector) {
     EXPECT_EQ(0, i);
@@ -44,15 +47,17 @@ TEST_F(ArrayManips, touchClean) {
   device->api->freeMem(arr);
 }
 
-TEST_F(ArrayManips, touchNoClean) {
+TEST_F(ArrayManip, touchNoClean) {
 
   const int N = 100;
   real *arr = (real *)device->api->allocGlobMem(N * sizeof(real));
   std::vector<real> hostVector(N, 0);
 
-  device->api->copyTo(arr, &hostVector[0], N * sizeof(real));
+  device->api->copyToAsync(arr, &hostVector[0], N * sizeof(real), device->api->getDefaultStream());
   device->algorithms.touchMemory(arr, N, false, device->api->getDefaultStream());
-  device->api->copyFrom(&hostVector[0], arr, N * sizeof(real));
+  device->api->copyFromAsync(&hostVector[0], arr, N * sizeof(real), device->api->getDefaultStream());
+
+  device->api->syncDefaultStreamWithHost();
 
   for (auto &i : hostVector) {
     EXPECT_EQ(0, i);
@@ -61,14 +66,16 @@ TEST_F(ArrayManips, touchNoClean) {
   device->api->freeMem(arr);
 }
 
-TEST_F(ArrayManips, scale) {
+TEST_F(ArrayManip, scale) {
   const int N = 100;
   std::vector<int> hostVector(N, 1);
   int *arr = (int *)device->api->allocGlobMem(N * sizeof(int));
 
-  device->api->copyTo(arr, &hostVector[0], N * sizeof(int));
+  device->api->copyToAsync(arr, &hostVector[0], N * sizeof(int), device->api->getDefaultStream());
   device->algorithms.scaleArray(arr, 5, N, device->api->getDefaultStream());
-  device->api->copyFrom(&hostVector[0], arr, N * sizeof(int));
+  device->api->copyFromAsync(&hostVector[0], arr, N * sizeof(int), device->api->getDefaultStream());
+
+  device->api->syncDefaultStreamWithHost();
 
   for (auto &i : hostVector) {
     EXPECT_EQ(5, i);

@@ -4,9 +4,12 @@
 #include "utils/logger.h"
 
 namespace device {
-DeviceContext::DeviceContext(const cl::sycl::device &targetDevice)
-    : queueBuffer{DeviceCircularQueueBuffer{targetDevice, [&](cl::sycl::exception_list l) { onExceptionOccurred(l); }}},
-      stack{DeviceStack{queueBuffer.getDefaultQueue()}}, statistics{Statistics{}} {}
+DeviceContext::DeviceContext(const cl::sycl::device &targetDevice, size_t concurrencyLevel)
+    : queueBuffer{DeviceCircularQueueBuffer{targetDevice,
+                                            [&](cl::sycl::exception_list l) { onExceptionOccurred(l); },
+                                            concurrencyLevel}},
+      stack{DeviceStack{queueBuffer.getDefaultQueue()}},
+      statistics{Statistics{}} {}
 
 void DeviceContext::onExceptionOccurred(cl::sycl::exception_list &exceptions) {
   for (auto &excep : exceptions) {

@@ -1,6 +1,9 @@
 #ifndef DEVICE_INTERFACE_STATUS_H
 #define DEVICE_INTERFACE_STATUS_H
 
+#include "utils/env.h"
+#include <string>
+#include <vector>
 #include <array>
 #include <cassert>
 
@@ -26,4 +29,29 @@ U align(T number, U alignment) {
 }
 }
 
-#endif
+inline int getMpiRankFromEnv() {
+  std::vector<std::string> rankEnvVars{{"SLURM_PROCID"},
+                                       {"OMPI_COMM_WORLD_RANK"},
+                                       {"MV2_COMM_WORLD_RANK"},
+                                       {"PMI_RANK"}};
+  constexpr int defaultValue{-1};
+  int value{defaultValue};
+  utils::Env env;
+  for (auto& envVar : rankEnvVars) {
+    value = env.get(envVar.c_str(), defaultValue);
+    if (value != defaultValue) break;
+  }
+  return (value != defaultValue) ? value : 0;
+}
+
+inline size_t getMaxConcurrencyLevel(int defaultValue) {
+  auto concurrencyLevel = utils::Env::get("DEVICE_MAX_CONCURRENCY_LEVEL",
+                                          defaultValue);
+  if (concurrencyLevel <= 0) {
+    concurrencyLevel = defaultValue;
+  }
+
+  return static_cast<size_t>(concurrencyLevel);
+}
+
+#endif // DEVICE_INTERFACE_STATUS_H

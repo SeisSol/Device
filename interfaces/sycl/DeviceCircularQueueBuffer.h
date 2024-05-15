@@ -8,6 +8,15 @@
 
 
 namespace device {
+struct QueueWrapper {
+  cl::sycl::queue queue;
+  QueueWrapper() = default;
+  QueueWrapper(const cl::sycl::device& dev, const std::function<void(cl::sycl::exception_list l)>& f);
+
+  void synchronize();
+  void dependency(QueueWrapper& other);
+};
+
 class DeviceCircularQueueBuffer {
 public:
 
@@ -15,7 +24,9 @@ public:
    * Creates a new circular buffer containing sycl queues. The buffer needs
    * an async exception handler and a capacity that is currently per default 8.
    */
-  DeviceCircularQueueBuffer(cl::sycl::device dev, std::function<void(cl::sycl::exception_list l)> f, size_t capacity = 7);
+  DeviceCircularQueueBuffer(const cl::sycl::device& dev,
+                            const std::function<void(cl::sycl::exception_list l)>& f,
+                            size_t capacity = 6);
 
   /*
    * Returns the default queue created by a device.
@@ -23,9 +34,20 @@ public:
   cl::sycl::queue &getDefaultQueue();
 
   /*
+   * Returns the generic queue created by a device.
+   * Note, this queue can be used for asynchronous
+   * memory copies
+   */
+  cl::sycl::queue &getGenericQueue();
+
+  /*
    * Returns the next queue within the capacity of this buffer.
    */
   cl::sycl::queue &getNextQueue();
+
+  cl::sycl::queue newQueue();
+
+  std::vector<cl::sycl::queue> allQueues();
 
   /*
    * Resets the index to the current element.
@@ -52,10 +74,17 @@ public:
    */
   bool exists(cl::sycl::queue *queuePtr);
 
+  void forkQueueDepencency();
+
+  void joinQueueDepencency();
+
 private:
-  cl::sycl::queue defaultQueue;
-  std::vector<cl::sycl::queue> queues;
+  QueueWrapper defaultQueue;
+  QueueWrapper genericQueue;
+  std::vector<QueueWrapper> queues;
   size_t counter;
+  cl::sycl::device deviceReference;
+  std::function<void(cl::sycl::exception_list)> handlerReference;
 };
 
 } // namespace device

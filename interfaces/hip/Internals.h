@@ -7,6 +7,9 @@
 #define CHECK_ERR device::internals::checkErr(__FILE__,__LINE__)
 namespace device {
   namespace internals {
+
+    constexpr static int DefaultBlockDim = 256;
+    
     using deviceStreamT = hipStream_t;
     void checkErr(const std::string &file, int line);
     inline dim3 computeGrid1D(const dim3 &block, const size_t size) {

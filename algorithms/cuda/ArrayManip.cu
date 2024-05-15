@@ -15,7 +15,7 @@ template <typename T> void Algorithms::scaleArray(T *devArray,
                                                   T scalar,
                                                   const size_t numElements,
                                                   void* streamPtr) {
-  dim3 block(64, 1, 1);
+  dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid = internals::computeGrid1D(block, numElements);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_scaleArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
@@ -34,7 +34,7 @@ template <typename T> __global__ void kernel_fillArray(T *array, T scalar, const
 }
 
 template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, const size_t numElements, void* streamPtr) {
-  dim3 block(64, 1, 1);
+  dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid = internals::computeGrid1D(block, numElements);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_fillArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
@@ -42,6 +42,7 @@ template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, co
 }
 template void Algorithms::fillArray(real *devArray, real scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::fillArray(int *devArray, int scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::fillArray(unsigned *devArray, unsigned scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::fillArray(char *devArray, char scalar, const size_t numElements, void* streamPtr);
 
 //--------------------------------------------------------------------------------------------------
@@ -51,7 +52,7 @@ __global__ void kernel_touchMemory(real *ptr, size_t size, bool clean) {
     if (clean) {
       ptr[id] = 0;
     } else {
-      real value = ptr[id];
+      real& value = ptr[id];
       // Do something dummy here. We just need to check the pointers point to valid memory locations.
       // Avoid compiler optimization. Possibly, implement a dummy code with asm.
       value += 1;
@@ -61,7 +62,7 @@ __global__ void kernel_touchMemory(real *ptr, size_t size, bool clean) {
 }
 
 void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr) {
-  dim3 block(256, 1, 1);
+  dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid = internals::computeGrid1D(block, size);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_touchMemory<<<grid, block, 0, stream>>>(ptr, size, clean);
@@ -88,7 +89,7 @@ void Algorithms::incrementalAdd(
   size_t numElements,
   void* streamPtr) {
 
-  dim3 block(256, 1, 1);
+  dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid = internals::computeGrid1D(block, numElements);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_incrementalAdd<<<grid, block, 0, stream>>>(out, base, increment, numElements);

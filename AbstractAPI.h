@@ -2,6 +2,7 @@
 #define DEVICE_ABSTRACT_API_H
 
 #include "DataTypes.h"
+#include <cstdint>
 #include <cstdlib>
 #include <string>
 
@@ -34,6 +35,9 @@ struct AbstractAPI {
   virtual std::string getDeviceInfoAsText(int deviceId) = 0;
   virtual void syncDevice() = 0;
   virtual void checkOffloading() = 0;
+
+  virtual std::string getApiName() = 0;
+  virtual std::string getDeviceName(int deviceId) = 0;
 
   virtual void allocateStackMem() = 0;
   virtual void *allocGlobMem(size_t size) = 0;
@@ -82,6 +86,11 @@ struct AbstractAPI {
   virtual DeviceGraphHandle getLastGraphHandle() = 0;
   virtual void launchGraph(DeviceGraphHandle graphHandle) = 0;
   virtual void syncGraph(DeviceGraphHandle graphHandle) = 0;
+
+  virtual void* createGenericStream() = 0;
+  virtual void destroyGenericStream(void* streamPtr) = 0;
+  virtual void syncStreamWithHost(void* streamPtr) = 0;
+  virtual bool isStreamWorkDone(void* streamPtr) = 0;
 
   virtual void initialize() = 0;
   virtual void finalize() = 0;

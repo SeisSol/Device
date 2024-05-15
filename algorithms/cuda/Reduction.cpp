@@ -1,67 +1,56 @@
 #include "Reduction.h"
-#include "AbstractAPI.h"
+#include "algorithms/Common.h"
 #include "DeviceMacros.h"
 #include <cassert>
 #include <device.h>
-#include <limits>
 #include <math.h>
 
 namespace device {
-inline size_t getNearestPow2Number(size_t number) {
-  auto power = static_cast<size_t>(std::ceil(std::log2(static_cast<double>(number))));
-  constexpr size_t BASE = 1;
-  return (BASE << power);
-}
-
 template <typename T> struct Sum {
-  __device__ T getDefaultValue() { return static_cast<T>(0); }
+  T defaultValue{deduceDefaultValue<T>(ReductionType::Add)};
   __device__ T operator()(T op1, T op2) { return op1 + op2; }
 };
 
 template <typename T> struct Max {
-  __device__ T getDefaultValue() { return std::numeric_limits<T>::min(); }
+  T defaultValue{deduceDefaultValue<T>(ReductionType::Max)};
   __device__ T operator()(T op1, T op2) { return op1 > op2 ? op1 : op2; }
 };
 
 template <typename T> struct Min {
-  __device__ T getDefaultValue() { return std::numeric_limits<T>::max(); }
+  T defaultValue{deduceDefaultValue<T>(ReductionType::Min)};
   __device__ T operator()(T op1, T op2) { return op1 > op2 ? op2 : op1; }
 };
 
+
 template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type, void* streamPtr) {
   assert(api != nullptr && "api has not been attached to algorithms sub-system");
-  size_t adjustedSize = device::getNearestPow2Number(size);
-  const size_t totalBuffersSize = 2 * adjustedSize * sizeof(T);
-
+  size_t adjustedSize = device::alignToMultipleOf(size, internals::WARP_SIZE);
+  const size_t totalBuffersSize = adjustedSize * sizeof(T);
   T *reductionBuffer = reinterpret_cast<T *>(api->getStackMemory(totalBuffersSize));
 
-  this->fillArray(reinterpret_cast<char *>(reductionBuffer),
-                  static_cast<char>(0),
-                  2 * adjustedSize * sizeof(T),
+  this->fillArray(reductionBuffer,
+                  deduceDefaultValue<T>(type),
+                  adjustedSize,
                   streamPtr);
   CHECK_ERR;
+
   api->copyBetween(reductionBuffer, buffer, size * sizeof(T));
 
-  T *from = &reductionBuffer[0];
-  T *to = &reductionBuffer[adjustedSize];
-
   dim3 block(internals::WARP_SIZE, 1, 1);
-  dim3 grid = internals::computeGrid1D(internals::WARP_SIZE, size);
-
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
-  size_t swapCounter = 0;
-  for (size_t reducedSize = adjustedSize; reducedSize > 0; reducedSize /= internals::WARP_SIZE) {
+
+  auto launchReduce = [&](dim3& grid, size_t size) {
     switch (type) {
     case ReductionType::Add: {
-      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, to, from, reducedSize, device::Sum<T>());
+      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, reductionBuffer, size, device::Sum<T>());
       break;
     }
     case ReductionType::Max: {
-      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, to, from, reducedSize, device::Max<T>());
+      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, reductionBuffer, size, device::Max<T>());
       break;
     }
     case ReductionType::Min: {
-      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, to, from, reducedSize, device::Min<T>());
+      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, reductionBuffer, size, device::Min<T>());
       break;
     }
     default: {
@@ -69,23 +58,32 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
     }
       CHECK_ERR;
     }
-    std::swap(to, from);
-    ++swapCounter;
+  };
+
+  dim3 grid{};
+  for (size_t reducedSize = adjustedSize;
+      reducedSize >= internals::WARP_SIZE;
+      reducedSize /= internals::WARP_SIZE) {
+    grid = internals::computeGrid1D(internals::WARP_SIZE, reducedSize);
+    launchReduce(grid, reducedSize);
   }
 
-  T results{};
-  if ((swapCounter % 2) == 0) {
-    std::swap(to, from);
+  if (grid.x > 1) {
+      auto reducedSize = static_cast<size_t>(grid.x);
+      grid = dim3(1, 1, 1);
+      launchReduce(grid, reducedSize);
   }
 
-  api->copyFrom(&results, to, sizeof(T));
+  T result{};
+  api->syncStreamWithHost(streamPtr);
+  api->copyFrom(&result, reductionBuffer, sizeof(T));
   this->fillArray(reinterpret_cast<char *>(reductionBuffer),
                   static_cast<char>(0),
-                  2 * adjustedSize * sizeof(T),
+                  totalBuffersSize,
                   streamPtr);
   CHECK_ERR;
   api->popStackMemory();
-  return results;
+  return result;
 }
 
 template unsigned Algorithms::reduceVector(unsigned *buffer, size_t size, ReductionType type, void* streamPtr);

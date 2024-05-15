@@ -1,4 +1,4 @@
-#include "HipWrappedAPI.h"
+#include "SyclWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
 #include <cassert>
@@ -14,7 +14,7 @@ using namespace device;
  *    streamEndCapture();                // 3
  *    auto graph = getGraphInstance();   // 4
  *
- * Once you have a coompute-graph recorded you can invoke it as follows:
+ * Once you have a compute-graph recorded you can invoke it as follows:
  *    launchGraph(graph)                 // 1
  *    syncGraph(graph)                   // 2
  * */
@@ -22,13 +22,12 @@ using namespace device;
 namespace device {
 namespace graph_capturing {
 
-__global__ void kernel_firstCapturingKernel() {}
 } // namespace graph_capturing
 } // namespace device
 
 
 bool ConcreteAPI::isCapableOfGraphCapturing() {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
+#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   return true;
 #else
   return false;
@@ -37,37 +36,37 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 
 
 void ConcreteAPI::streamBeginCapture() {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
+#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
 
-  graphs.push_back(GraphDetails{});
+  {
+    auto localQueue = availableDevices[currentDeviceId]->queueBuffer.newQueue();
+    auto recordingGraph = sycl::ext::oneapi::experimental::command_graph
+      <sycl::ext::oneapi::experimental::graph_state::modifiable>(
+        localQueue.get_context(),
+        localQueue.get_device()
+      );
+
+    graphs.emplace_back(GraphDetails {
+      std::nullopt,
+      std::move(recordingGraph),
+      std::move(localQueue),
+      false
+    });
+  }
 
   GraphDetails &graphInstance = graphs.back();
-  graphInstance.ready = false;
 
-  hipStreamCreateWithFlags(&graphInstance.graphExecutionStream, hipStreamNonBlocking); CHECK_ERR;
-  hipEventCreate(&(graphInstance.graphCaptureEvent)); CHECK_ERR;
-
-  hipStreamBeginCapture(defaultStream, hipStreamCaptureModeThreadLocal);
-
-  hipLaunchKernelGGL(device::graph_capturing::kernel_firstCapturingKernel, dim3(1), dim3(1), 0, defaultStream);
-  CHECK_ERR;
+  graphInstance.graph.begin_recording(this->currentQueueBuffer->allQueues());
 #endif
 }
 
 
 void ConcreteAPI::streamEndCapture() {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
-
-  auto& graphInstance = graphs.back();
-  hipStreamEndCapture(defaultStream, &(graphInstance.graph));
-  CHECK_ERR;
-
-  hipGraphInstantiate(&(graphInstance.instance), graphInstance.graph, NULL, NULL, 0);
-  CHECK_ERR;
+#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+  auto &graphInstance = graphs.back();
+  graphInstance.graph.end_recording();
+  graphInstance.instance = std::move(std::optional<sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::executable>>(graphInstance.graph.finalize()));
 
   graphInstance.ready = true;
 #endif
@@ -75,8 +74,7 @@ void ConcreteAPI::streamEndCapture() {
 
 
 DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
+#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   assert(graphs.back().ready && "a graph has not been fully captured");
   return DeviceGraphHandle(graphs.size() - 1);
 #else
@@ -86,22 +84,20 @@ DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
 
 
 void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
+#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   assert(graphHandle.isInitialized() && "a graph must be captured before launching");
   auto &graphInstance = graphs[graphHandle.getGraphId()];
-  hipGraphLaunch(graphInstance.instance, graphInstance.graphExecutionStream);
-  CHECK_ERR;
+  graphInstance.queue.submit([&](sycl::handler& handler) {
+    handler.ext_oneapi_graph(graphInstance.instance.value());
+  });
 #endif
 }
 
 
 void ConcreteAPI::syncGraph(DeviceGraphHandle graphHandle) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
+#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   assert(graphHandle.isInitialized() && "a graph must be captured before synchronizing");
   auto &graphInstance = graphs[graphHandle.getGraphId()];
-  hipStreamSynchronize(graphInstance.graphExecutionStream);
-  CHECK_ERR;
+  graphInstance.queue.wait_and_throw();
 #endif
 }

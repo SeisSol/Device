@@ -21,10 +21,15 @@ add_subdirectory(root)
 
 find_package(GTest REQUIRED)
 
-add_executable(tests main.cpp reductions.cpp array_manip.cpp memory.cpp)
-target_link_libraries(tests device ${GTEST_BOTH_LIBRARIES})
+add_executable(tests main.cpp reductions.cpp array_manip.cpp memory.cpp batch_manip.cpp)
+target_link_libraries(tests PRIVATE device ${GTEST_BOTH_LIBRARIES})
 target_include_directories(tests PRIVATE root ${GTEST_INCLUDE_DIR})
 target_compile_definitions(tests PRIVATE REAL_SIZE=${REAL_SIZE_IN_BYTES})
+
+if (DEVICE_BACKEND STREQUAL "hipsycl")
+  find_package(OpenMP REQUIRED)
+  target_link_libraries(tests PRIVATE OpenMP::OpenMP_CXX)
+endif()
 
 enable_testing()
 add_test(NAME all_tests COMMAND tests)

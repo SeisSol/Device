@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <unordered_set>
 #include <cassert>
 
 #include "AbstractAPI.h"
@@ -37,6 +38,9 @@ public:
   void freePinnedMem(void *devPtr) override;
   void popStackMemory() override;
   std::string getMemLeaksReport() override;
+
+  std::string getApiName() override;
+  std::string getDeviceName(int deviceId) override;
 
   void copyTo(void *dst, const void *src, size_t count) override;
   void copyFrom(void *dst, const void *src, size_t count) override;
@@ -76,6 +80,11 @@ public:
   void launchGraph(DeviceGraphHandle graphHandle) override;
   void syncGraph(DeviceGraphHandle graphHandle) override;
 
+  void* createGenericStream() override;
+  void destroyGenericStream(void* streamPtr) override;
+  void syncStreamWithHost(void* streamPtr) override;
+  bool isStreamWorkDone(void* streamPtr) override;
+
   void initialize() override;
   void finalize() override;
   void putProfilingMark(const std::string &name, ProfilingColors color) override;
@@ -93,6 +102,7 @@ private:
 
   std::vector<cudaStream_t> circularStreamBuffer{};
   std::vector<cudaEvent_t> circularStreamEvents{};
+  std::unordered_set<cudaStream_t> genericStreams{};
 
   bool isCircularStreamsForked{false};
   size_t circularStreamCounter{0};

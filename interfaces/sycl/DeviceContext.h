@@ -12,7 +12,7 @@ namespace device {
  */
 class DeviceContext {
 public:
-  DeviceContext(const cl::sycl::device &targetDevice);
+  DeviceContext(const cl::sycl::device &targetDevice, size_t concurrencyLevel);
   std::unordered_map<void *, size_t> memoryToSizeMap;
   DeviceCircularQueueBuffer queueBuffer;
   DeviceStack stack;

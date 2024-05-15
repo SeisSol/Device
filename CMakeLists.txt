@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(device_submodule)
 
 #set(CMAKE_CXX_CLANG_TIDY clang-tidy)
-option(USE_GRAPH_CAPTURING "Enable graph capturing if it is supported" OFF)
+option(USE_GRAPH_CAPTURING "Enable graph capturing (if it is supported)" ON)
 
 # check INTERFACE
 if (NOT DEFINED DEVICE_BACKEND)
@@ -24,7 +24,6 @@ if (NOT DEFINED DEVICE_ARCH)
             "Supported for example: sm_60, sm_61, sm_70, sm_71, gfx906, gfx908, dg1, bdw, skl, Gen8, Gen9, Gen11, Gen12LP")
 endif()
 
-
 #check REAL_SIZE
 if (NOT DEFINED REAL_SIZE_IN_BYTES)
     message(FATAL_ERROR "REAL_SIZE_IN_BYTES variable has not been provided into the submodule")
@@ -41,11 +40,12 @@ else()
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
-option(ENABLE_PROFILING_MARKERS "enable profiling markers if available" OFF)
+option(ENABLE_PROFILING_MARKERS "Enable profiling markers (if available)" OFF)
 
 string(TOLOWER ${DEVICE_BACKEND} BACKEND_FOLDER)
 string(TOUPPER ${DEVICE_BACKEND} BACKEND_UPPER_CASE)
 
+# define device library
 if (${DEVICE_BACKEND} STREQUAL "cuda")
     set(BACKEND_FOLDER "cuda")
     include(cuda.cmake)
@@ -57,14 +57,24 @@ elseif((${DEVICE_BACKEND} STREQUAL "oneapi") OR (${DEVICE_BACKEND} STREQUAL "ope
     include(sycl.cmake)
 endif()
 
+# common options
+target_compile_features(device PRIVATE cxx_std_17)
+
+if (USE_GRAPH_CAPTURING)
+  target_compile_definitions(device PRIVATE DEVICE_USE_GRAPH_CAPTURING)
+endif()
+if (ENABLE_PROFILING_MARKERS)
+  target_compile_definitions(device PRIVATE PROFILING_ENABLED)
+endif()
+
 target_compile_definitions(device PRIVATE DEVICE_${BACKEND_UPPER_CASE}_LANG REAL_SIZE=${REAL_SIZE_IN_BYTES})
+
+if (LOG_LEVEL_MASTER)
+  target_compile_definitions(device PRIVATE LOG_LEVEL=${LOG_LEVEL_MASTER})
+endif()
 
 target_include_directories(device PRIVATE .
                                           interfaces/${BACKEND_FOLDER}
                                           interfaces/common
                                           algorithms/${BACKEND_FOLDER}
                                           submodules)
-
-target_compile_options(device PRIVATE -fPIC)
-
-

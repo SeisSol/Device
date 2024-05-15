@@ -7,9 +7,8 @@
 using namespace device::internals;
 
 namespace device {
-
 template <typename T> void Algorithms::scaleArray(T *devArray, T scalar, const size_t numElements, void* streamPtr) {
-  auto rng = computeExecutionRange1D(64, numElements);
+  auto rng = computeExecutionRange1D(device::internals::DefaultBlockDim, numElements);
 
   ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
@@ -26,7 +25,7 @@ template void Algorithms::scaleArray(int *devArray, int scalar, const size_t num
 template void Algorithms::scaleArray(char *devArray, char scalar, const size_t numElements, void* streamPtr);
 
 template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, const size_t numElements, void* streamPtr) {
-  auto rng = computeExecutionRange1D(64, numElements);
+  auto rng = computeExecutionRange1D(device::internals::DefaultBlockDim, numElements);
 
   ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
@@ -40,10 +39,11 @@ template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, co
 
 template void Algorithms::fillArray(real *devArray, real scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::fillArray(int *devArray, int scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::fillArray(unsigned *devArray, unsigned scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::fillArray(char *devArray, char scalar, const size_t numElements, void* streamPtr);
 
 void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr) {
-  auto rng = computeExecutionRange1D(256, size);
+  auto rng = computeExecutionRange1D(device::internals::DefaultBlockDim, size);
 
   ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
@@ -52,7 +52,7 @@ void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr
         if (clean) {
           ptr[id] = 0;
         } else {
-          real value = ptr[id];
+          real& value = ptr[id];
           // See CUDA for explanation
           value += 1;
           value -= 1;
@@ -69,7 +69,7 @@ void Algorithms::incrementalAdd(
   size_t numElements,
   void* streamPtr) {
 
-  auto rng = computeExecutionRange1D(256, numElements);
+  auto rng = computeExecutionRange1D(device::internals::DefaultBlockDim, numElements);
 
   ((cl::sycl::queue *) streamPtr)->submit([&](cl::sycl::handler &cgh) {
     cgh.parallel_for(rng, [=](cl::sycl::nd_item<> item) {
