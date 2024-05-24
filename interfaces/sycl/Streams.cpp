@@ -99,11 +99,11 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
 
   queuePtr->submit([&](cl::sycl::handler& h) {
 #ifdef HIPSYCL_EXT_ENQUEUE_CUSTOM_OPERATION
-    h.hipSYCL_enqueue_custom_operation([&](auto&) {
+    h.hipSYCL_enqueue_custom_operation([=](auto&) {
       function();
     });
 #else
-    h.host_task([&](auto&) {
+    h.host_task([=](auto&) {
       function();
     });
 #endif
