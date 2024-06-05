@@ -15,6 +15,18 @@ void QueueWrapper::dependency(QueueWrapper& other) {
 #ifdef SYCL_EXT_ONEAPI_ENQUEUE_BARRIER
   auto queueEvent = other.queue.ext_oneapi_submit_barrier();
   queue.ext_oneapi_submit_barrier({queueEvent});
+#elif defined(HIPSYCL_EXT_QUEUE_WAIT_LIST) || defined(ACPP_EXT_QUEUE_WAIT_LIST)
+  auto waitList1 = other.queue.get_wait_list();
+  auto waitList2 = queue.get_wait_list();
+  queue.submit([&](sycl::handler& h) {
+    h.depends_on(waitList1);
+    h.depends_on(waitList2);
+#if defined(HIPSYCL_EXT_ENQUEUE_CUSTOM_OPERATION) || defined(ACPP_EXT_ENQUEUE_CUSTOM_OPERATION)
+    h.hipSYCL_enqueue_custom_operation([=](auto&) {});
+#else
+    h.single_task([=]() {});
+#endif
+  });
 #else
   // mimick generically using a cheap dummy task
   auto queueEvent = other.queue.submit([&](cl::sycl::handler& h) {

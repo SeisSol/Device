@@ -33,8 +33,9 @@ void ConcreteAPI::syncEventWithHost(void* eventPtr) {
 }
 
 bool ConcreteAPI::isEventCompleted(void* eventPtr) {
-  // not known, if possible with SYCL at the moment
-  syncEventWithHost(eventPtr);
+  auto* event = static_cast<Event*>(eventPtr);
+  // (NOTE: we do not poll here on the SYCL implementation, i.e. we may get MPI-like issues)
+  return event->get_info<cl::sycl::info::event::command_execution_status>() == cl::sycl::info::event_command_status::complete;
 }
 
 void ConcreteAPI::recordEventOnHost(void* eventPtr) {
@@ -50,7 +51,11 @@ void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   event->syclEvent = std::make_optional<cl::sycl::event>(queue->ext_oneapi_submit_barrier());
 #else
   event->syclEvent = std::make_optional<cl::sycl::event>(queue->submit([&](cl::sycl::handler& h) {
-    h.single_task([=](){});
+#if defined(HIPSYCL_EXT_ENQUEUE_CUSTOM_OPERATION) || defined(ACPP_EXT_ENQUEUE_CUSTOM_OPERATION)
+    h.hipSYCL_enqueue_custom_operation([=](auto&) {});
+#else
+    h.single_task([=]() {});
+#endif
   }));
 #endif
 }
@@ -64,7 +69,11 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
 #else
   queue->submit([&](cl::sycl::handler& h) {
     h.depends_on(event->syclEvent.value());
-    h.single_task([=](){});
+#if defined(HIPSYCL_EXT_ENQUEUE_CUSTOM_OPERATION) || defined(ACPP_EXT_ENQUEUE_CUSTOM_OPERATION)
+    h.hipSYCL_enqueue_custom_operation([=](auto&) {});
+#else
+    h.single_task([=]() {});
+#endif
   });
 #endif
 }

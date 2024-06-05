@@ -88,6 +88,8 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   // otherwise, synchronize
 #ifdef SYCL_EXT_ONEAPI_QUEUE_EMPTY
   return queuePtr->ext_oneapi_empty();
+#elif defined(HIPSYCL_EXT_QUEUE_WAIT_LIST) || defined(ACPP_EXT_QUEUE_WAIT_LIST)
+  return queuePtr->get_wait_list().empty();
 #else
   this->currentQueueBuffer->syncQueueWithHost(queuePtr);
   return true;
