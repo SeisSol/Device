@@ -35,7 +35,7 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 }
 
 
-void ConcreteAPI::streamBeginCapture() {
+void ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
 
@@ -57,7 +57,13 @@ void ConcreteAPI::streamBeginCapture() {
 
   GraphDetails &graphInstance = graphs.back();
 
-  graphInstance.graph.begin_recording(this->currentQueueBuffer->allQueues());
+  std:vector<sycl::queue> queues;
+
+  for (auto* streamPtr : streamPtrs) {
+    queues.emplace_back(*static_cast<sycl::queue*>(streamPtr));
+  }
+
+  graphInstance.graph.begin_recording(queues);
 #endif
 }
 
@@ -83,21 +89,12 @@ DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
 }
 
 
-void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle) {
+void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   assert(graphHandle.isInitialized() && "a graph must be captured before launching");
   auto &graphInstance = graphs[graphHandle.getGraphId()];
-  graphInstance.queue.submit([&](sycl::handler& handler) {
+  static_cast<sycl::queue*>(streamPtr)->submit([&](sycl::handler& handler) {
     handler.ext_oneapi_graph(graphInstance.instance.value());
   });
-#endif
-}
-
-
-void ConcreteAPI::syncGraph(DeviceGraphHandle graphHandle) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  assert(graphHandle.isInitialized() && "a graph must be captured before synchronizing");
-  auto &graphInstance = graphs[graphHandle.getGraphId()];
-  graphInstance.queue.wait_and_throw();
 #endif
 }

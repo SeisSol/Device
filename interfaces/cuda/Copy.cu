@@ -67,12 +67,6 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void *devPtr, siz
                                        void *streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream = (streamPtr == nullptr) ? 0 : (static_cast<cudaStream_t>(streamPtr));
-#ifndef NDEBUG
-  auto itr = std::find(circularStreamBuffer.begin(), circularStreamBuffer.end(), stream);
-  if (itr == circularStreamBuffer.end()) {
-    logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
-  }
-#endif
   cudaMemPrefetchAsync(devPtr,
                        count,
                        type == Destination::CurrentDevice ? currentDeviceId : cudaCpuDeviceId,

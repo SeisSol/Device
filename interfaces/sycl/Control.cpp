@@ -162,6 +162,12 @@ std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
   return info.str();
 }
 
+bool ConcreteAPI::isUnifiedMemoryDefault() {
+  // suboptimal (i.e. we'd need to query if USM needs to be migrated or not), but there's probably nothing better for now
+  auto device = this->availableDevices[this->currentDeviceId]->queueBuffer.getDefaultQueue().get_device();
+  return device.has(cl::sycl::aspect::usm_system_allocations);
+}
+
 std::string ConcreteAPI::getApiName() {
   return "SYCL";
 }
@@ -170,6 +176,16 @@ std::string ConcreteAPI::getDeviceName(int deviceId) {
   auto device = this->availableDevices[deviceId]->queueBuffer.getDefaultQueue().get_device();
 
   return device.get_info<cl::sycl::info::device::name>();
+}
+
+std::string ConcreteAPI::getPciAddress(int deviceId) {
+#ifdef SYCL_EXT_INTEL_DEVICE_INFO
+  auto device = this->availableDevices[deviceId]->queueBuffer.getDefaultQueue().get_device();
+
+  return device.get_info<sycl::ext::intel::info::device::pci_address>();
+#else
+  return "(unknown)";
+#endif
 }
 
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {

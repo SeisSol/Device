@@ -36,7 +36,7 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 }
 
 
-void ConcreteAPI::streamBeginCapture() {
+void ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   isFlagSet<CircularStreamBufferInitialized>(status);
   assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
@@ -46,12 +46,9 @@ void ConcreteAPI::streamBeginCapture() {
   GraphDetails &graphInstance = graphs.back();
   graphInstance.ready = false;
 
-  cudaStreamCreateWithFlags(&graphInstance.graphExecutionStream, cudaStreamNonBlocking); CHECK_ERR;
-  cudaEventCreate(&(graphInstance.graphCaptureEvent)); CHECK_ERR;
+  graphInstance.streamPtr = streamPtrs[0];
 
-  cudaStreamBeginCapture(defaultStream, cudaStreamCaptureModeThreadLocal);
-
-  device::graph_capturing::kernel_firstCapturingKernel<<<1, 1, 0, defaultStream>>>();
+  cudaStreamBeginCapture(static_cast<cudaStream_t>(streamPtrs[0]), cudaStreamCaptureModeThreadLocal);
   CHECK_ERR;
 #endif
 }
@@ -63,10 +60,10 @@ void ConcreteAPI::streamEndCapture() {
   assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
 
   auto& graphInstance = graphs.back();
-  cudaStreamEndCapture(defaultStream, &(graphInstance.graph));
+  cudaStreamEndCapture(static_cast<cudaStream_t>(graphInstance.streamPtr), &(graphInstance.graph));
   CHECK_ERR;
 
-  cudaGraphInstantiate(&(graphInstance.instance), graphInstance.graph, NULL, NULL, 0);
+  cudaGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0);
   CHECK_ERR;
 
   graphInstance.ready = true;
@@ -85,23 +82,12 @@ DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
 }
 
 
-void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle) {
+void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   isFlagSet<CircularStreamBufferInitialized>(status);
   assert(graphHandle.isInitialized() && "a graph must be captured before launching");
   auto &graphInstance = graphs[graphHandle.getGraphId()];
-  cudaGraphLaunch(graphInstance.instance, graphInstance.graphExecutionStream);
-  CHECK_ERR;
-#endif
-}
-
-
-void ConcreteAPI::syncGraph(DeviceGraphHandle graphHandle) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  assert(graphHandle.isInitialized() && "a graph must be captured before synchronizing");
-  auto &graphInstance = graphs[graphHandle.getGraphId()];
-  cudaStreamSynchronize(graphInstance.graphExecutionStream);
+  cudaGraphLaunch(graphInstance.instance, reinterpret_cast<cudaStream_t>(streamPtr));
   CHECK_ERR;
 #endif
 }
