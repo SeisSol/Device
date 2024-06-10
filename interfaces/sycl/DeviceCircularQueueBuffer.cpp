@@ -6,11 +6,11 @@ namespace device {
 
 #if defined(DEVICE_USE_GRAPH_CAPTURING) && defined(SYCL_EXT_INTEL_QUEUE_IMMEDIATE_COMMAND_LIST)
 auto sycl_queue_properties() {
-  return sycl::property_list(cl::sycl::property::queue::in_order{},
-                             cl::sycl::ext::intel::property::queue::no_immediate_command_list{});
+  return cl::sycl::property_list(cl::sycl::property::queue::in_order{},
+                                 cl::sycl::ext::intel::property::queue::no_immediate_command_list{});
 }
 #else
-auto sycl_queue_properties() { return sycl::property_list(cl::sycl::property::queue::in_order{}); }
+auto sycl_queue_properties() { return cl::sycl::property_list(cl::sycl::property::queue::in_order{}); }
 #endif
 
 QueueWrapper::QueueWrapper(const cl::sycl::device& dev, const std::function<void(cl::sycl::exception_list l)>& handler)
