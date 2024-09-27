@@ -2,6 +2,7 @@
 #include "Internals.h"
 #include "utils/logger.h"
 #include <cassert>
+#include <vector>
 
 using namespace device;
 
@@ -39,29 +40,27 @@ void ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
 
+  std::vector<sycl::queue> queues;
+
+  for (auto* streamPtr : streamPtrs) {
+    queues.emplace_back(*static_cast<sycl::queue*>(streamPtr));
+  }
+
   {
-    auto localQueue = availableDevices[currentDeviceId]->queueBuffer.newQueue();
     auto recordingGraph = sycl::ext::oneapi::experimental::command_graph
       <sycl::ext::oneapi::experimental::graph_state::modifiable>(
-        localQueue.get_context(),
-        localQueue.get_device()
+        queues.at(0).get_context(),
+        queues.at(0).get_device()
       );
 
     graphs.emplace_back(GraphDetails {
       std::nullopt,
       std::move(recordingGraph),
-      std::move(localQueue),
       false
     });
   }
 
   GraphDetails &graphInstance = graphs.back();
-
-  std:vector<sycl::queue> queues;
-
-  for (auto* streamPtr : streamPtrs) {
-    queues.emplace_back(*static_cast<sycl::queue*>(streamPtr));
-  }
 
   graphInstance.graph.begin_recording(queues);
 #endif
@@ -72,7 +71,7 @@ void ConcreteAPI::streamEndCapture() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   auto &graphInstance = graphs.back();
   graphInstance.graph.end_recording();
-  graphInstance.instance = std::move(std::optional<sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::executable>>(graphInstance.graph.finalize()));
+  graphInstance.instance = std::optional<sycl::ext::oneapi::experimental::command_graph<sycl::ext::oneapi::experimental::graph_state::executable>>(graphInstance.graph.finalize());
 
   graphInstance.ready = true;
 #endif
