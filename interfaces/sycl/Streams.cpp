@@ -100,14 +100,8 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
   auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
 
   queuePtr->submit([&](cl::sycl::handler& h) {
-#ifdef HIPSYCL_EXT_ENQUEUE_CUSTOM_OPERATION
-    h.hipSYCL_enqueue_custom_operation([=](auto&) {
+    h.host_task([=](...) {
       function();
     });
-#else
-    h.host_task([=](auto&) {
-      function();
-    });
-#endif
   });
 }
