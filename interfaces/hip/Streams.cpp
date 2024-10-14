@@ -168,3 +168,9 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
   hipStreamAddCallback(stream, streamCallback, functionData, 0);
   CHECK_ERR;
 }
+
+void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
+  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+  hipStreamWaitValue32(stream, location, value, hipStreamWaitValueGte, 0xffffffff);
+  CHECK_ERR;
+}

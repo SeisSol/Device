@@ -102,6 +102,8 @@ struct AbstractAPI {
   virtual void syncStreamWithEvent(void* streamPtr, void* eventPtr) = 0;
   virtual void streamHostFunction(void* streamPtr, const std::function<void()>& function) = 0;
 
+  virtual void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) = 0;
+
   virtual void* createEvent() = 0;
   virtual void destroyEvent(void* eventPtr) = 0;
   virtual void syncEventWithHost(void* eventPtr) = 0;

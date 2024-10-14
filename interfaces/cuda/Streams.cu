@@ -168,3 +168,13 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
   cudaLaunchHostFunc(stream, &streamCallback, functionData);
   CHECK_ERR;
 }
+
+void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
+  // TODO: check for graph capture here?
+  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+  void* deviceLocation = nullptr;
+  cudaHostGetDevicePointer(&deviceLocation, location, 0);
+  CHECK_ERR;
+  cuStreamWaitValue32(stream, reinterpret_cast<uintptr_t>(deviceLocation), value, CU_STREAM_WAIT_VALUE_GEQ);
+  CHECK_ERR;
+}

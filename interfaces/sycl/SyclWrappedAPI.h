@@ -102,6 +102,8 @@ public:
   void syncStreamWithEvent(void* streamPtr, void* eventPtr) override;
   void streamHostFunction(void* streamPtr, const std::function<void()>& function) override;
 
+  void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) override;
+
   void* createEvent() override;
   void destroyEvent(void* eventPtr) override;
   void syncEventWithHost(void* eventPtr) override;

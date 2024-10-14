@@ -7,6 +7,7 @@
 #include <vector>
 #include <unordered_set>
 #include <cassert>
+#include <cstdint>
 
 #include "AbstractAPI.h"
 #include "Statistics.h"
@@ -92,6 +93,8 @@ public:
   bool isStreamWorkDone(void* streamPtr) override;
   void syncStreamWithEvent(void* streamPtr, void* eventPtr) override;
   void streamHostFunction(void* streamPtr, const std::function<void()>& function) override;
+
+  void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) override;
 
   void* createEvent() override;
   void destroyEvent(void* eventPtr) override;
