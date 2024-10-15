@@ -169,8 +169,23 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
   CHECK_ERR;
 }
 
+namespace {
+__global__ void spinloop(uint32_t* location, uint32_t value) {
+  volatile uint32_t* spinLocation = location;
+  while (true) {
+    if (*spinLocation >= value) {
+      return;
+    }
+    __threadfence_system();
+  }
+}
+}
+
 void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
-  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
-  hipStreamWaitValue32(stream, location, value, hipStreamWaitValueGte, 0xffffffff);
+  hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+  const auto result = hipStreamWaitValue32(stream, location, value, hipStreamWaitValueGte, 0xffffffff);
+  if (result == hipErrorNotSupported) {
+    spinloop<<<1,1,0,stream>>>(location, value);
+  }
   CHECK_ERR;
 }

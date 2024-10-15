@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 
 #ifdef ONEAPI_UNDERHOOD
 #include <sycl/queue.hpp>
@@ -103,5 +104,19 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
     h.host_task([=](...) {
       function();
     });
+  });
+}
+
+void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
+  // for now, spin wait here
+  auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
+  volatile uint32_t* spinLocation = location;
+  queuePtr->single_task([=]() {
+    while (true) {
+      if (*spinLocation == value) {
+        return;
+      }
+      sycl::atomic_fence(sycl::memory_order::acq_rel, sycl::memory_scope::system);
+    }
   });
 }
