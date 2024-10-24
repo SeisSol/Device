@@ -68,8 +68,31 @@ std::vector<cl::sycl::queue> DeviceCircularQueueBuffer::allQueues() {
   return queueCopy;
 }
 
-cl::sycl::queue DeviceCircularQueueBuffer::newQueue() {
-  return cl::sycl::queue{deviceReference, handlerReference, cl::sycl::property::queue::in_order()};
+cl::sycl::queue* DeviceCircularQueueBuffer::newQueue(double priority) {
+  // missing for ACPP: how can we even find out the allowed priority range conveniently now? :/
+
+#ifdef SYCL_EXT_ONEAPI_QUEUE_PRIORITY
+  const auto propertylist = [&]() {
+    if (priority <= 0.33) {
+      return {cl::sycl::property::queue::in_order(), sycl::ext::oneapi::property::queue::priority_low()};
+    }
+    if (priority >= 0.67) {
+      return {cl::sycl::property::queue::in_order(), sycl::ext::oneapi::property::queue::priority_high()};
+    }
+    return {cl::sycl::property::queue::in_order(), sycl::ext::oneapi::property::queue::priority_normal()};
+  }();
+#else
+  const auto propertylist{cl::sycl::property::queue::in_order()};
+#endif
+
+  auto* queue = new cl::sycl::queue{deviceReference, handlerReference, propertylist};
+  externalQueues.emplace_back(queue);
+  return queue;
+}
+
+void DeviceCircularQueueBuffer::deleteQueue(void* queue) {
+  auto *queuePtr = static_cast<cl::sycl::queue *>(queue);
+  delete queuePtr;
 }
 
 void DeviceCircularQueueBuffer::resetIndex() {

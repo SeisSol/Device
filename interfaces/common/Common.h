@@ -2,6 +2,7 @@
 #define DEVICE_INTERFACE_STATUS_H
 
 #include "utils/env.h"
+#include <cmath>
 #include <string>
 #include <vector>
 #include <array>
@@ -52,6 +53,18 @@ inline size_t getMaxConcurrencyLevel(int defaultValue) {
   }
 
   return static_cast<size_t>(concurrencyLevel);
+}
+
+constexpr auto mapPercentage(int minval, int maxval, double value) {
+  const auto convminval = static_cast<double>(minval);
+  const auto convmaxval = static_cast<double>(maxval);
+
+  const auto base = (convmaxval + convminval) / 2;
+  const auto offset = (convmaxval - convminval) / 2;
+
+  const auto transformed = value * offset + base;
+
+  return static_cast<int>(std::round(transformed));
 }
 
 #endif // DEVICE_INTERFACE_STATUS_H

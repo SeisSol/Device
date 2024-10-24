@@ -35,6 +35,9 @@ void ConcreteAPI::setDevice(int deviceId) {
   CHECK_ERR;
   usmDefault = result != 0;
 
+  hipDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
+  CHECK_ERR;
+
   status[StatusID::DeviceSelected] = true;
 }
 

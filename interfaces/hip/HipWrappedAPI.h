@@ -89,7 +89,7 @@ public:
   DeviceGraphHandle getLastGraphHandle() override;
   void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
 
-  void* createGenericStream() override;
+  void* createStream(double priority) override;
   void destroyGenericStream(void* streamPtr) override;
   void syncStreamWithHost(void* streamPtr) override;
   bool isStreamWorkDone(void* streamPtr) override;
@@ -146,6 +146,8 @@ private:
 
   Statistics statistics{};
   std::unordered_map<void *, size_t> memToSizeMap{{nullptr, 0}};
+
+  int priorityMin, priorityMax;
 };
 } // namespace device
 

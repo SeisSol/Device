@@ -102,10 +102,11 @@ bool ConcreteAPI::isCircularStreamsJoinedWithDefault() {
 
 
 
-void* ConcreteAPI::createGenericStream() {
+void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream;
-  hipStreamCreateWithFlags(&stream, hipStreamNonBlocking); CHECK_ERR;
+  const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
+  hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, priority); CHECK_ERR;
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }

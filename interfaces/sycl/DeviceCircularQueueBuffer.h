@@ -45,7 +45,9 @@ public:
    */
   cl::sycl::queue &getNextQueue();
 
-  cl::sycl::queue newQueue();
+  cl::sycl::queue* newQueue(double priority);
+
+  void deleteQueue(void* queue);
 
   std::vector<cl::sycl::queue> allQueues();
 
@@ -82,6 +84,7 @@ private:
   QueueWrapper defaultQueue;
   QueueWrapper genericQueue;
   std::vector<QueueWrapper> queues;
+  std::vector<QueueWrapper*> externalQueues;
   size_t counter;
   cl::sycl::device deviceReference;
   std::function<void(cl::sycl::exception_list)> handlerReference;

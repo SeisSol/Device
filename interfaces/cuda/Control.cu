@@ -56,6 +56,9 @@ void ConcreteAPI::initialize() {
     cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, currentDeviceId);
     CHECK_ERR;
     allowedConcurrentManagedAccess = result != 0;
+
+    cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
+    CHECK_ERR;
   }
   else {
     logWarning() << "Device Interface has already been initialized";

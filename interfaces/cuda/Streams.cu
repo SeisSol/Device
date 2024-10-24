@@ -6,7 +6,6 @@
 #include <functional>
 #include <sstream>
 
-
 using namespace device;
 
 void* ConcreteAPI::getDefaultStream() {
@@ -103,10 +102,11 @@ bool ConcreteAPI::isCircularStreamsJoinedWithDefault() {
 }
 
 
-void* ConcreteAPI::createGenericStream() {
+void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream;
-  cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); CHECK_ERR;
+  const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
+  cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking, truePriority); CHECK_ERR;
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }

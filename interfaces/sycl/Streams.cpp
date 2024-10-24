@@ -60,19 +60,13 @@ bool ConcreteAPI::isCircularStreamsJoinedWithDefault() {
 }
 
 
-void* ConcreteAPI::createGenericStream() {
-  // Note: in contrast to CUDA/HIP which can
-  // create and handle an infinite number of stream,
-  // SYCL support a limited number of streams.
-  // This wrapper SYCL API creates and handles only
-  // a single queue for generic stream operations
-  // e.g., asynchronous data transfers
-  return &(this->currentQueueBuffer->getGenericQueue());
+void* ConcreteAPI::createStream(double priority) {
+  return this->currentQueueBuffer->newQueue(priority);
 }
 
 
-void ConcreteAPI::destroyGenericStream(void*) {
-  // no implementation is required
+void ConcreteAPI::destroyGenericStream(void* queue) {
+  this->currentQueueBuffer->deleteQueue(queue);
 }
 
 
