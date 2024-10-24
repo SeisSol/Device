@@ -13,9 +13,31 @@
 #include <vector>
 #include <optional>
 
-
 #if defined(DEVICE_USE_GRAPH_CAPTURING) && defined(SYCL_EXT_ONEAPI_GRAPH)
 #define DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+#endif
+
+// FIXME: suboptimal, too preprocessor-heavy for now
+#if defined(HIPSYCL_EXT_ENQUEUE_CUSTOM_OPERATION)
+#define DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
+#define DEVICE_SYCL_DIRECT_OPERATION_NAME hipSYCL_enqueue_custom_operation
+#elif defined(ACPP_EXT_ENQUEUE_CUSTOM_OPERATION)
+#define DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
+#define DEVICE_SYCL_DIRECT_OPERATION_NAME adaptiveCpp_enqueue_custom_operation
+#elif defined(SYCL_EXT_ACPP_ENQUEUE_CUSTOM_OPERATION)
+#define DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
+#define DEVICE_SYCL_DIRECT_OPERATION_NAME ext_acpp_enqueue_custom_operation
+#elif defined(SYCL_EXT_ONEAPI_ENQUEUE_CUSTOM_OPERATION)
+#define DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
+#define DEVICE_SYCL_DIRECT_OPERATION_NAME ext_oneapi_enqueue_custom_operation
+#endif
+
+#ifdef DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
+#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...){});
+#elif defined(SYCL_EXT_ONEAPI_ENQUEUE_BARRIER) && !defined(DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT)
+#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.ext_oneapi_barrier();
+#else
+#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.single_task([=](){});
 #endif
 
 namespace device {
