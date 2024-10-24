@@ -65,8 +65,8 @@ public:
 
   void allocateStackMem() override;
   void *allocGlobMem(size_t size) override;
-  void *allocUnifiedMem(size_t size) override;
-  void *allocPinnedMem(size_t size) override;
+  void *allocUnifiedMem(size_t size, Destination hint) override;
+  void *allocPinnedMem(size_t size, Destination hint) override;
   char *getStackMemory(size_t requestedBytes) override;
   void freeMem(void *devPtr) override;
   void freeGlobMem(void *devPtr) override;

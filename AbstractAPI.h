@@ -12,7 +12,6 @@
 namespace device {
 
 enum class Destination { Host, CurrentDevice };
-enum class StreamType { Blocking, NonBlocking };
 enum class ProfilingColors : uint32_t {
   Black = 0x000000,
   White = 0xFFFFFF,
@@ -46,8 +45,8 @@ struct AbstractAPI {
 
   virtual void allocateStackMem() = 0;
   virtual void *allocGlobMem(size_t size) = 0;
-  virtual void *allocUnifiedMem(size_t size) = 0;
-  virtual void *allocPinnedMem(size_t size) = 0;
+  virtual void *allocUnifiedMem(size_t size, Destination hint = Destination::CurrentDevice) = 0;
+  virtual void *allocPinnedMem(size_t size, Destination hint = Destination::Host) = 0;
   virtual char *getStackMemory(size_t requestedBytes) = 0;
   virtual void freeMem(void *devPtr) = 0;
   virtual void freeGlobMem(void *devPtr) = 0;

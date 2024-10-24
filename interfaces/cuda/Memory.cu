@@ -1,7 +1,9 @@
 #include <assert.h>
+#include <driver_types.h>
 #include <iostream>
 #include <sstream>
 
+#include "AbstractAPI.h"
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
 
@@ -19,12 +21,16 @@ void *ConcreteAPI::allocGlobMem(size_t size) {
   return devPtr;
 }
 
-void *ConcreteAPI::allocUnifiedMem(size_t size) {
+void *ConcreteAPI::allocUnifiedMem(size_t size, Destination hint) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
   cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal);
   CHECK_ERR;
-  if (allowedConcurrentManagedAccess) {
+  if (hint == Destination::Host) {
+    cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId);
+    CHECK_ERR;
+  }
+  else if (allowedConcurrentManagedAccess) {
     cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation, currentDeviceId);
     CHECK_ERR;
   }
@@ -34,10 +40,11 @@ void *ConcreteAPI::allocUnifiedMem(size_t size) {
   return devPtr;
 }
 
-void *ConcreteAPI::allocPinnedMem(size_t size) {
+void *ConcreteAPI::allocPinnedMem(size_t size, Destination hint) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
-  cudaHostAlloc(&devPtr, size, cudaHostAllocDefault);
+  const auto flag = hint == Destination::Host ? cudaHostAllocDefault : cudaHostAllocMapped;
+  cudaHostAlloc(&devPtr, size, flag);
   CHECK_ERR;
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;

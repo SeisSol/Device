@@ -10,7 +10,7 @@ void *ConcreteAPI::allocGlobMem(size_t size) {
   return ptr;
 }
 
-void *ConcreteAPI::allocUnifiedMem(size_t size) {
+void *ConcreteAPI::allocUnifiedMem(size_t size, Destination hint) {
   auto *ptr = malloc_shared(size, *this->currentDefaultQueue);
   this->currentStatistics->allocatedUnifiedMemBytes += size;
   this->currentStatistics->allocatedMemBytes += size;
@@ -18,7 +18,7 @@ void *ConcreteAPI::allocUnifiedMem(size_t size) {
   return ptr;
 }
 
-void *ConcreteAPI::allocPinnedMem(size_t size) {
+void *ConcreteAPI::allocPinnedMem(size_t size, Destination hint) {
   auto *ptr = malloc_host(size, *this->currentDefaultQueue);
   this->currentStatistics->allocatedMemBytes += size;
   this->currentMemoryToSizeMap->insert({ptr, size});

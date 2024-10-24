@@ -18,10 +18,18 @@ void* ConcreteAPI::allocGlobMem(size_t size) {
 }
 
 
-void* ConcreteAPI::allocUnifiedMem(size_t size) {
+void* ConcreteAPI::allocUnifiedMem(size_t size, Destination hint) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
   hipMallocManaged(&devPtr, size, hipMemAttachGlobal); CHECK_ERR;
+  if (hint == Destination::Host) {
+    hipMemAdvise(devPtr, size, hipMemAdviseSetPreferredLocation, hipCpuDeviceId);
+    CHECK_ERR;
+  }
+  else {
+    hipMemAdvise(devPtr, size, hipMemAdviseSetPreferredLocation, currentDeviceId);
+    CHECK_ERR;
+  }
   statistics.allocatedMemBytes += size;
   statistics.allocatedUnifiedMemBytes += size;
   memToSizeMap[devPtr] = size;
@@ -29,10 +37,11 @@ void* ConcreteAPI::allocUnifiedMem(size_t size) {
 }
 
 
-void* ConcreteAPI::allocPinnedMem(size_t size) {
+void* ConcreteAPI::allocPinnedMem(size_t size, Destination hint) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
-  hipHostMalloc(&devPtr, size, hipHostMallocDefault); CHECK_ERR;
+  const auto flag = hint == Destination::Host ? hipHostMallocDefault : hipHostMallocMapped;
+  hipHostMalloc(&devPtr, size, flag); CHECK_ERR;
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
   return devPtr;
