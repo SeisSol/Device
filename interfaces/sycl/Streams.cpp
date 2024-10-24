@@ -54,7 +54,7 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
   auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
 
   queuePtr->submit([&](cl::sycl::handler& h) {
-    h.host_task([=](...) {
+    h.host_task([=]() {
       function();
     });
   });

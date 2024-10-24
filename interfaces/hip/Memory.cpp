@@ -6,6 +6,8 @@
 #include "HipWrappedAPI.h"
 #include "Internals.h"
 
+#include "utils/logger.h"
+
 using namespace device;
 
 void* ConcreteAPI::allocGlobMem(size_t size) {
