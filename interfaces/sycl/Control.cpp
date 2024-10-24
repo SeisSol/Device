@@ -38,20 +38,8 @@ void ConcreteAPI::initDevices() {
     return compare(c1->queueBuffer.getDefaultQueue().get_device(), c2->queueBuffer.getDefaultQueue().get_device());
   });
 
-  std::ostringstream s;
-  s << "Sorted available devices: ";
-  int index = 0;
-  for (int i = 0; i < this->availableDevices.size(); ++i) {
-    if (i > 0) {
-      s << "; ";
-    }
-    s << "(" << index << ") " << this->getDeviceName(i);
-  }
-  logDebug(rank) << s.str().c_str();
-
   this->setDevice(this->currentDeviceId);
   this->deviceInitialized = true;
-  logDebug(rank) << "Device initialization succeeded";
 }
 
 void ConcreteAPI::setDevice(int id) {

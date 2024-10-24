@@ -1,5 +1,6 @@
 #include "DeviceCircularQueueBuffer.h"
 
+#include "SyclWrappedAPI.h"
 #include "utils/logger.h"
 
 namespace device {
@@ -72,7 +73,7 @@ cl::sycl::queue* DeviceCircularQueueBuffer::newQueue(double priority) {
   // missing for ACPP: how can we even find out the allowed priority range conveniently now? :/
 
 #ifdef SYCL_EXT_ONEAPI_QUEUE_PRIORITY
-  const auto propertylist = [&]() {
+  const auto propertylist = [&]() -> cl::sycl::property_list {
     if (priority <= 0.33) {
       return {cl::sycl::property::queue::in_order(), sycl::ext::oneapi::property::queue::priority_low()};
     }
@@ -116,9 +117,6 @@ void DeviceCircularQueueBuffer::joinQueueDepencency() {
 }
 
 void DeviceCircularQueueBuffer::syncQueueWithHost(cl::sycl::queue *queuePtr) {
-  if (!this->exists(queuePtr))
-    throw std::invalid_argument("DEVICE::ERROR: passed stream does not belong to circular stream buffer");
-
   queuePtr->wait_and_throw();
 }
 
@@ -126,6 +124,9 @@ void DeviceCircularQueueBuffer::syncAllQueuesWithHost() {
   defaultQueue.synchronize();
   for (auto &q : this->queues) {
     q.synchronize();
+  }
+  for (auto* q : this->externalQueues) {
+    q->wait_and_throw();
   }
 }
 

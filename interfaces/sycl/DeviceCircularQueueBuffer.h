@@ -5,6 +5,7 @@
 #include <functional>
 #include <stack>
 #include <string.h>
+#include <vector>
 
 
 namespace device {
@@ -84,7 +85,7 @@ private:
   QueueWrapper defaultQueue;
   QueueWrapper genericQueue;
   std::vector<QueueWrapper> queues;
-  std::vector<QueueWrapper*> externalQueues;
+  std::vector<cl::sycl::queue*> externalQueues;
   size_t counter;
   cl::sycl::device deviceReference;
   std::function<void(cl::sycl::exception_list)> handlerReference;
