@@ -2,6 +2,7 @@
 #define DEVICE_ABSTRACT_API_H
 
 #include "DataTypes.h"
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
@@ -95,7 +96,7 @@ struct AbstractAPI {
   virtual DeviceGraphHandle getLastGraphHandle() = 0;
   virtual void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) = 0;
 
-  virtual void* createGenericStream() = 0;
+  virtual void* createStream(double priority = NAN) = 0;
   virtual void destroyGenericStream(void* streamPtr) = 0;
   virtual void syncStreamWithHost(void* streamPtr) = 0;
   virtual bool isStreamWorkDone(void* streamPtr) = 0;
