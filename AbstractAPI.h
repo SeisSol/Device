@@ -119,6 +119,8 @@ struct AbstractAPI {
   virtual void putProfilingMark(const std::string &name, ProfilingColors color) = 0;
   virtual void popLastProfilingMark() = 0;
 
+  virtual void setupPrinting(int rank) = 0;
+
   bool hasFinalized() { return m_isFinalized; }
 
 protected:

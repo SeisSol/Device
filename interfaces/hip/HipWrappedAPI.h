@@ -112,6 +112,8 @@ public:
 
   bool isUnifiedMemoryDefault() override;
 
+  void setupPrinting(int rank) override;
+
 private:
   void createCircularStreamAndEvents();
 
@@ -148,6 +150,7 @@ private:
   std::unordered_map<void *, size_t> memToSizeMap{{nullptr, 0}};
 
   int priorityMin, priorityMax;
+  InfoPrinter printer;
 };
 } // namespace device
 

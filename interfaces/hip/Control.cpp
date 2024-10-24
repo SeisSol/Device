@@ -89,16 +89,15 @@ void ConcreteAPI::allocateStackMem() {
 
   try {
     char *valueString = std::getenv("DEVICE_STACK_MEM_SIZE");
-    const auto rank = getMpiRankFromEnv();
     if (!valueString) {
-      logInfo(rank)
+      printer.printInfo()
           << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
           << "The default amount of the device memory (1 GB) "
           << "is going to be used to store temp. variables during execution of compute-algorithms.";
     } else {
       double requestedStackMem = std::stod(std::string(valueString));
       maxStackMem = factor * requestedStackMem;
-      logInfo(rank) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
+      printer.printInfo() << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
                     << requestedStackMem << "GB of the device memory is going to be used "
                     << "to store temp. variables during execution of compute-algorithms.";
     }
@@ -155,7 +154,7 @@ void ConcreteAPI::finalize() {
     hipStreamDestroy(defaultStream); CHECK_ERR;
     hipEventDestroy(defaultStreamEvent); CHECK_ERR;
     if (!genericStreams.empty()) {
-      logInfo(currentDeviceId) << "DEVICE::WARNING:" << genericStreams.size()
+      printer.printInfo() << "DEVICE::WARNING:" << genericStreams.size()
                                << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
         hipStreamDestroy(stream); CHECK_ERR;
@@ -275,4 +274,8 @@ void ConcreteAPI::popLastProfilingMark() {
   isFlagSet<DeviceSelected>(status);
   roctxRangePop();
 #endif
+}
+
+void ConcreteAPI::setupPrinting(int rank) {
+  printer.setRank(rank);
 }

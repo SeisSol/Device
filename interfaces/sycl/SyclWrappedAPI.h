@@ -140,6 +140,8 @@ public:
 
   bool isUnifiedMemoryDefault() override;
 
+  void setupPrinting(int rank) override;
+
 private:
   std::vector<DeviceContext*> availableDevices;
 
@@ -172,6 +174,7 @@ private:
 
   bool deviceInitialized;
   int currentDeviceId;
+  InfoPrinter printer;
 };
 } // namespace device
 
