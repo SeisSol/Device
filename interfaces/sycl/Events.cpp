@@ -35,7 +35,7 @@ void ConcreteAPI::syncEventWithHost(void* eventPtr) {
 bool ConcreteAPI::isEventCompleted(void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
   // (NOTE: we do not poll here on the SYCL implementation, i.e. we may get MPI-like issues)
-  return event->get_info<cl::sycl::info::event::command_execution_status>() == cl::sycl::info::event_command_status::complete;
+  return !event->syclEvent.has_value() || event->syclEvent.value().get_info<cl::sycl::info::event::command_execution_status>() == cl::sycl::info::event_command_status::complete;
 }
 
 void ConcreteAPI::recordEventOnHost(void* eventPtr) {
