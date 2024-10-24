@@ -18,7 +18,6 @@ enum StatusID {
   DriverApiInitialized = 0,
   DeviceSelected,
   InterfaceInitialized,
-  CircularStreamBufferInitialized,
   StackMemAllocated,
   Count
 };
@@ -48,16 +47,6 @@ inline int getMpiRankFromEnv() {
     if (value != defaultValue) break;
   }
   return (value != defaultValue) ? value : 0;
-}
-
-inline size_t getMaxConcurrencyLevel(int defaultValue) {
-  auto concurrencyLevel = utils::Env::get("DEVICE_MAX_CONCURRENCY_LEVEL",
-                                          defaultValue);
-  if (concurrencyLevel <= 0) {
-    concurrencyLevel = defaultValue;
-  }
-
-  return static_cast<size_t>(concurrencyLevel);
 }
 
 constexpr auto mapPercentage(int minval, int maxval, double value) {

@@ -73,16 +73,6 @@ public:
   void *getDefaultStream() override;
   void syncDefaultStreamWithHost() override;
 
-  void *getNextCircularStream() override;
-  void resetCircularStreamCounter() override;
-  size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBufferWithHost(void* streamPtr) override;
-  void syncCircularBuffersWithHost() override;
-
-  void forkCircularStreamsFromDefault() override;
-  void joinCircularStreamsToDefault() override;
-  bool isCircularStreamsJoinedWithDefault() override;
-
   bool isCapableOfGraphCapturing() override;
   void streamBeginCapture(std::vector<void*>& streamPtrs) override;
   void streamEndCapture() override;
@@ -115,8 +105,6 @@ public:
   void setupPrinting(int rank) override;
 
 private:
-  void createCircularStreamAndEvents();
-
   device::StatusT status{false};
   int currentDeviceId{-1};
 
@@ -125,13 +113,7 @@ private:
   hipStream_t defaultStream{nullptr};
   hipEvent_t defaultStreamEvent{};
 
-  std::vector<hipStream_t> circularStreamBuffer{};
-  std::vector<hipEvent_t> circularStreamEvents{};
   std::unordered_set<hipStream_t> genericStreams{};
-
-
-  bool isCircularStreamsForked{false};
-  size_t circularStreamCounter{0};
 
   struct GraphDetails {
     hipGraph_t graph;

@@ -24,6 +24,7 @@ enum class ProfilingColors : uint32_t {
   Magenta = 0xFF00FF,
   Count = 8
 };
+
 struct AbstractAPI {
   virtual ~AbstractAPI() = default;
 
@@ -79,16 +80,6 @@ struct AbstractAPI {
 
   virtual void *getDefaultStream() = 0;
   virtual void syncDefaultStreamWithHost() = 0;
-
-  virtual void *getNextCircularStream() = 0;
-  virtual void resetCircularStreamCounter() = 0;
-  virtual size_t getCircularStreamSize() = 0;
-  virtual void syncStreamFromCircularBufferWithHost(void *streamPtr) = 0;
-  virtual void syncCircularBuffersWithHost() = 0;
-
-  virtual void forkCircularStreamsFromDefault() = 0;
-  virtual void joinCircularStreamsToDefault() = 0;
-  virtual bool isCircularStreamsJoinedWithDefault() = 0;
 
   virtual bool isCapableOfGraphCapturing() = 0;
   virtual void streamBeginCapture(std::vector<void*>& streamPtrs) = 0;

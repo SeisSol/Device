@@ -4,6 +4,7 @@
 #include "DeviceCircularQueueBuffer.h"
 #include "DeviceStack.h"
 #include "Statistics.h"
+#include <unordered_map>
 
 namespace device {
 

@@ -101,16 +101,6 @@ public:
   void *getDefaultStream() override;
   void syncDefaultStreamWithHost() override;
 
-  void *getNextCircularStream() override;
-  void resetCircularStreamCounter() override;
-  size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBufferWithHost(void* streamPtr) override;
-  void syncCircularBuffersWithHost() override;
-
-  void forkCircularStreamsFromDefault() override;
-  void joinCircularStreamsToDefault() override;
-  bool isCircularStreamsJoinedWithDefault() override;
-
   bool isCapableOfGraphCapturing() override;
   void streamBeginCapture(std::vector<void*>& streamPtrs) override;
   void streamEndCapture() override;

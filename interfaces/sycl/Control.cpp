@@ -14,7 +14,6 @@ void ConcreteAPI::initDevices() {
     throw new std::invalid_argument("Cannot initialize the devices twice!");
   }
 
-  const auto concurrencyLevel = getMaxConcurrencyLevel(4);
   for (auto const &platform : cl::sycl::platform::get_platforms()) {
     for (auto const &device : platform.get_devices()) {
 
@@ -30,7 +29,7 @@ void ConcreteAPI::initDevices() {
         }
       }
 
-      DeviceContext *context = new DeviceContext{device, concurrencyLevel};
+      DeviceContext *context = new DeviceContext{device, 0};
       this->availableDevices.push_back(context);
     }
   }

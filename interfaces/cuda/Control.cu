@@ -50,8 +50,6 @@ void ConcreteAPI::initialize() {
     cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking); CHECK_ERR;
     cudaEventCreate(&defaultStreamEvent); CHECK_ERR;
 
-    this->createCircularStreamAndEvents();
-
     int result{0};
     cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, currentDeviceId);
     CHECK_ERR;
@@ -63,25 +61,6 @@ void ConcreteAPI::initialize() {
   else {
     logWarning() << "Device Interface has already been initialized";
   }
-}
-
-void ConcreteAPI::createCircularStreamAndEvents() {
-  isFlagSet<StatusID::InterfaceInitialized>(status);
-
-  auto concurrencyLevel = getMaxConcurrencyLevel(4);
-  circularStreamBuffer.resize(concurrencyLevel);
-  for (auto &stream : circularStreamBuffer) {
-    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); CHECK_ERR;
-    CHECK_ERR;
-  }
-
-  circularStreamEvents.resize(concurrencyLevel);
-  for (auto &event : circularStreamEvents) {
-    cudaEventCreate(&event);
-    CHECK_ERR;
-  }
-
-  status[StatusID::CircularStreamBufferInitialized] = true;
 }
 
 void ConcreteAPI::allocateStackMem() {
@@ -127,31 +106,6 @@ void ConcreteAPI::finalize() {
     stackMemMeter = std::stack<size_t>{};
     status[StatusID::StackMemAllocated] = false;
 
-  }
-
-  if (status[StatusID::CircularStreamBufferInitialized]) {
-    for (auto &stream : circularStreamBuffer) {
-      cudaStreamDestroy(stream);
-      CHECK_ERR;
-    }
-    circularStreamBuffer.clear();
-
-    for (auto &event : circularStreamEvents) {
-      cudaEventDestroy(event);
-      CHECK_ERR;
-    }
-    circularStreamEvents.clear();
-
-    for (auto &graphInstance : graphs) {
-      cudaGraphExecDestroy(graphInstance.instance);
-      CHECK_ERR;
-
-      cudaGraphDestroy(graphInstance.graph);
-      CHECK_ERR;
-    }
-    graphs.clear();
-
-    status[StatusID::CircularStreamBufferInitialized] = false;
   }
 
   if (status[StatusID::InterfaceInitialized]) {

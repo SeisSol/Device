@@ -71,16 +71,6 @@ public:
   void *getDefaultStream() override;
   void syncDefaultStreamWithHost() override;
 
-  void *getNextCircularStream() override;
-  void resetCircularStreamCounter() override;
-  size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBufferWithHost(void* streamPtr) override;
-  void syncCircularBuffersWithHost() override;
-
-  void forkCircularStreamsFromDefault() override;
-  void joinCircularStreamsToDefault() override;
-  bool isCircularStreamsJoinedWithDefault() override;
-
   bool isCapableOfGraphCapturing() override;
   void streamBeginCapture(std::vector<void*>& streamPtrs) override;
   void streamEndCapture() override;
@@ -124,12 +114,7 @@ private:
   cudaStream_t defaultStream{nullptr};
   cudaEvent_t defaultStreamEvent{};
 
-  std::vector<cudaStream_t> circularStreamBuffer{};
-  std::vector<cudaEvent_t> circularStreamEvents{};
   std::unordered_set<cudaStream_t> genericStreams{};
-
-  bool isCircularStreamsForked{false};
-  size_t circularStreamCounter{0};
 
   struct GraphDetails {
     cudaGraph_t graph;
