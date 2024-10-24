@@ -5,6 +5,8 @@
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
 
+#include "utils/logger.h"
+
 using namespace device;
 
 void *ConcreteAPI::allocGlobMem(size_t size) {
@@ -80,11 +82,14 @@ void ConcreteAPI::freePinnedMem(void *devPtr) {
 
 char *ConcreteAPI::getStackMemory(size_t requestedBytes) {
   isFlagSet<StackMemAllocated>(status);
-  assert(((stackMemByteCounter + requestedBytes) < maxStackMem) &&
-         "DEVICE:: run out of a device stack memory");
   char *mem = &stackMemory[stackMemByteCounter];
 
   size_t requestedAlignedBytes = align(requestedBytes, getGlobMemAlignment());
+
+  if ((stackMemByteCounter + requestedAlignedBytes) < maxStackMem) {
+    logError() << "DEVICE:: run out of a device stack memory";
+  }
+
   stackMemByteCounter += requestedAlignedBytes;
   stackMemMeter.push(requestedAlignedBytes);
   return mem;
