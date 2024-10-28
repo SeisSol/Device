@@ -99,12 +99,12 @@ __global__ void spinloop(uint32_t* location, uint32_t value) {
 void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
   // TODO: check for graph capture here?
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
-  void* deviceLocation = nullptr;
+  uint32_t* deviceLocation = nullptr;
   cudaHostGetDevicePointer(&deviceLocation, location, 0);
   CHECK_ERR;
   const auto result = cuStreamWaitValue32(stream, reinterpret_cast<uintptr_t>(deviceLocation), value, CU_STREAM_WAIT_VALUE_GEQ);
   if (result == CUDA_ERROR_NOT_SUPPORTED) {
-    spinloop<<<1,1,0,stream>>>(location, value);
+    spinloop<<<1,1,0,stream>>>(deviceLocation, value);
   }
   CHECK_ERR;
 }
