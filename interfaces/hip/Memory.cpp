@@ -89,7 +89,7 @@ char* ConcreteAPI::getStackMemory(size_t requestedBytes) {
 
   size_t requestedAlignedBytes = align(requestedBytes, getGlobMemAlignment());
 
-  if ((stackMemByteCounter + requestedAlignedBytes) < maxStackMem) {
+  if ((stackMemByteCounter + requestedAlignedBytes) >= maxStackMem) {
     logError() << "DEVICE:: run out of a device stack memory";
   }
 
