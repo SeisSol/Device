@@ -101,7 +101,7 @@ __global__ void spinloop(uint32_t* location, uint32_t value) {
 void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   uint32_t* deviceLocation = nullptr;
-  hipHostGetDevicePointer(&deviceLocation, location, 0);
+  hipHostGetDevicePointer(&reinterpret_cast<void*>(deviceLocation), location, 0);
   CHECK_ERR;
   const auto result = hipStreamWaitValue32(stream, deviceLocation, value, hipStreamWaitValueGte, 0xffffffff);
   if (result == hipErrorNotSupported) {

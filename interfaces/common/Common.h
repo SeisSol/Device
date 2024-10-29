@@ -80,7 +80,7 @@ public:
         printer.stringCache.emplace_back(stream->str());
       }
       else {
-        logInfo(printer.rank) << stream->str();
+        logInfo(printer.rank) << stream->str().c_str();
       }
       stream = nullptr;
     }
