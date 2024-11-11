@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "DeviceCircularQueueBuffer.h"
 
 #include "SyclWrappedAPI.h"
@@ -146,3 +150,4 @@ bool DeviceCircularQueueBuffer::exists(cl::sycl::queue *queuePtr) {
 }
 
 } // namespace device
+

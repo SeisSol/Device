@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "datatypes.hpp"
@@ -44,3 +48,4 @@ TEST(Matrix, DaingAndLU) {
   ASSERT_THAT(testLU.data, ElementsAreArray(refLU));
   ASSERT_THAT(testLU.indices, ElementsAreArray(refLUIndices));
 }
+

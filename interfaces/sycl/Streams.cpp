@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "SyclWrappedAPI.h"
 
 #include <algorithm>
@@ -73,3 +77,4 @@ void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t
     }
   });
 }
+

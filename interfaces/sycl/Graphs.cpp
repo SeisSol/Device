@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "SyclWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
@@ -97,3 +101,4 @@ void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
   });
 #endif
 }
+

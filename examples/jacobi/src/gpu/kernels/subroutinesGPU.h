@@ -1,5 +1,9 @@
-#ifndef JSOLVER_SUBROUTINESGPU_HPP
-#define JSOLVER_SUBROUTINESGPU_HPP
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_GPU_KERNELS_SUBROUTINESGPU_H_
+#define SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_GPU_KERNELS_SUBROUTINESGPU_H_
 
 #include "../../datatypes.hpp"
 #include "../../simpleDatatypes.hpp"
@@ -14,4 +18,6 @@ void launch_manipVectors(const RangeT &range,
                          VectorManipOps op,
                          void* streamPtr);
 
-#endif // JSOLVER_SUBROUTINESGPU_HPP
+
+#endif // SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_GPU_KERNELS_SUBROUTINESGPU_H_
+

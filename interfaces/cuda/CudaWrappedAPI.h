@@ -1,5 +1,9 @@
-#ifndef DEVICE_CUDAINTERFACE_H
-#define DEVICE_CUDAINTERFACE_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_CUDA_CUDAWRAPPEDAPI_H_
+#define SEISSOLDEVICE_INTERFACES_CUDA_CUDAWRAPPEDAPI_H_
 
 #include <stack>
 #include <string>
@@ -137,4 +141,6 @@ private:
 };
 } // namespace device
 
-#endif // DEVICE_CUDAINTERFACE_H
+
+#endif // SEISSOLDEVICE_INTERFACES_CUDA_CUDAWRAPPEDAPI_H_
+

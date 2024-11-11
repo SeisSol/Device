@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022-2024 SeisSol Group
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 include(FindPackageHandleStandardArgs)
 include(CheckCXXSourceRuns)
 include(CMakePushCheckState)
@@ -90,3 +94,4 @@ endif()
 find_package_handle_standard_args(DpcppFlags _DPCPP_DEVICE_FLAGS
                                              _SYCL_TEST_RUN_RESTULS)
 cmake_pop_check_state()
+

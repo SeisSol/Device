@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "AbstractAPI.h"
 #include "interfaces/hip/Internals.h"
 #include <cassert>
@@ -205,3 +209,4 @@ template void Algorithms::copyScatterToUniform(char **src,
                                                size_t numElements,
                                                void* streamPtr);
 } // namespace device
+

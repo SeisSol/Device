@@ -1,5 +1,9 @@
-#ifndef DEVICE_ALGORITHMS_REDUCTION_H
-#define DEVICE_ALGORITHMS_REDUCTION_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_ALGORITHMS_CUDA_REDUCTION_H_
+#define SEISSOLDEVICE_ALGORITHMS_CUDA_REDUCTION_H_
 
 #include "AbstractAPI.h"
 #include "interfaces/cuda/Internals.h"
@@ -24,4 +28,6 @@ void __global__ kernel_reduce(T *vector, const size_t size, OperationT Operation
 }
 } // namespace device
 
-#endif // DEVICE_ALGORITHMS_REDUCTION_H
+
+#endif // SEISSOLDEVICE_ALGORITHMS_CUDA_REDUCTION_H_
+

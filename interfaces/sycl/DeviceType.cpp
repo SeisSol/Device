@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "DeviceType.h"
 #include "utils/env.h"
 #include <iostream>
@@ -57,3 +61,4 @@ std::string convertToString(cl::sycl::info::device_type type) {
   }
 }
 } // namespace device
+

@@ -1,5 +1,9 @@
-#ifndef DEVICE_ABSTRACT_API_H
-#define DEVICE_ABSTRACT_API_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_ABSTRACTAPI_H_
+#define SEISSOLDEVICE_ABSTRACTAPI_H_
 
 #include "DataTypes.h"
 #include <cmath>
@@ -118,4 +122,6 @@ protected:
 };
 } // namespace device
 
-#endif // DEVICE_ABSTRACT_API_H
+
+#endif // SEISSOLDEVICE_ABSTRACTAPI_H_
+

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019-2024 SeisSol Group
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 cmake_minimum_required(VERSION 3.5)
 project(device_submodule)
 
@@ -79,3 +83,4 @@ target_include_directories(device PRIVATE .
                                           interfaces/common
                                           algorithms/${BACKEND_FOLDER}
                                           submodules)
+

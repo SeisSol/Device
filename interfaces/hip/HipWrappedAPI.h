@@ -1,5 +1,9 @@
-#ifndef DEVICE_HIPINTERFACE_H
-#define DEVICE_HIPINTERFACE_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_HIP_HIPWRAPPEDAPI_H_
+#define SEISSOLDEVICE_INTERFACES_HIP_HIPWRAPPEDAPI_H_
 
 #include "AbstractAPI.h"
 #include "Statistics.h"
@@ -136,4 +140,6 @@ private:
 };
 } // namespace device
 
-#endif // DEVICE_HIPINTERFACE_H
+
+#endif // SEISSOLDEVICE_INTERFACES_HIP_HIPWRAPPEDAPI_H_
+

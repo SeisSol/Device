@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "hip/hip_runtime.h"
 #include "HipWrappedAPI.h"
 #include "Internals.h"
@@ -48,3 +52,4 @@ void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   hipEventRecord(event, stream);
   CHECK_ERR;
 }
+

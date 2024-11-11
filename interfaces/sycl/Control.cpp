@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "DeviceType.h"
 #include "SyclWrappedAPI.h"
 #include "utils/logger.h"
@@ -178,3 +182,4 @@ void ConcreteAPI::popLastProfilingMark() {
 void ConcreteAPI::setupPrinting(int rank) {
   printer.setRank(rank);
 }
+

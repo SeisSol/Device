@@ -1,5 +1,9 @@
-#ifndef JSOLVER_MATRIX_SUBROUTINES_HPP
-#define JSOLVER_MATRIX_SUBROUTINES_HPP
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_MATRIX_MANIP_HPP_
+#define SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_MATRIX_MANIP_HPP_
 
 #include "datatypes.hpp"
 #include <tuple>
@@ -7,4 +11,6 @@
 CpuMatrixDataT init2DStencilMatrix(WorkSpaceT ws, int numRows);
 std::pair<VectorT, CpuMatrixDataT> getDLU(const CpuMatrixDataT &matrix);
 
-#endif // JSOLVER_MATRIX_SUBROUTINES_HPP
+
+#endif // SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_MATRIX_MANIP_HPP_
+

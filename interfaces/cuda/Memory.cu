@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <assert.h>
 #include <driver_types.h>
 #include <iostream>
@@ -154,3 +158,4 @@ void* ConcreteAPI::devicePointer(void* ptr) {
   CHECK_ERR;
   return result;
 }
+

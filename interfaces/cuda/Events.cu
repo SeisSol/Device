@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
@@ -47,3 +51,4 @@ void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   cudaEventRecord(event, stream);
   CHECK_ERR;
 }
+

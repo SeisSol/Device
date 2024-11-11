@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "datatypes.hpp"
@@ -24,3 +28,4 @@ TEST(Matrix, MatrixMult) {
   VectorT resMustBe{-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 7.0};
   ASSERT_THAT(tmp, ElementsAreArray(resMustBe));
 }
+

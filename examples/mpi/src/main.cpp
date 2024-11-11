@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <device.h>
 #include <iostream>
 #include <mpi.h>
@@ -56,3 +60,4 @@ int main(int argc, char *argv[]) {
 
   MPI_Finalize();
 }
+

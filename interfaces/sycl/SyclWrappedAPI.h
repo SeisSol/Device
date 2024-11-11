@@ -1,5 +1,9 @@
-#ifndef DEVICE_SYCLINTERFACE_H
-#define DEVICE_SYCLINTERFACE_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_SYCL_SYCLWRAPPEDAPI_H_
+#define SEISSOLDEVICE_INTERFACES_SYCL_SYCLWRAPPEDAPI_H_
 
 #include "AbstractAPI.h"
 #include "Common.h"
@@ -168,4 +172,6 @@ private:
 };
 } // namespace device
 
-#endif
+
+#endif // SEISSOLDEVICE_INTERFACES_SYCL_SYCLWRAPPEDAPI_H_
+

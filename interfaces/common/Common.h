@@ -1,5 +1,9 @@
-#ifndef DEVICE_INTERFACE_STATUS_H
-#define DEVICE_INTERFACE_STATUS_H
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_COMMON_COMMON_H_
+#define SEISSOLDEVICE_INTERFACES_COMMON_COMMON_H_
 
 #include "utils/env.h"
 #include <array>
@@ -105,4 +109,6 @@ private:
   std::vector<std::string> stringCache;
 };
 
-#endif // DEVICE_INTERFACE_STATUS_H
+
+#endif // SEISSOLDEVICE_INTERFACES_COMMON_COMMON_H_
+

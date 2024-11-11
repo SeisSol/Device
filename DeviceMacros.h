@@ -1,5 +1,9 @@
-#ifndef DEVICE_MACROS_H
-#define DEVICE_MACROS_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_DEVICEMACROS_H_
+#define SEISSOLDEVICE_DEVICEMACROS_H_
 
 #if defined(DEVICE_CUDA_LANG)
 #define DEVICE_KERNEL_LAUNCH(KRNL, GRID, BLOCK, SHR_SIZE, STREAM, ...) \
@@ -19,4 +23,6 @@
 #error gpu interface not supported.
 #endif
 
-#endif // DEVICE_MACROS_H
+
+#endif // SEISSOLDEVICE_DEVICEMACROS_H_
+

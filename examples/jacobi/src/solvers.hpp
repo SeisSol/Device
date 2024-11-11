@@ -1,5 +1,9 @@
-#ifndef JSOLVER_SOLVERS_HPP
-#define JSOLVER_SOLVERS_HPP
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_SOLVERS_HPP_
+#define SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_SOLVERS_HPP_
 
 #include "datatypes.hpp"
 #include <memory>
@@ -38,4 +42,6 @@ private:
 };
 } // namespace gpu
 
-#endif // JSOLVER_SOLVERS_HPP
+
+#endif // SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_SOLVERS_HPP_
+

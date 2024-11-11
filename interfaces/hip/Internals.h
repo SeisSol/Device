@@ -1,5 +1,9 @@
-#ifndef DEVICE_INTERNALS_H
-#define DEVICE_INTERNALS_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_HIP_INTERNALS_H_
+#define SEISSOLDEVICE_INTERFACES_HIP_INTERNALS_H_
 
 #include "hip/hip_runtime.h"
 #include <string>
@@ -35,4 +39,6 @@ namespace device {
   }
 }
 
-#endif //DEVICE_INTERNALS_H
+
+#endif // SEISSOLDEVICE_INTERFACES_HIP_INTERNALS_H_
+

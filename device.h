@@ -1,5 +1,9 @@
-#ifndef DEVICE_H
-#define DEVICE_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_DEVICE_H_
+#define SEISSOLDEVICE_DEVICE_H_
 
 #include "AbstractAPI.h"
 #include "Algorithms.h"
@@ -25,4 +29,6 @@ private:
   DeviceInstance();
 };
 } // namespace device
-#endif // SEISSOL_DEVICE_H
+
+#endif // SEISSOLDEVICE_DEVICE_H_
+

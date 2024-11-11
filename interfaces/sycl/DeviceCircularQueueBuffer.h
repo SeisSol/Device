@@ -1,5 +1,9 @@
-#ifndef DEVICE_CIRCULAR_QUEUE_BUFFER_H
-#define DEVICE_CIRCULAR_QUEUE_BUFFER_H
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_SYCL_DEVICECIRCULARQUEUEBUFFER_H_
+#define SEISSOLDEVICE_INTERFACES_SYCL_DEVICECIRCULARQUEUEBUFFER_H_
 
 #include <CL/sycl.hpp>
 #include <functional>
@@ -93,4 +97,6 @@ private:
 
 } // namespace device
 
-#endif
+
+#endif // SEISSOLDEVICE_INTERFACES_SYCL_DEVICECIRCULARQUEUEBUFFER_H_
+

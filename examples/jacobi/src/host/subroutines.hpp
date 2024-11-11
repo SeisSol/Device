@@ -1,5 +1,9 @@
-#ifndef JSOLVER_SUBROUTINES_HPP
-#define JSOLVER_SUBROUTINES_HPP
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_HOST_SUBROUTINES_HPP_
+#define SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_HOST_SUBROUTINES_HPP_
 
 #include "datatypes.hpp"
 #include <functional>
@@ -13,4 +17,6 @@ void manipVectors(const RangeT &range, const VectorT &a, const VectorT &b, Vecto
 
 real getInfNorm(const RangeT &range, const VectorT &vector);
 } // namespace host
-#endif // JSOLVER_SUBROUTINES_HPP
+
+#endif // SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_HOST_SUBROUTINES_HPP_
+

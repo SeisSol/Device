@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "AbstractAPI.h"
 #include "interfaces/cuda/Internals.h"
 #include <device.h>
@@ -195,3 +199,4 @@ void Algorithms::setToValue(real** out, real value, size_t elementSize, size_t n
                                                  size_t numElements,
                                                  void* streamPtr);
 } // namespace device
+

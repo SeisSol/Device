@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
@@ -110,3 +114,4 @@ void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t
   }
   CHECK_ERR;
 }
+

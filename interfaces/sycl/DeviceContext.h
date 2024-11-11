@@ -1,5 +1,9 @@
-#ifndef DEVICE_SUBMODULE_DEVICECONTEXT_H
-#define DEVICE_SUBMODULE_DEVICECONTEXT_H
+// SPDX-FileCopyrightText: 2022-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_SYCL_DEVICECONTEXT_H_
+#define SEISSOLDEVICE_INTERFACES_SYCL_DEVICECONTEXT_H_
 
 #include "DeviceCircularQueueBuffer.h"
 #include "DeviceStack.h"
@@ -22,4 +26,6 @@ private:
   void onExceptionOccurred(cl::sycl::exception_list &exceptions);
 };
 } // namespace device
-#endif // DEVICE_SUBMODULE_DEVICECONTEXT_H
+
+#endif // SEISSOLDEVICE_INTERFACES_SYCL_DEVICECONTEXT_H_
+
