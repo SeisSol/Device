@@ -86,6 +86,7 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
   CHECK_ERR;
 }
 
+namespace {
 __global__ void spinloop(uint32_t* location, uint32_t value) {
   volatile uint32_t* spinLocation = location;
   while (true) {
@@ -95,6 +96,7 @@ __global__ void spinloop(uint32_t* location, uint32_t value) {
     __threadfence_system();
   }
 }
+} // namespace
 
 void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
   // TODO: check for graph capture here?
