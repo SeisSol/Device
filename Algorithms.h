@@ -1,5 +1,9 @@
-#ifndef DEVICE_ALGORITHMS_HPP
-#define DEVICE_ALGORITHMS_HPP
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_ALGORITHMS_H_
+#define SEISSOLDEVICE_ALGORITHMS_H_
 
 #include "AbstractAPI.h"
 
@@ -55,4 +59,6 @@ private:
 };
 } // namespace device
 
-#endif // DEVICE_ALGORITHMS_HPP
+
+#endif // SEISSOLDEVICE_ALGORITHMS_H_
+

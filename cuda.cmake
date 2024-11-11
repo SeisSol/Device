@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 enable_language(CUDA)
 set(CMAKE_CUDA_STANDARD 14)
 
@@ -48,3 +52,4 @@ endif()
 
 find_package(CUDAToolkit REQUIRED)
 target_link_libraries(device PUBLIC CUDA::cudart CUDA::cuda_driver CUDA::nvToolsExt)
+

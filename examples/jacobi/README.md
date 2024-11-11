@@ -1,3 +1,9 @@
+<!--
+    SPDX-FileCopyrightText: 2019-2024 SeisSol Group
+
+    SPDX-License-Identifier: BSD-3-Clause
+-->
+
 # Parallel Jacobi Iteration Benchmark
 
 This is MPI+GPU Parallel Jacobi Iteration Solver where a GPU part can be either CUDA or HIP.

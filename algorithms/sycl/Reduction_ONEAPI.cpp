@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "algorithms/Common.h"
 #include "interfaces/sycl/Internals.h"
 #include "utils/logger.h"
@@ -69,3 +73,4 @@ template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const R
 template unsigned Algorithms::reduceVector(unsigned *buffer, size_t size, ReductionType type, void* streamPtr);
 template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type, void* streamPtr);
 } // namespace device
+

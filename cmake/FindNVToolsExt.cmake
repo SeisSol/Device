@@ -1,20 +1,7 @@
-#  NVToolsExt - NVIDIA Tools Extension Library Instantiation Software Framework
+# SPDX-FileCopyrightText: 2020-2024 SeisSol Group
 #
-#  NOTE: it is not an official cmake search file
-#  author: Ravil Dorozhinskii
-#  email: ravil.dorozhinskii@tum.de
-#
-#  NVToolsExt_FOUND        - system has NVToolsExt
-#  NVToolsExt_INCLUDE_DIRS - include directories for NVToolsExt
-#  NVToolsExt_LIBRARIES    - libraries for NVToolsExt
-#
-#  Additional env. variables that may be used by this module.
-#  They can change the default behaviour and
-#  could to be set before calling find_package:
-#
-#  NVToolsExt_DIR          - the root directory of the NVToolsExt installation
-#
-# NOTE: One must call find_package(CUDA REQUIRED) before calling the file
+# SPDX-License-Identifier: BSD-3-Clause
+
 
 include(FindPackageHandleStandardArgs)
 
@@ -32,3 +19,4 @@ find_library(NVToolsExt_LIBRARIES
 find_package_handle_standard_args(NVToolsExt
                                   NVToolsExt_INCLUDE_DIRS
                                   NVToolsExt_LIBRARIES)
+

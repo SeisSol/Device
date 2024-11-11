@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "utils/logger.h"
 #include <sstream>
 
@@ -25,3 +29,4 @@ void checkErr(const std::string &file, int line) {
 }
 } // namespace internals
 } // namespace device
+

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "utils/logger.h"
 #include "hip/hip_runtime.h"
 #include "HipWrappedAPI.h"
@@ -80,3 +84,4 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void* devPtr, siz
                        type == Destination::CurrentDevice ? currentDeviceId : hipCpuDeviceId,
                        stream);
 }
+

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "hip/hip_runtime.h"
 #include "subroutinesGPU.h"
 
@@ -60,3 +64,4 @@ void launch_manipVectors(const RangeT &range,
   auto stream = reinterpret_cast<hipStream_t>(streamPtr);
   hipLaunchKernelGGL(kernel_manipVectors, grid, block, 0, stream, range, vec1, vec2, res, op);
 }
+

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "interfaces/sycl/Internals.h"
 #include "subroutinesGPU.h"
 
@@ -63,3 +67,4 @@ void launch_manipVectors(const RangeT &range,
     });
   });
 }
+

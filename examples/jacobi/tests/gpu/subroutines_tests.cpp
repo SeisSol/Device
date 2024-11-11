@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "datatypes.hpp"
 #include <device.h>
 #include <gmock/gmock.h>
@@ -90,3 +94,4 @@ TEST(Subroutines, VectorManips) {
   api->copyFrom(&res[0], devRes, size * sizeof(real));
   ASSERT_THAT(res, ElementsAreArray(ref));
 }
+

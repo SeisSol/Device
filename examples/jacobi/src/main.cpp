@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "datatypes.hpp"
 #include "helper.hpp"
 #include "host/subroutines.hpp"
@@ -103,3 +107,4 @@ int main(int argc, char *argv[]) {
 #endif
   return 0;
 }
+

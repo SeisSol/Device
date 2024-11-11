@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
@@ -105,3 +109,4 @@ TEST_F(VectorTests, AddAndSubtract) {
     ASSERT_THAT(tmp, ElementsAreArray(ref));
   }
 }
+

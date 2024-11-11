@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "subroutinesGPU.h"
 #include <cuda.h>
 
@@ -61,3 +65,4 @@ void launch_manipVectors(const RangeT &range,
   auto stream = reinterpret_cast<cudaStream_t>(streamPtr);
   kernel_manipVectors<<<grid, block, 0, stream>>>(range, vec1, vec2, res, op);
 }
+

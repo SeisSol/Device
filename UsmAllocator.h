@@ -1,5 +1,9 @@
-#ifndef DEVICE_USM_ALLOCATOR_H
-#define DEVICE_USM_ALLOCATOR_H
+// SPDX-FileCopyrightText: 2023-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_USMALLOCATOR_H_
+#define SEISSOLDEVICE_USMALLOCATOR_H_
 
 #include "device.h"
 #include <cstdlib>
@@ -58,4 +62,6 @@ private:
 };
 } // namespace device
 
-#endif // DEVICE_USM_ALLOCATOR_H
+
+#endif // SEISSOLDEVICE_USMALLOCATOR_H_
+

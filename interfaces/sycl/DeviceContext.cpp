@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 
 #include "DeviceContext.h"
 #include "DeviceType.h"
@@ -21,3 +25,4 @@ void DeviceContext::onExceptionOccurred(cl::sycl::exception_list &exceptions) {
   }
 }
 } // namespace device
+

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "device.h"
 
 #ifdef DEVICE_CUDA_LANG
@@ -31,3 +35,4 @@ DeviceInstance::~DeviceInstance() {
 void DeviceInstance::finalize() {
   api->finalize();
 }
+

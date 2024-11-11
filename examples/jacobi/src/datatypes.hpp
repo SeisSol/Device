@@ -1,5 +1,9 @@
-#ifndef JSOLVER_DATATYPES_HPP
-#define JSOLVER_DATATYPES_HPP
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_DATATYPES_HPP_
+#define SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_DATATYPES_HPP_
 
 #include <cassert>
 #include <limits>
@@ -98,4 +102,6 @@ struct GpuMatrixDataT {
   MatrixInfoT info;
 };
 
-#endif // JSOLVER_DATATYPES_HPP
+
+#endif // SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_DATATYPES_HPP_
+

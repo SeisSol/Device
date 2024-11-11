@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 set(DEVICE_SOURCE_FILES device.cpp
         interfaces/sycl/Aux.cpp
         interfaces/sycl/Control.cpp
@@ -35,3 +39,4 @@ else()
     target_link_libraries(device PRIVATE dpcpp::device_flags)
     target_compile_definitions(device PRIVATE ONEAPI_UNDERHOOD)
 endif()
+

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "DataTypes.h"
 #include "device.h"
 #include <iostream>
@@ -55,3 +59,4 @@ int main(int argc, char *argv[]) {
   delete[] outputArray;
   delete[] inputArray;
 }
+

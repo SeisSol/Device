@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "AbstractAPI.h"
 #include "interfaces/sycl/Internals.h"
 #include "utils/logger.h"
@@ -40,3 +44,4 @@ void Algorithms::compareDataWithHost(const real *hostPtr, const real *devPtr, co
   delete[] temp;
 }
 } // namespace device
+

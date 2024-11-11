@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "utils/logger.h"
 #include "utils/env.h"
 #include <iostream>
@@ -36,6 +40,9 @@ void ConcreteAPI::setDevice(int deviceId) {
   CHECK_ERR;
   usmDefault = result1 != 0 && result2 != 0;
 
+  hipDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
+  CHECK_ERR;
+
   status[StatusID::DeviceSelected] = true;
 }
 
@@ -52,31 +59,10 @@ void ConcreteAPI::initialize() {
     status[StatusID::InterfaceInitialized] = true;
     hipStreamCreateWithFlags(&defaultStream, hipStreamNonBlocking); CHECK_ERR;
     hipEventCreate(&defaultStreamEvent); CHECK_ERR;
-
-    this->createCircularStreamAndEvents();
   }
   else {
     logWarning() << "Device Interface has already been initialized";
   }
-}
-
-void ConcreteAPI::createCircularStreamAndEvents() {
-  isFlagSet<StatusID::InterfaceInitialized>(status);
-
-  auto concurrencyLevel = getMaxConcurrencyLevel(4);
-  circularStreamBuffer.resize(concurrencyLevel);
-  for (auto &stream : circularStreamBuffer) {
-    hipStreamCreateWithFlags(&stream, hipStreamNonBlocking); CHECK_ERR;
-    CHECK_ERR;
-  }
-
-  circularStreamEvents.resize(concurrencyLevel);
-  for (auto &event : circularStreamEvents) {
-    hipEventCreate(&event);
-    CHECK_ERR;
-  }
-
-  status[StatusID::CircularStreamBufferInitialized] = true;
 }
 
 void ConcreteAPI::allocateStackMem() {
@@ -87,16 +73,15 @@ void ConcreteAPI::allocateStackMem() {
 
   try {
     char *valueString = std::getenv("DEVICE_STACK_MEM_SIZE");
-    const auto rank = getMpiRankFromEnv();
     if (!valueString) {
-      logInfo(rank)
+      printer.printInfo()
           << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
           << "The default amount of the device memory (1 GB) "
           << "is going to be used to store temp. variables during execution of compute-algorithms.";
     } else {
       double requestedStackMem = std::stod(std::string(valueString));
       maxStackMem = factor * requestedStackMem;
-      logInfo(rank) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
+      printer.printInfo() << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
                     << requestedStackMem << "GB of the device memory is going to be used "
                     << "to store temp. variables during execution of compute-algorithms.";
     }
@@ -124,36 +109,11 @@ void ConcreteAPI::finalize() {
     status[StatusID::StackMemAllocated] = false;
   }
 
-  if (status[StatusID::CircularStreamBufferInitialized]) {
-    for (auto &stream : circularStreamBuffer) {
-      hipStreamDestroy(stream);
-      CHECK_ERR;
-    }
-    circularStreamBuffer.clear();
-
-    for (auto &event : circularStreamEvents) {
-      hipEventDestroy(event);
-      CHECK_ERR;
-    }
-    circularStreamEvents.clear();
-
-    for (auto &graphInstance : graphs) {
-      hipGraphExecDestroy(graphInstance.instance);
-      CHECK_ERR;
-
-      hipGraphDestroy(graphInstance.graph);
-      CHECK_ERR;
-    }
-    graphs.clear();
-
-    status[StatusID::CircularStreamBufferInitialized] = false;
-  }
-
   if (status[StatusID::InterfaceInitialized]) {
     hipStreamDestroy(defaultStream); CHECK_ERR;
     hipEventDestroy(defaultStreamEvent); CHECK_ERR;
     if (!genericStreams.empty()) {
-      logInfo(currentDeviceId) << "DEVICE::WARNING:" << genericStreams.size()
+      printer.printInfo() << "DEVICE::WARNING:" << genericStreams.size()
                                << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
         hipStreamDestroy(stream); CHECK_ERR;
@@ -274,3 +234,8 @@ void ConcreteAPI::popLastProfilingMark() {
   roctxRangePop();
 #endif
 }
+
+void ConcreteAPI::setupPrinting(int rank) {
+  printer.setRank(rank);
+}
+

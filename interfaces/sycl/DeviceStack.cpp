@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "DeviceStack.h"
 
 namespace device {
@@ -46,3 +50,4 @@ void DeviceStack::popStackMemory() {
 size_t DeviceStack::getStackMemByteCounter() { return this->stackMemByteCounter; }
 
 } // namespace device
+

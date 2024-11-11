@@ -1,5 +1,9 @@
-#ifndef DEVICE_INTERNALS_H
-#define DEVICE_INTERNALS_H
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_SYCL_INTERNALS_H_
+#define SEISSOLDEVICE_INTERFACES_SYCL_INTERNALS_H_
 
 #include "device.h"
 
@@ -33,4 +37,6 @@ inline cl::sycl::nd_range<1> computeDefaultExecutionRange1D(const size_t totalSi
 } // namespace internals
 
 } // namespace device
-#endif // DEVICE_INTERNALS_H
+
+#endif // SEISSOLDEVICE_INTERFACES_SYCL_INTERNALS_H_
+

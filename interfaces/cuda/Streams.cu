@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
@@ -5,7 +9,6 @@
 #include <cassert>
 #include <functional>
 #include <sstream>
-
 
 using namespace device;
 
@@ -20,93 +23,11 @@ void ConcreteAPI::syncDefaultStreamWithHost() {
   CHECK_ERR;
 }
 
-void* ConcreteAPI::getNextCircularStream() {
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  assert(isCircularStreamsForked && "use a circular stream must be used inside a forked region");
-  auto* returnStream = static_cast<void *>(circularStreamBuffer[circularStreamCounter]);
-  circularStreamCounter += 1;
-  if (circularStreamCounter >= circularStreamBuffer.size()) {
-    circularStreamCounter = 0;
-  }
-  return returnStream;
-}
-
-void ConcreteAPI::resetCircularStreamCounter() {
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  circularStreamCounter = 0;
-}
-
-size_t ConcreteAPI::getCircularStreamSize() {
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  return circularStreamBuffer.size();
-}
-
-void ConcreteAPI::syncStreamFromCircularBufferWithHost(void* userStream) {
-  isFlagSet<CircularStreamBufferInitialized>(status);
-
-  cudaStream_t stream = static_cast<cudaStream_t>(userStream);
-#ifndef NDEBUG
-  auto itr = std::find(circularStreamBuffer.begin(), circularStreamBuffer.end(), stream);
-  if (itr == circularStreamBuffer.end()) {
-    logError() << "DEVICE::ERROR: passed stream does not belong to circular stream buffer";
-  }
-#endif
-  cudaStreamSynchronize(stream);
-  CHECK_ERR;
-}
-
-void ConcreteAPI::syncCircularBuffersWithHost() {
-  isFlagSet<CircularStreamBufferInitialized>(status);
-
-  for (auto &stream : circularStreamBuffer) {
-    cudaStreamSynchronize(stream);
-    CHECK_ERR;
-  }
-}
-
-
-void ConcreteAPI::forkCircularStreamsFromDefault() {
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  assert(!isCircularStreamsForked && "circular streams must be joined before forking");
-
-  cudaEventRecord(defaultStreamEvent, defaultStream);
-  CHECK_ERR;
-
-  for (auto &stream : circularStreamBuffer) {
-    cudaStreamWaitEvent(stream, defaultStreamEvent, 0);
-    CHECK_ERR;
-  }
-  isCircularStreamsForked = true;
-}
-
-
-void ConcreteAPI::joinCircularStreamsToDefault() {
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  assert(isCircularStreamsForked && "circular streams must be forked before joining");
-
-  for (size_t i = 0; i < circularStreamBuffer.size(); ++i) {
-    cudaEventRecord(circularStreamEvents[i], circularStreamBuffer[i]);
-    CHECK_ERR;
-  }
-
-  for (size_t i = 0; i < circularStreamBuffer.size(); ++i) {
-    cudaStreamWaitEvent(defaultStream, circularStreamEvents[i], 0);
-    CHECK_ERR;
-  }
-  isCircularStreamsForked = false;
-}
-
-
-bool ConcreteAPI::isCircularStreamsJoinedWithDefault() {
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  return !isCircularStreamsForked;
-}
-
-
-void* ConcreteAPI::createGenericStream() {
+void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream;
-  cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); CHECK_ERR;
+  const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
+  cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking, truePriority); CHECK_ERR;
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }
@@ -168,3 +89,29 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
   cudaLaunchHostFunc(stream, &streamCallback, functionData);
   CHECK_ERR;
 }
+
+namespace {
+__global__ void spinloop(uint32_t* location, uint32_t value) {
+  volatile uint32_t* spinLocation = location;
+  while (true) {
+    if (*spinLocation >= value) {
+      return;
+    }
+    __threadfence_system();
+  }
+}
+} // namespace
+
+void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
+  // TODO: check for graph capture here?
+  cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+  uint32_t* deviceLocation = nullptr;
+  cudaHostGetDevicePointer(&deviceLocation, location, 0);
+  CHECK_ERR;
+  const auto result = cuStreamWaitValue32(stream, reinterpret_cast<uintptr_t>(deviceLocation), value, CU_STREAM_WAIT_VALUE_GEQ);
+  if (result == CUDA_ERROR_NOT_SUPPORTED) {
+    spinloop<<<1,1,0,stream>>>(deviceLocation, value);
+  }
+  CHECK_ERR;
+}
+

@@ -1,5 +1,9 @@
-#ifndef DEVICE_ALGORITHMS_COMMON_H
-#define DEVICE_ALGORITHMS_COMMON_H
+// SPDX-FileCopyrightText: 2023-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_ALGORITHMS_COMMON_H_
+#define SEISSOLDEVICE_ALGORITHMS_COMMON_H_
 
 #include "AbstractAPI.h"
 #include "Algorithms.h"
@@ -30,4 +34,6 @@ inline size_t alignToMultipleOf(size_t size, size_t base) {
 }
 } // namespace
 
-#endif // DEVICE_ALGORITHMS_COMMON_H
+
+#endif // SEISSOLDEVICE_ALGORITHMS_COMMON_H_
+

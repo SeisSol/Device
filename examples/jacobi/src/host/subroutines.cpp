@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "subroutines.hpp"
 #include <algorithm>
 #include <cassert>
@@ -45,3 +49,4 @@ real getInfNorm(const RangeT &range, const VectorT &vector) {
   return std::abs(*maxElemItr);
 }
 } // namespace host
+

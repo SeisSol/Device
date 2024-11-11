@@ -1,7 +1,12 @@
-#ifndef DEVICE_ABSTRACT_API_H
-#define DEVICE_ABSTRACT_API_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_ABSTRACTAPI_H_
+#define SEISSOLDEVICE_ABSTRACTAPI_H_
 
 #include "DataTypes.h"
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
@@ -11,7 +16,6 @@
 namespace device {
 
 enum class Destination { Host, CurrentDevice };
-enum class StreamType { Blocking, NonBlocking };
 enum class ProfilingColors : uint32_t {
   Black = 0x000000,
   White = 0xFFFFFF,
@@ -23,6 +27,7 @@ enum class ProfilingColors : uint32_t {
   Magenta = 0xFF00FF,
   Count = 8
 };
+
 struct AbstractAPI {
   virtual ~AbstractAPI() = default;
 
@@ -44,8 +49,8 @@ struct AbstractAPI {
 
   virtual void allocateStackMem() = 0;
   virtual void *allocGlobMem(size_t size) = 0;
-  virtual void *allocUnifiedMem(size_t size) = 0;
-  virtual void *allocPinnedMem(size_t size) = 0;
+  virtual void *allocUnifiedMem(size_t size, Destination hint = Destination::CurrentDevice) = 0;
+  virtual void *allocPinnedMem(size_t size, Destination hint = Destination::Host) = 0;
   virtual char *getStackMemory(size_t requestedBytes) = 0;
   virtual void freeMem(void *devPtr) = 0;
   virtual void freeGlobMem(void *devPtr) = 0;
@@ -79,28 +84,20 @@ struct AbstractAPI {
   virtual void *getDefaultStream() = 0;
   virtual void syncDefaultStreamWithHost() = 0;
 
-  virtual void *getNextCircularStream() = 0;
-  virtual void resetCircularStreamCounter() = 0;
-  virtual size_t getCircularStreamSize() = 0;
-  virtual void syncStreamFromCircularBufferWithHost(void *streamPtr) = 0;
-  virtual void syncCircularBuffersWithHost() = 0;
-
-  virtual void forkCircularStreamsFromDefault() = 0;
-  virtual void joinCircularStreamsToDefault() = 0;
-  virtual bool isCircularStreamsJoinedWithDefault() = 0;
-
   virtual bool isCapableOfGraphCapturing() = 0;
   virtual void streamBeginCapture(std::vector<void*>& streamPtrs) = 0;
   virtual void streamEndCapture() = 0;
   virtual DeviceGraphHandle getLastGraphHandle() = 0;
   virtual void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) = 0;
 
-  virtual void* createGenericStream() = 0;
+  virtual void* createStream(double priority = NAN) = 0;
   virtual void destroyGenericStream(void* streamPtr) = 0;
   virtual void syncStreamWithHost(void* streamPtr) = 0;
   virtual bool isStreamWorkDone(void* streamPtr) = 0;
   virtual void syncStreamWithEvent(void* streamPtr, void* eventPtr) = 0;
   virtual void streamHostFunction(void* streamPtr, const std::function<void()>& function) = 0;
+
+  virtual void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) = 0;
 
   virtual void* createEvent() = 0;
   virtual void destroyEvent(void* eventPtr) = 0;
@@ -116,6 +113,8 @@ struct AbstractAPI {
   virtual void putProfilingMark(const std::string &name, ProfilingColors color) = 0;
   virtual void popLastProfilingMark() = 0;
 
+  virtual void setupPrinting(int rank) = 0;
+
   bool hasFinalized() { return m_isFinalized; }
 
 protected:
@@ -123,4 +122,6 @@ protected:
 };
 } // namespace device
 
-#endif // DEVICE_ABSTRACT_API_H
+
+#endif // SEISSOLDEVICE_ABSTRACTAPI_H_
+

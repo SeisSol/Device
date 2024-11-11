@@ -1,5 +1,9 @@
-#ifndef DEVICE_DATA_TYPES_H
-#define DEVICE_DATA_TYPES_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_DATATYPES_H_
+#define SEISSOLDEVICE_DATATYPES_H_
 
 #include <cstddef>
 #include <limits>
@@ -40,4 +44,6 @@ private:
   size_t graphId{invalidId};
 };
 } // namespace device
-#endif // DEVICE_DATA_TYPES_H
+
+#endif // SEISSOLDEVICE_DATATYPES_H_
+

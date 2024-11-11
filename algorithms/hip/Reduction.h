@@ -1,4 +1,9 @@
-#include "AbstractAPI.h"
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_ALGORITHMS_HIP_REDUCTION_H_
+#define SEISSOLDEVICE_ALGORITHMS_HIP_REDUCTION_H_
 #include "interfaces/hip/Internals.h"
 #include <cassert>
 #include <device.h>
@@ -25,3 +30,6 @@ void __global__ kernel_reduce(T *vector, const size_t size, OperationT Operation
   }
 }
 } // namespace device
+
+#endif // SEISSOLDEVICE_ALGORITHMS_HIP_REDUCTION_H_
+

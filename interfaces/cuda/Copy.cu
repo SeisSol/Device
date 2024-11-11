@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
@@ -73,3 +77,4 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void *devPtr, siz
                        stream);
   CHECK_ERR;
 }
+
