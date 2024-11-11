@@ -34,10 +34,11 @@ void ConcreteAPI::setDevice(int deviceId) {
   hipFree(nullptr);
   CHECK_ERR;
 
-  int result;
-  hipDeviceGetAttribute(&result, hipDeviceAttributeDirectManagedMemAccessFromHost, currentDeviceId);
+  int result1, result2;
+  hipDeviceGetAttribute(&result1, hipDeviceAttributeDirectManagedMemAccessFromHost, currentDeviceId);
+  hipDeviceGetAttribute(&result2, hipDeviceAttributePageableMemoryAccessUsesHostPageTables, currentDeviceId);
   CHECK_ERR;
-  usmDefault = result != 0;
+  usmDefault = result1 != 0 && result2 != 0;
 
   hipDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
   CHECK_ERR;

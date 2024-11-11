@@ -8,8 +8,16 @@
 #include "utils/logger.h"
 
 namespace device {
+
+// very inconvenient, but AdaptiveCpp doesn't allow much freedom when constructing a property_list
+#if defined(DEVICE_USE_GRAPH_CAPTURING) && defined(SYCL_EXT_INTEL_QUEUE_IMMEDIATE_COMMAND_LIST)
+#define BASE_QUEUE_PROPERTIES cl::sycl::property::queue::in_order{}, cl::sycl::ext::intel::property::queue::no_immediate_command_list{}
+#else
+#define BASE_QUEUE_PROPERTIES cl::sycl::property::queue::in_order()
+#endif
+
 QueueWrapper::QueueWrapper(const cl::sycl::device& dev, const std::function<void(cl::sycl::exception_list l)>& handler)
-: queue{dev, handler, cl::sycl::property::queue::in_order()} {
+: queue{dev, handler, sycl_queue_properties()} {
 }
 
 void QueueWrapper::synchronize() {
@@ -79,15 +87,15 @@ cl::sycl::queue* DeviceCircularQueueBuffer::newQueue(double priority) {
 #ifdef SYCL_EXT_ONEAPI_QUEUE_PRIORITY
   const auto propertylist = [&]() -> cl::sycl::property_list {
     if (priority <= 0.33) {
-      return {cl::sycl::property::queue::in_order(), sycl::ext::oneapi::property::queue::priority_low()};
+      return {BASE_QUEUE_PROPERTIES, sycl::ext::oneapi::property::queue::priority_low()};
     }
     if (priority >= 0.67) {
-      return {cl::sycl::property::queue::in_order(), sycl::ext::oneapi::property::queue::priority_high()};
+      return {BASE_QUEUE_PROPERTIES, sycl::ext::oneapi::property::queue::priority_high()};
     }
-    return {cl::sycl::property::queue::in_order(), sycl::ext::oneapi::property::queue::priority_normal()};
+    return {BASE_QUEUE_PROPERTIES, sycl::ext::oneapi::property::queue::priority_normal()};
   }();
 #else
-  const auto propertylist{cl::sycl::property::queue::in_order()};
+  const auto propertylist{BASE_QUEUE_PROPERTIES};
 #endif
 
   auto* queue = new cl::sycl::queue{deviceReference, handlerReference, propertylist};

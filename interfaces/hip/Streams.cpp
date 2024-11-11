@@ -76,7 +76,7 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
 }
 
 namespace {
-static void streamCallback(hipStream_t, hipError_t, void* data) {
+static void streamCallback(void* data) {
   auto* function = reinterpret_cast<std::function<void()>*>(data);
   (*function)();
   delete function;
@@ -86,7 +86,7 @@ static void streamCallback(hipStream_t, hipError_t, void* data) {
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   auto* functionData = new std::function<void()>(function);
-  hipStreamAddCallback(stream, streamCallback, functionData, 0);
+  hipLaunchHostFunc(stream, streamCallback, functionData);
   CHECK_ERR;
 }
 
