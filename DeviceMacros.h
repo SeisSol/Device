@@ -12,8 +12,8 @@
 #elif defined(DEVICE_ONEAPI_LANG)
 #error do not launch kernel with macros using OneAPI
 
-#elif defined(DEVICE_HIPSYCL_LANG)
-#error do not launch kernel with macros using hipsycl
+#elif defined(DEVICE_ACPP_LANG)
+#error do not launch kernel with macros using acpp
 
 #else
 #error gpu interface not supported.
