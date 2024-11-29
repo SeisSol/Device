@@ -6,6 +6,7 @@
 // #include "Common.h"
 
 #include <stack>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -61,13 +62,13 @@ public:
     stackMemory = reinterpret_cast<char*>(omp_target_alloc(maxStackMem, getDeviceId()));
   }
   void *allocGlobMem(size_t size) override {
-    return omp_target_alloc(size, getDeviceId());
+    return llvm_omp_target_alloc_device(size, getDeviceId());
   }
   void *allocUnifiedMem(size_t size) override {
-    return omp_alloc(size);
+    return llvm_omp_target_alloc_shared(size, getDeviceId());
   }
   void *allocPinnedMem(size_t size) override {
-    return omp_alloc(size);
+    return llvm_omp_target_alloc_host(size, getDeviceId());
   }
   char *getStackMemory(size_t requestedBytes) override {
     auto pos = stackMemByteCounter;
@@ -75,11 +76,17 @@ public:
     stackMemMeter.push(pos);
     return stackMemory + pos;
   }
-  void freeMem(void *devPtr) override {
-    omp_target_free(devPtr, getDeviceId());
+  void freeGlobMem(void *devPtr) override {
+    llvm_omp_target_free_device(devPtr, getDeviceId());
   }
   void freePinnedMem(void *devPtr) override {
-    omp_free(devPtr);
+    llvm_omp_target_free_shared(devPtr, getDeviceId());
+  }
+  void freeUnifiedMem(void *devPtr) override {
+    llvm_omp_target_free_host(devPtr, getDeviceId());
+  }
+  void freeMem(void*) override {
+    throw std::runtime_error();
   }
   void popStackMemory() override {
     stackMemByteCounter -= stackMemMeter.top();
