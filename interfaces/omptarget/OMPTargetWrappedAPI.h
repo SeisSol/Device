@@ -199,11 +199,10 @@ public:
   bool isCapableOfGraphCapturing() override {
     return false;
   }
-  void streamBeginCapture() override{}
-  void streamEndCapture() override{}
+  void streamBeginCapture(std::vector<void*>& streamPtrs) override;
+  void streamEndCapture() override;
+  void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override{}
   DeviceGraphHandle getLastGraphHandle() override{return DeviceGraphHandle{};}
-  void launchGraph(DeviceGraphHandle graphHandle) override{}
-  void syncGraph(DeviceGraphHandle graphHandle) override{}
 
   void* createGenericStream() override {
     return new int[1];
@@ -222,11 +221,62 @@ public:
     #pragma omp taskwait depend(inout: stream[0])
     return true;
   }
+  void syncStreamWithEvent(void* streamPtr, void* eventPtr) override {
+    int* stream = reinterpret_cast<int*>(streamPtr);
+    #pragma omp task depend(inout: stream[0])
+    {
+      while (!isEventCompleted(eventPtr)) {
+        #pragma omp taskyield
+      }
+    }
+  }
+  void streamHostFunction(void* streamPtr, const std::function<void()>& function) override {
+    int* stream = reinterpret_cast<int*>(streamPtr);
+    #pragma omp task depend(inout: stream[0]) firstprivate(function)
+    {
+      function();
+    }
+  }
+
+  void* createEvent() override {
+    int* event = new int[1];
+    event[0] = 0;
+    return reinterpret_cast<void*>(event);
+  }
+  void destroyEvent(void* eventPtr) override {
+    int* event = reinterpret_cast<int*>(eventPtr);
+    delete[] event;
+  }
+  void syncEventWithHost(void* eventPtr) override {
+    int* event = reinterpret_cast<int*>(eventPtr);
+    #pragma omp taskwait depend(in: event[0])
+  }
+  bool isEventCompleted(void* eventPtr) override {
+    int* event = reinterpret_cast<int*>(eventPtr);
+    return event[0] != 0;
+  }
+  void recordEventOnHost(void* eventPtr) override {
+    int* event = reinterpret_cast<int*>(eventPtr);
+    event[0] = 1;
+  }
+  void recordEventOnStream(void* eventPtr, void* streamPtr) override {
+    int* event = reinterpret_cast<int*>(eventPtr);
+    event[0] = 0;
+    #pragma omp task depend(inout: stream[0]) depend(in: event[0])
+    {
+      event[0] = 1;
+    }
+  }
 
   void initialize() override {}
   void finalize() override {}
   void putProfilingMark(const std::string &name, ProfilingColors color) override {}
   void popLastProfilingMark() override {}
+
+  bool isUnifiedMemoryDefault() override {
+    // for now
+    return true;
+  }
 
 private:
   void createCircularStreamAndEvents() {}
