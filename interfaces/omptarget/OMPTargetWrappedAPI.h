@@ -14,7 +14,13 @@
 #include <cassert>
 
 #include <omp.h>
-#include <omptarget.h>
+
+extern void* llvm_omp_target_alloc_device(size_t, int);
+extern void* llvm_omp_target_alloc_shared(size_t, int);
+extern void* llvm_omp_target_alloc_host(size_t, int);
+extern void llvm_omp_target_free_device(void*);
+extern void llvm_omp_target_free_shared(void*);
+extern void llvm_omp_target_free_host(void*);
 
 namespace device {
 class ConcreteAPI : public AbstractAPI {
