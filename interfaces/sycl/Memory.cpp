@@ -40,8 +40,24 @@ void ConcreteAPI::freeMem(void *devPtr) {
   }
 }
 
+void ConcreteAPI::freeGlobMem(void *devPtr) {
+  // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behavior
+  // contrast to C++/CUDA/HIP
+  if(devPtr != nullptr) {
+    this->freeMem(devPtr);
+  }
+}
+
+void ConcreteAPI::freeUnifiedMem(void *devPtr) {
+  // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behavior
+  // contrast to C++/CUDA/HIP
+  if(devPtr != nullptr) {
+    this->freeMem(devPtr);
+  }
+}
+
 void ConcreteAPI::freePinnedMem(void *devPtr) {
-  // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behaviour
+  // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behavior
   // contrast to C++/CUDA/HIP
   if(devPtr != nullptr) {
     this->freeMem(devPtr);
@@ -75,3 +91,17 @@ size_t ConcreteAPI::getMaxAvailableMem() {
 size_t ConcreteAPI::getCurrentlyOccupiedMem() { return this->currentStatistics->allocatedMemBytes; }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() { return this->currentStatistics->allocatedUnifiedMemBytes; }
+
+void ConcreteAPI::pinMemory(void* ptr, size_t size) {
+  // not supported
+  throw std::exception();
+}
+
+void ConcreteAPI::unpinMemory(void* ptr) {
+  // not supported
+  throw std::exception();
+}
+
+void* ConcreteAPI::devicePointer(void* ptr) {
+  return ptr;
+}

@@ -3,8 +3,18 @@
 #include "utils/logger.h"
 
 namespace device {
+
+#if defined(DEVICE_USE_GRAPH_CAPTURING) && defined(SYCL_EXT_INTEL_QUEUE_IMMEDIATE_COMMAND_LIST)
+auto sycl_queue_properties() {
+  return cl::sycl::property_list(cl::sycl::property::queue::in_order{},
+                                 cl::sycl::ext::intel::property::queue::no_immediate_command_list{});
+}
+#else
+auto sycl_queue_properties() { return cl::sycl::property_list(cl::sycl::property::queue::in_order{}); }
+#endif
+
 QueueWrapper::QueueWrapper(const cl::sycl::device& dev, const std::function<void(cl::sycl::exception_list l)>& handler)
-: queue{dev, handler, cl::sycl::property::queue::in_order()} {
+: queue{dev, handler, sycl_queue_properties()} {
 }
 
 void QueueWrapper::synchronize() {
@@ -12,7 +22,7 @@ void QueueWrapper::synchronize() {
 }
 void QueueWrapper::dependency(QueueWrapper& other) {
   // improvising... Adding an empty event here, mimicking a CUDA-like event dependency
-#ifdef SYCL_EXT_ONEAPI_ENQUEUE_BARRIER
+#if defined(SYCL_EXT_ONEAPI_ENQUEUE_BARRIER) && !defined(DEVICE_USE_GRAPH_CAPTURING)
   auto queueEvent = other.queue.ext_oneapi_submit_barrier();
   queue.ext_oneapi_submit_barrier({queueEvent});
 #else
@@ -65,7 +75,7 @@ std::vector<cl::sycl::queue> DeviceCircularQueueBuffer::allQueues() {
 }
 
 cl::sycl::queue DeviceCircularQueueBuffer::newQueue() {
-  return cl::sycl::queue{deviceReference, handlerReference, cl::sycl::property::queue::in_order()};
+  return cl::sycl::queue{deviceReference, handlerReference, sycl_queue_properties()};
 }
 
 void DeviceCircularQueueBuffer::resetIndex() {

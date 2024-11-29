@@ -145,3 +145,26 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
     return false;
   }
 }
+
+void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
+  isFlagSet<InterfaceInitialized>(status);
+  hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+  hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
+  hipStreamWaitEvent(stream, event, 0);
+  CHECK_ERR;
+}
+
+namespace {
+static void streamCallback(void* data) {
+  auto* function = reinterpret_cast<std::function<void()>*>(data);
+  (*function)();
+  delete function;
+}
+} // namespace
+
+void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
+  hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+  auto* functionData = new std::function<void()>(function);
+  hipLaunchHostFunc(stream, streamCallback, functionData);
+  CHECK_ERR;
+}

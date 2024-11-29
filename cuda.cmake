@@ -5,6 +5,7 @@ add_library(device SHARED device.cpp
                  interfaces/cuda/Control.cu
                  interfaces/cuda/Aux.cu
                  interfaces/cuda/Memory.cu
+                 interfaces/cuda/Events.cu
                  interfaces/cuda/Copy.cu
                  interfaces/cuda/Streams.cu
                  interfaces/cuda/Graphs.cu

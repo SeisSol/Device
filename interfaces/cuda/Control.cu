@@ -2,6 +2,7 @@
 #include "utils/env.h"
 #include <cuda.h>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 
@@ -29,7 +30,15 @@ void ConcreteAPI::setDevice(int deviceId) {
   cudaFree(nullptr);
   CHECK_ERR;
 
+  int result;
+  cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, currentDeviceId);
+  usmDefault = result != 0;
+
   status[StatusID::DeviceSelected] = true;
+}
+
+bool ConcreteAPI::isUnifiedMemoryDefault() {
+  return usmDefault;
 }
 
 void ConcreteAPI::initialize() {
@@ -137,12 +146,6 @@ void ConcreteAPI::finalize() {
 
       cudaGraphDestroy(graphInstance.graph);
       CHECK_ERR;
-
-      cudaStreamDestroy(graphInstance.graphExecutionStream);
-      CHECK_ERR;
-
-      cudaEventDestroy(graphInstance.graphCaptureEvent);
-      CHECK_ERR;
     }
     graphs.clear();
 
@@ -242,6 +245,16 @@ std::string ConcreteAPI::getDeviceName(int deviceId) {
   CHECK_ERR;
 
   return property.name;
+}
+
+std::string ConcreteAPI::getPciAddress(int deviceId) {
+  cudaDeviceProp property;
+  cudaGetDeviceProperties(&property, deviceId);
+  CHECK_ERR;
+
+  std::ostringstream str;
+  str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":" << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
+  return str.str();
 }
 
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {

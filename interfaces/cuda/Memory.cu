@@ -35,7 +35,7 @@ void *ConcreteAPI::allocUnifiedMem(size_t size) {
 void *ConcreteAPI::allocPinnedMem(size_t size) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
-  cudaMallocHost(&devPtr, size);
+  cudaHostAlloc(&devPtr, size, cudaHostAllocDefault);
   CHECK_ERR;
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
@@ -43,6 +43,24 @@ void *ConcreteAPI::allocPinnedMem(size_t size) {
 }
 
 void ConcreteAPI::freeMem(void *devPtr) {
+  isFlagSet<DeviceSelected>(status);
+  assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
+         "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
+  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
+  cudaFree(devPtr);
+  CHECK_ERR;
+}
+
+void ConcreteAPI::freeGlobMem(void *devPtr) {
+  isFlagSet<DeviceSelected>(status);
+  assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
+         "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
+  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
+  cudaFree(devPtr);
+  CHECK_ERR;
+}
+
+void ConcreteAPI::freeUnifiedMem(void *devPtr) {
   isFlagSet<DeviceSelected>(status);
   assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
@@ -103,4 +121,24 @@ size_t ConcreteAPI::getCurrentlyOccupiedMem() {
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
   isFlagSet<DeviceSelected>(status);
   return statistics.allocatedUnifiedMemBytes;
+}
+
+void ConcreteAPI::pinMemory(void* ptr, size_t size) {
+  isFlagSet<DeviceSelected>(status);
+  cudaHostRegister(ptr, size, 0);
+  CHECK_ERR;
+}
+
+void ConcreteAPI::unpinMemory(void* ptr) {
+  isFlagSet<DeviceSelected>(status);
+  cudaHostUnregister(ptr);
+  CHECK_ERR;
+}
+
+void* ConcreteAPI::devicePointer(void* ptr) {
+  isFlagSet<DeviceSelected>(status);
+  void* result;
+  cudaHostGetDevicePointer(&result, ptr, 0);
+  CHECK_ERR;
+  return result;
 }

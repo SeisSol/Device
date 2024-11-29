@@ -1,9 +1,14 @@
 #include "utils/logger.h"
 #include "utils/env.h"
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 #include "hip/hip_runtime.h"
+
+#ifdef PROFILING_ENABLED
+#include "roctx.h"
+#endif
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
@@ -25,7 +30,17 @@ void ConcreteAPI::setDevice(int deviceId) {
   hipFree(nullptr);
   CHECK_ERR;
 
+  int result1, result2;
+  hipDeviceGetAttribute(&result1, hipDeviceAttributeDirectManagedMemAccessFromHost, currentDeviceId);
+  hipDeviceGetAttribute(&result2, hipDeviceAttributePageableMemoryAccessUsesHostPageTables, currentDeviceId);
+  CHECK_ERR;
+  usmDefault = result1 != 0 && result2 != 0;
+
   status[StatusID::DeviceSelected] = true;
+}
+
+bool ConcreteAPI::isUnifiedMemoryDefault() {
+  return usmDefault;
 }
 
 void ConcreteAPI::initialize() {
@@ -127,12 +142,6 @@ void ConcreteAPI::finalize() {
       CHECK_ERR;
 
       hipGraphDestroy(graphInstance.graph);
-      CHECK_ERR;
-
-      hipStreamDestroy(graphInstance.graphExecutionStream);
-      CHECK_ERR;
-
-      hipEventDestroy(graphInstance.graphCaptureEvent);
       CHECK_ERR;
     }
     graphs.clear();
@@ -241,23 +250,27 @@ std::string ConcreteAPI::getDeviceName(int deviceId) {
   return property.name;
 }
 
+std::string ConcreteAPI::getPciAddress(int deviceId) {
+  hipDeviceProp_t property;
+  hipGetDeviceProperties(&property, deviceId);
+  CHECK_ERR;
+
+  std::ostringstream str;
+  str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":" << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
+  return str.str();
+}
+
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
+  // colors are not yet supported here
 #ifdef PROFILING_ENABLED
   isFlagSet<DeviceSelected>(status);
-  nvtxEventAttributes_t eventAttrib = {0};
-  eventAttrib.version = NVTX_VERSION;
-  eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
-  eventAttrib.colorType = NVTX_COLOR_ARGB;
-  eventAttrib.color = static_cast<uint32_t>(color);
-  eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
-  eventAttrib.message.ascii = name.c_str();
-  nvtxRangePushEx(&eventAttrib);
+  roctxRangePush(name.c_str());
 #endif
 }
 
 void ConcreteAPI::popLastProfilingMark() {
 #ifdef PROFILING_ENABLED
   isFlagSet<DeviceSelected>(status);
-  nvtxRangePop();
+  roctxRangePop();
 #endif
 }

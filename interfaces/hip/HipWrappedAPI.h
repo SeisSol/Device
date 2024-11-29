@@ -36,12 +36,19 @@ public:
   void *allocPinnedMem(size_t size) override;
   char *getStackMemory(size_t requestedBytes) override;
   void freeMem(void *devPtr) override;
+  void freeGlobMem(void *devPtr) override;
+  void freeUnifiedMem(void *devPtr) override;
   void freePinnedMem(void *devPtr) override;
   void popStackMemory() override;
   std::string getMemLeaksReport() override;
 
+  void pinMemory(void* ptr, size_t size) override;
+  void unpinMemory(void* ptr) override;
+  void* devicePointer(void* ptr) override;
+
   std::string getApiName() override;
   std::string getDeviceName(int deviceId) override;
+  std::string getPciAddress(int deviceId) override;
 
   void copyTo(void *dst, const void *src, size_t count) override;
   void copyFrom(void *dst, const void *src, size_t count) override;
@@ -77,27 +84,39 @@ public:
   bool isCircularStreamsJoinedWithDefault() override;
 
   bool isCapableOfGraphCapturing() override;
-  void streamBeginCapture() override;
+  void streamBeginCapture(std::vector<void*>& streamPtrs) override;
   void streamEndCapture() override;
   DeviceGraphHandle getLastGraphHandle() override;
-  void launchGraph(DeviceGraphHandle graphHandle) override;
-  void syncGraph(DeviceGraphHandle graphHandle) override;
+  void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
 
   void* createGenericStream() override;
   void destroyGenericStream(void* streamPtr) override;
   void syncStreamWithHost(void* streamPtr) override;
   bool isStreamWorkDone(void* streamPtr) override;
+  void syncStreamWithEvent(void* streamPtr, void* eventPtr) override;
+  void streamHostFunction(void* streamPtr, const std::function<void()>& function) override;
+
+  void* createEvent() override;
+  void destroyEvent(void* eventPtr) override;
+  void syncEventWithHost(void* eventPtr) override;
+  bool isEventCompleted(void* eventPtr) override;
+  void recordEventOnHost(void* eventPtr) override;
+  void recordEventOnStream(void* eventPtr, void* streamPtr) override;
 
   void initialize() override;
   void finalize() override;
   void putProfilingMark(const std::string &name, ProfilingColors color) override;
   void popLastProfilingMark() override;
 
+  bool isUnifiedMemoryDefault() override;
+
 private:
   void createCircularStreamAndEvents();
 
   device::StatusT status{false};
   int currentDeviceId{-1};
+
+  bool usmDefault{false};
 
   hipStream_t defaultStream{nullptr};
   hipEvent_t defaultStreamEvent{};
@@ -113,8 +132,7 @@ private:
   struct GraphDetails {
     hipGraph_t graph;
     hipGraphExec_t instance;
-    hipEvent_t graphCaptureEvent;
-    hipStream_t graphExecutionStream;
+    void* streamPtr;
     bool ready{false};
   };
   std::vector<GraphDetails> graphs;
