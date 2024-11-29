@@ -14,6 +14,7 @@
 #include <cassert>
 
 #include <omp.h>
+#include <omptarget.h>
 
 namespace device {
 class ConcreteAPI : public AbstractAPI {
@@ -58,6 +59,10 @@ public:
     // (none)
   }
 
+  std::string getPciAddress(int deviceId) override {
+    return "";
+  }
+
   void allocateStackMem() override {
     stackMemory = reinterpret_cast<char*>(omp_target_alloc(maxStackMem, getDeviceId()));
   }
@@ -86,7 +91,7 @@ public:
     llvm_omp_target_free_host(devPtr, getDeviceId());
   }
   void freeMem(void*) override {
-    throw std::runtime_error();
+    throw std::runtime_error("deprecated");
   }
   void popStackMemory() override {
     stackMemByteCounter -= stackMemMeter.top();
@@ -134,7 +139,16 @@ public:
     #pragma omp depobj(depobj) destroy
   }
 
-
+  void pinMemory(void* ptr, size_t size) override {
+    // nop (for now)
+  }
+  void unpinMemory(void* ptr) override {
+    // nop (for now)
+  }
+  void* devicePointer(void* ptr) override {
+    // TODO:
+    return ptr;
+  }
 
   void copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width,
                      size_t height) override {
@@ -260,9 +274,10 @@ public:
     event[0] = 1;
   }
   void recordEventOnStream(void* eventPtr, void* streamPtr) override {
+    int* stream = reinterpret_cast<int*>(streamPtr);
     int* event = reinterpret_cast<int*>(eventPtr);
     event[0] = 0;
-    #pragma omp task depend(inout: stream[0]) depend(in: event[0])
+    #pragma omp task depend(inout: stream[0]) depend(out: event[0])
     {
       event[0] = 1;
     }
