@@ -15,16 +15,10 @@
 
 #include <omp.h>
 
-extern void* llvm_omp_target_alloc_device(size_t, int);
-extern void* llvm_omp_target_alloc_shared(size_t, int);
-extern void* llvm_omp_target_alloc_host(size_t, int);
-extern void llvm_omp_target_free_device(void*, int);
-extern void llvm_omp_target_free_shared(void*, int);
-extern void llvm_omp_target_free_host(void*, int);
-
 namespace device {
 class ConcreteAPI : public AbstractAPI {
 public:
+  ~ConcreteAPI() override;
   ConcreteAPI() {
     circularStreamBuffer.resize(1000);
     defaultStream = new int[1];
@@ -73,13 +67,13 @@ public:
     stackMemory = reinterpret_cast<char*>(omp_target_alloc(maxStackMem, getDeviceId()));
   }
   void *allocGlobMem(size_t size) override {
-    return llvm_omp_target_alloc_device(size, getDeviceId());
+    return omp_alloc(size, llvm_omp_target_device_mem_alloc);
   }
   void *allocUnifiedMem(size_t size) override {
-    return llvm_omp_target_alloc_shared(size, getDeviceId());
+    return omp_alloc(size, llvm_omp_target_shared_mem_alloc);
   }
   void *allocPinnedMem(size_t size) override {
-    return llvm_omp_target_alloc_host(size, getDeviceId());
+    return omp_alloc(size, llvm_omp_target_host_mem_alloc);
   }
   char *getStackMemory(size_t requestedBytes) override {
     auto pos = stackMemByteCounter;
@@ -88,13 +82,13 @@ public:
     return stackMemory + pos;
   }
   void freeGlobMem(void *devPtr) override {
-    llvm_omp_target_free_device(devPtr, getDeviceId());
+    omp_free(devPtr, llvm_omp_target_device_mem_alloc);
   }
   void freePinnedMem(void *devPtr) override {
-    llvm_omp_target_free_shared(devPtr, getDeviceId());
+    omp_free(devPtr, llvm_omp_target_host_mem_alloc);
   }
   void freeUnifiedMem(void *devPtr) override {
-    llvm_omp_target_free_host(devPtr, getDeviceId());
+    omp_free(devPtr, llvm_omp_target_shared_mem_alloc);
   }
   void freeMem(void*) override {
     throw std::runtime_error("deprecated");
@@ -115,33 +109,33 @@ public:
   }
 
   void copyTo(void *dst, const void *src, size_t count) override {
-    omp_target_memcpy(dst, src, count, 0, 0, omp_get_initial_device(), omp_get_default_device());
+    omp_target_memcpy(dst, src, count, 0, 0, getDeviceId(), omp_get_initial_device());
   }
   void copyFrom(void *dst, const void *src, size_t count) override {
-    omp_target_memcpy(dst, src, count, 0, 0, omp_get_default_device(), omp_get_initial_device());
+    omp_target_memcpy(dst, src, count, 0, 0, omp_get_initial_device(), getDeviceId());
   }
   void copyBetween(void *dst, const void *src, size_t count) override {
-    omp_target_memcpy(dst, src, count, 0, 0, omp_get_default_device(), omp_get_default_device());
+    omp_target_memcpy(dst, src, count, 0, 0, getDeviceId(), getDeviceId());
   }
   void copyToAsync(void *dst, const void *src, size_t count, void* streamPtr) override {
     omp_depend_t depobj;
     int* stream = reinterpret_cast<int*>(streamPtr);
     #pragma omp depobj(depobj) depend(inout: stream[0])
-    omp_target_memcpy_async(dst, src, count, 0, 0, omp_get_initial_device(), omp_get_default_device(), 1, &depobj);
+    omp_target_memcpy_async(dst, src, count, 0, 0, getDeviceId(), omp_get_initial_device(), 1, &depobj);
     #pragma omp depobj(depobj) destroy
   }
   void copyFromAsync(void *dst, const void *src, size_t count, void* streamPtr) override {
     omp_depend_t depobj;
     int* stream = reinterpret_cast<int*>(streamPtr);
     #pragma omp depobj(depobj) depend(inout: stream[0])
-    omp_target_memcpy_async(dst, src, count, 0, 0, omp_get_default_device(), omp_get_initial_device(), 1, &depobj);
+    omp_target_memcpy_async(dst, src, count, 0, 0, omp_get_initial_device(), getDeviceId(), 1, &depobj);
     #pragma omp depobj(depobj) destroy
   }
   void copyBetweenAsync(void *dst, const void *src, size_t count, void* streamPtr) override {
     omp_depend_t depobj;
     int* stream = reinterpret_cast<int*>(streamPtr);
     #pragma omp depobj(depobj) depend(inout: stream[0])
-    omp_target_memcpy_async(dst, src, count, 0, 0, omp_get_default_device(), omp_get_default_device(), 1, &depobj);
+    omp_target_memcpy_async(dst, src, count, 0, 0, getDeviceId(), getDeviceId(), 1, &depobj);
     #pragma omp depobj(depobj) destroy
   }
 
@@ -219,8 +213,8 @@ public:
   bool isCapableOfGraphCapturing() override {
     return false;
   }
-  void streamBeginCapture(std::vector<void*>& streamPtrs) override;
-  void streamEndCapture() override;
+  void streamBeginCapture(std::vector<void*>& streamPtrs) override{}
+  void streamEndCapture() override{}
   void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override{}
   DeviceGraphHandle getLastGraphHandle() override{return DeviceGraphHandle{};}
 

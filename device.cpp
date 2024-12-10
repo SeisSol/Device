@@ -16,6 +16,9 @@
 
 using namespace device;
 
+// TODO: move
+ConcreteAPI::~ConcreteAPI() = default;
+
 DeviceInstance::DeviceInstance() {
   // NOTE: all headers inside of macros define their unique ConcreteInterface.
   // Make sure to not include multiple different interfaces at the same time.

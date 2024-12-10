@@ -4,7 +4,7 @@ algorithms/omptarget/ArrayManip.cpp
                         algorithms/omptarget/Reduction.cpp
         )
 
-add_library(device SHARED ${DEVICE_SOURCE_FILES})
+add_library(device STATIC ${DEVICE_SOURCE_FILES})
 
 find_package(OmpTargetFlags REQUIRED)
 target_link_libraries(device PRIVATE omptarget::device_flags)

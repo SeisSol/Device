@@ -33,6 +33,7 @@ if (NOT TARGET omptarget::device_flags)
         target_compile_options(omptarget::device_flags INTERFACE -std=c++17 ${_OMPT_DEVICE_FLAGS})
         target_link_options(omptarget::device_flags INTERFACE ${_OMPT_DEVICE_FLAGS})
     endif()
+    set(_OMPT_DEVICE_FLAGS "") # TODO: remove
   
   set(CMAKE_REQUIRED_FLAGS ${_OMPT_DEVICE_FLAGS}) 
   check_cxx_source_compiles("${_OMPT_TEST_PROGRAM}" _OMPT_TEST_RUN_RESTULS)
