@@ -5,6 +5,7 @@
 // #include "Statistics.h"
 // #include "Common.h"
 
+#include <cmath>
 #include <stack>
 #include <stdexcept>
 #include <string>
@@ -91,7 +92,7 @@ public:
     omp_free(devPtr, llvm_omp_target_shared_mem_alloc);
   }
   void freeMem(void*) override {
-    throw std::runtime_error("deprecated");
+    // throw std::runtime_error("deprecated");
   }
   void popStackMemory() override {
     stackMemByteCounter -= stackMemMeter.top();
@@ -221,6 +222,14 @@ public:
   void* createGenericStream() override {
     return new int[1];
   }
+  void* createStream(double priority) /*override*/ {
+    const auto maxPrio = omp_get_max_task_priority();
+    const auto prePriority = static_cast<double>(maxPrio + 1) * priority;
+    const auto priorityInt = std::min(maxPrio, static_cast<int>(prePriority));
+    int* stream = new int[1];
+    *stream = priorityInt;
+    return stream;
+  }
   void destroyGenericStream(void* streamPtr) override {
     int* stream = reinterpret_cast<int*>(streamPtr);
     delete[] stream;
@@ -237,6 +246,7 @@ public:
   }
   void syncStreamWithEvent(void* streamPtr, void* eventPtr) override {
     int* stream = reinterpret_cast<int*>(streamPtr);
+    // no detachment possible, since we don't know the original task
     #pragma omp task depend(inout: stream[0])
     {
       while (!isEventCompleted(eventPtr)) {
