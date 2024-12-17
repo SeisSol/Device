@@ -21,19 +21,21 @@ if (NOT TARGET omptarget::device_flags)
   add_library(omptarget::interface INTERFACE IMPORTED)
 
     if(${DEVICE_ARCH} MATCHES "sm_*")
-        set(_OMPT_DEVICE_FLAGS -fopenmp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target=nvptx64-nvidia-cuda -march=${DEVICE_ARCH})
+        #set(_OMPT_DEVICE_FLAGS -fopenmp -fopenmp-targets=nvptx64-nvidia-cuda -Xopenmp-target=nvptx64-nvidia-cuda -march=${DEVICE_ARCH})
+        set(_OMPT_DEVICE_FLAGS "") # TODO: remove
         target_compile_options(omptarget::device_flags INTERFACE -std=c++17 ${_OMPT_DEVICE_FLAGS} -Xcuda-ptxas -v)
         target_link_options(omptarget::device_flags INTERFACE ${_OMPT_DEVICE_FLAGS})
     elseif(${DEVICE_ARCH} MATCHES "gfx*")
-        set(_OMPT_DEVICE_FLAGS -fopenmp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=${DEVICE_ARCH})
+        #set(_OMPT_DEVICE_FLAGS -fopenmp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=${DEVICE_ARCH})
+        set(_OMPT_DEVICE_FLAGS "") # TODO: remove
         target_compile_options(omptarget::device_flags INTERFACE -std=c++17 ${_OMPT_DEVICE_FLAGS})
         target_link_options(omptarget::device_flags INTERFACE ${_OMPT_DEVICE_FLAGS})
     else()
-        set(_OMPT_DEVICE_FLAGS -fopenmp -fopenmp-targets=intel_gpu_${DEVICE_ARCH})
+        #set(_OMPT_DEVICE_FLAGS -fopenmp -fopenmp-targets=intel_gpu_${DEVICE_ARCH})
+        set(_OMPT_DEVICE_FLAGS "") # TODO: remove
         target_compile_options(omptarget::device_flags INTERFACE -std=c++17 ${_OMPT_DEVICE_FLAGS})
         target_link_options(omptarget::device_flags INTERFACE ${_OMPT_DEVICE_FLAGS})
     endif()
-    set(_OMPT_DEVICE_FLAGS "") # TODO: remove
   
   set(CMAKE_REQUIRED_FLAGS ${_OMPT_DEVICE_FLAGS}) 
   check_cxx_source_compiles("${_OMPT_TEST_PROGRAM}" _OMPT_TEST_RUN_RESTULS)
