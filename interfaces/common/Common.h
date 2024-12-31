@@ -46,9 +46,6 @@ constexpr auto mapPercentage(int minval, int maxval, double value) {
   const auto convminval = static_cast<double>(minval);
   const auto convmaxval = static_cast<double>(maxval);
 
-  const auto base = (convmaxval + convminval) / 2;
-  const auto offset = (convmaxval - convminval) / 2;
-
   const auto transformed = value * (convmaxval - convminval + 1) + convminval;
   return std::max(std::min(static_cast<int>(std::floor(transformed)), maxval), minval);
 }

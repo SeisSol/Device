@@ -17,7 +17,7 @@ namespace device {
 #endif
 
 QueueWrapper::QueueWrapper(const cl::sycl::device& dev, const std::function<void(cl::sycl::exception_list l)>& handler)
-: queue{dev, handler, sycl_queue_properties()} {
+: queue{dev, handler, cl::sycl::property_list{BASE_QUEUE_PROPERTIES}} {
 }
 
 void QueueWrapper::synchronize() {
