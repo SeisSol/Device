@@ -35,7 +35,7 @@ if (IS_NVCC_PLATFORM)
                     --expt-relaxed-constexpr;
                     -DCUDA_UNDERHOOD)
 else()
-    set(DEVICE_HIPCC -std=c++14;
+    set(DEVICE_HIPCC -std=c++17;
                      -O3;
                      --offload-arch=${DEVICE_ARCH};
                      -DDEVICE_${BACKEND_UPPER_CASE}_LANG)
