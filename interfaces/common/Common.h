@@ -69,7 +69,7 @@ public:
         printer.stringCache.emplace_back(stream->str());
       }
       else {
-        logInfo(printer.rank) << stream->str().c_str();
+        logInfo() << stream->str().c_str();
       }
       stream = nullptr;
     }
@@ -83,7 +83,7 @@ public:
     this->rank = rank;
 
     for (const auto& string : stringCache) {
-      logInfo(rank) << string;
+      logInfo() << string;
     }
 
     stringCache.resize(0);
