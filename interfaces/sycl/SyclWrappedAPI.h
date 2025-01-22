@@ -58,14 +58,10 @@ public:
   void setDevice(int deviceId) override;
 
   int getDeviceId() override;
-  size_t getLaneSize() override;
   int getNumDevices() override;
-  unsigned getMaxThreadBlockSize() override;
-  unsigned getMaxSharedMemSize() override;
   unsigned getGlobMemAlignment() override;
   std::string getDeviceInfoAsText(int deviceId) override;
   void syncDevice() override;
-  void checkOffloading() override;
 
   void allocateStackMem() override;
   void *allocGlobMem(size_t size) override;
@@ -164,7 +160,7 @@ private:
   void initDevices();
 
   std::string getCurrentDeviceInfoAsText();
-  std::string getDeviceInfoAsText(cl::sycl::device dev);
+  std::string getDeviceInfoAsTextInternal(cl::sycl::device& dev);
 
   bool deviceInitialized;
   int currentDeviceId;

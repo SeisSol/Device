@@ -148,25 +148,6 @@ int ConcreteAPI::getDeviceId() {
   return currentDeviceId;
 }
 
-
-size_t ConcreteAPI::getLaneSize() {
-  return static_cast<size_t>(device::internals::WARP_SIZE);
-}
-
-unsigned ConcreteAPI::getMaxThreadBlockSize() {
-  int blockSize{};
-  hipDeviceGetAttribute(&blockSize, hipDeviceAttributeMaxThreadsPerBlock, currentDeviceId); CHECK_ERR;
-  CHECK_ERR;
-  return static_cast<unsigned>(blockSize);
-}
-
-unsigned ConcreteAPI::getMaxSharedMemSize() {
-  int sharedMemSize{};
-  hipDeviceGetAttribute(&sharedMemSize, hipDeviceAttributeMaxSharedMemoryPerBlock, currentDeviceId); CHECK_ERR;
-  CHECK_ERR;
-  return static_cast<unsigned>(sharedMemSize);
-}
-
 unsigned ConcreteAPI::getGlobMemAlignment() {
   // TODO: use hipDeviceGetAttribute
 #ifdef CUDA_UNDERHOOD

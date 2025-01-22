@@ -140,24 +140,6 @@ int ConcreteAPI::getDeviceId() {
   return currentDeviceId;
 }
 
-size_t ConcreteAPI::getLaneSize() {
-  return static_cast<size_t>(device::internals::WARP_SIZE);
-}
-
-unsigned ConcreteAPI::getMaxThreadBlockSize() {
-  int blockSize{};
-  cudaDeviceGetAttribute(&blockSize, cudaDevAttrMaxThreadsPerBlock, currentDeviceId);
-  CHECK_ERR;
-  return static_cast<unsigned>(blockSize);
-}
-
-unsigned ConcreteAPI::getMaxSharedMemSize() {
-  int sharedMemSize{};
-  cudaDeviceGetAttribute(&sharedMemSize, cudaDevAttrMaxSharedMemoryPerBlock, currentDeviceId);
-  CHECK_ERR;
-  return static_cast<unsigned>(sharedMemSize);
-}
-
 unsigned ConcreteAPI::getGlobMemAlignment() {
   // TODO: use cuDeviceGetAttribute
   return 128;

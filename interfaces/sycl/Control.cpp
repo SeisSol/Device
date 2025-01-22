@@ -101,21 +101,6 @@ int ConcreteAPI::getDeviceId() {
   return currentDeviceId;
 }
 
-
-size_t ConcreteAPI::getLaneSize() {
-  return static_cast<size_t>(::internals::WARP_SIZE);
-}
-
-unsigned int ConcreteAPI::getMaxThreadBlockSize() {
-  auto device = this->currentDefaultQueue->get_device();
-  return device.get_info<cl::sycl::info::device::max_work_group_size>();
-}
-
-unsigned int ConcreteAPI::getMaxSharedMemSize() {
-  auto device = this->currentDefaultQueue->get_device();
-  return device.get_info<cl::sycl::info::device::local_mem_size>();
-}
-
 unsigned int ConcreteAPI::getGlobMemAlignment() {
   auto device = this->currentDefaultQueue->get_device();
   return 128; //ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
@@ -128,11 +113,11 @@ std::string ConcreteAPI::getDeviceInfoAsText(int id) {
     throw std::out_of_range{"Device index out of range"};
 
   auto device = this->availableDevices[id]->queueBuffer.getDefaultQueue().get_device();
-  return this->getDeviceInfoAsText(device);
+  return this->getDeviceInfoAsTextInternal(device);
 }
 std::string ConcreteAPI::getCurrentDeviceInfoAsText() { return this->getDeviceInfoAsText(this->currentDeviceId); }
 
-std::string ConcreteAPI::getDeviceInfoAsText(cl::sycl::device dev) {
+std::string ConcreteAPI::getDeviceInfoAsTextInternal(cl::sycl::device& dev) {
   std::ostringstream info{};
 
   info << "platform:" << dev.get_platform().get_info<cl::sycl::info::platform::name>() << "\n";
