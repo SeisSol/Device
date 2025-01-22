@@ -34,11 +34,21 @@ void ConcreteAPI::setDevice(int deviceId) {
   hipFree(nullptr);
   CHECK_ERR;
 
-  int result1, result2;
-  hipDeviceGetAttribute(&result1, hipDeviceAttributeDirectManagedMemAccessFromHost, currentDeviceId);
-  hipDeviceGetAttribute(&result2, hipDeviceAttributePageableMemoryAccessUsesHostPageTables, currentDeviceId);
+  hipDeviceProp_t properties{};
+  hipGetDeviceProperties(&properties, currentDeviceId);
   CHECK_ERR;
-  usmDefault = result1 != 0 && result2 != 0;
+
+  // NOTE: hipDeviceGetAttribute internally calls hipGetDeviceProperties; hence it doesn't make sense to use it here
+
+  if constexpr (HIP_VERSION >= 60200000) {
+    // cf. https://rocm.docs.amd.com/en/docs-6.2.0/about/release-notes.html
+    // (before 6.2.0, the flag hipDeviceAttributePageableMemoryAccessUsesHostPageTables had effectively the same effect)
+    // (cf. https://github.com/ROCm/clr/commit/7d5b4a8f7a7d34f008d65277f8aae4c98a6da375#diff-596cd550f7fdef76b39f1b7b179b20128313dd9cc9ec662b2eae562efa2b7f33L405 )
+    usmDefault = properties.integrated != 0;
+  }
+  else {
+    usmDefault = properties.directManagedMemAccessFromHost != 0 && properties.pageableMemoryAccessUsesHostPageTables != 0;
+  }
 
   hipDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
   CHECK_ERR;
