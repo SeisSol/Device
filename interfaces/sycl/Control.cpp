@@ -33,7 +33,7 @@ void ConcreteAPI::initDevices() {
         }
       }
 
-      DeviceContext *context = new DeviceContext{device, 0};
+      DeviceContext *context = new DeviceContext{device, 1};
       this->availableDevices.push_back(context);
     }
   }
