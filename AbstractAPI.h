@@ -35,13 +35,9 @@ struct AbstractAPI {
   virtual int getDeviceId() = 0;
 
   virtual int getNumDevices() = 0;
-  virtual size_t getLaneSize() = 0;
-  virtual unsigned getMaxThreadBlockSize() = 0;
-  virtual unsigned getMaxSharedMemSize() = 0;
   virtual unsigned getGlobMemAlignment() = 0;
   virtual std::string getDeviceInfoAsText(int deviceId) = 0;
   virtual void syncDevice() = 0;
-  virtual void checkOffloading() = 0;
 
   virtual std::string getApiName() = 0;
   virtual std::string getDeviceName(int deviceId) = 0;
