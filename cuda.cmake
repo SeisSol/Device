@@ -1,5 +1,9 @@
+# SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 enable_language(CUDA)
-set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD 17)
 
 add_library(device SHARED device.cpp
                  interfaces/cuda/Control.cu
@@ -24,7 +28,7 @@ set_source_files_properties(device.cpp
 string(REPLACE "sm_" "" CUDA_DEVICE_ARCH "${DEVICE_ARCH}")
 set_target_properties(device PROPERTIES CUDA_ARCHITECTURES "${CUDA_DEVICE_ARCH}")
 
-target_compile_features(device PRIVATE cxx_std_14)
+target_compile_features(device PRIVATE cxx_std_17)
 
 target_compile_definitions(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
         -DDEVICE_${BACKEND_UPPER_CASE}_LANG;
@@ -48,3 +52,4 @@ endif()
 
 find_package(CUDAToolkit REQUIRED)
 target_link_libraries(device PUBLIC CUDA::cudart CUDA::cuda_driver CUDA::nvToolsExt)
+

@@ -1,5 +1,9 @@
-#ifndef DEVICE_CUDAINTERFACE_H
-#define DEVICE_CUDAINTERFACE_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_CUDA_CUDAWRAPPEDAPI_H_
+#define SEISSOLDEVICE_INTERFACES_CUDA_CUDAWRAPPEDAPI_H_
 
 #include <stack>
 #include <string>
@@ -7,6 +11,7 @@
 #include <vector>
 #include <unordered_set>
 #include <cassert>
+#include <cstdint>
 
 #include "AbstractAPI.h"
 #include "Statistics.h"
@@ -21,18 +26,14 @@ public:
 
   int getNumDevices() override;
   int getDeviceId() override;
-  size_t getLaneSize() override;
-  unsigned getMaxThreadBlockSize() override;
-  unsigned getMaxSharedMemSize() override;
   unsigned getGlobMemAlignment() override;
   std::string getDeviceInfoAsText(int deviceId) override;
   void syncDevice() override;
-  void checkOffloading() override;
 
   void allocateStackMem() override;
   void *allocGlobMem(size_t size) override;
-  void *allocUnifiedMem(size_t size) override;
-  void *allocPinnedMem(size_t size) override;
+  void *allocUnifiedMem(size_t size, Destination hint) override;
+  void *allocPinnedMem(size_t size, Destination hint) override;
   char *getStackMemory(size_t requestedBytes) override;
   void freeMem(void *devPtr) override;
   void freeGlobMem(void *devPtr) override;
@@ -70,28 +71,20 @@ public:
   void *getDefaultStream() override;
   void syncDefaultStreamWithHost() override;
 
-  void *getNextCircularStream() override;
-  void resetCircularStreamCounter() override;
-  size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBufferWithHost(void* streamPtr) override;
-  void syncCircularBuffersWithHost() override;
-
-  void forkCircularStreamsFromDefault() override;
-  void joinCircularStreamsToDefault() override;
-  bool isCircularStreamsJoinedWithDefault() override;
-
   bool isCapableOfGraphCapturing() override;
   void streamBeginCapture(std::vector<void*>& streamPtrs) override;
   void streamEndCapture() override;
   DeviceGraphHandle getLastGraphHandle() override;
   void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
 
-  void* createGenericStream() override;
+  void* createStream(double priority) override;
   void destroyGenericStream(void* streamPtr) override;
   void syncStreamWithHost(void* streamPtr) override;
   bool isStreamWorkDone(void* streamPtr) override;
   void syncStreamWithEvent(void* streamPtr, void* eventPtr) override;
   void streamHostFunction(void* streamPtr, const std::function<void()>& function) override;
+
+  void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) override;
 
   void* createEvent() override;
   void destroyEvent(void* eventPtr) override;
@@ -107,6 +100,8 @@ public:
 
   bool isUnifiedMemoryDefault() override;
 
+  void setupPrinting(int rank) override;
+
 private:
   void createCircularStreamAndEvents();
 
@@ -119,12 +114,7 @@ private:
   cudaStream_t defaultStream{nullptr};
   cudaEvent_t defaultStreamEvent{};
 
-  std::vector<cudaStream_t> circularStreamBuffer{};
-  std::vector<cudaEvent_t> circularStreamEvents{};
   std::unordered_set<cudaStream_t> genericStreams{};
-
-  bool isCircularStreamsForked{false};
-  size_t circularStreamCounter{0};
 
   struct GraphDetails {
     cudaGraph_t graph;
@@ -141,7 +131,12 @@ private:
 
   Statistics statistics{};
   std::unordered_map<void *, size_t> memToSizeMap{{nullptr, 0}};
+
+  int priorityMin, priorityMax;
+  InfoPrinter printer;
 };
 } // namespace device
 
-#endif // DEVICE_CUDAINTERFACE_H
+
+#endif // SEISSOLDEVICE_INTERFACES_CUDA_CUDAWRAPPEDAPI_H_
+

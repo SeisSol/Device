@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "helper.hpp"
 #include "matrix_manip.hpp"
 #include "solvers.hpp"
@@ -79,3 +83,4 @@ void host::solver(const SolverSettingsT &settings, const CpuMatrixDataT &matrix,
     ++currentIter;
   }
 }
+

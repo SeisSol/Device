@@ -1,5 +1,9 @@
-#ifndef DEVICE_SYCLINTERFACE_H
-#define DEVICE_SYCLINTERFACE_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_SYCL_SYCLWRAPPEDAPI_H_
+#define SEISSOLDEVICE_INTERFACES_SYCL_SYCLWRAPPEDAPI_H_
 
 #include "AbstractAPI.h"
 #include "Common.h"
@@ -13,9 +17,31 @@
 #include <vector>
 #include <optional>
 
-
 #if defined(DEVICE_USE_GRAPH_CAPTURING) && defined(SYCL_EXT_ONEAPI_GRAPH)
 #define DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+#endif
+
+// FIXME: suboptimal, too preprocessor-heavy for now
+#if defined(HIPSYCL_EXT_ENQUEUE_CUSTOM_OPERATION)
+#define DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
+#define DEVICE_SYCL_DIRECT_OPERATION_NAME hipSYCL_enqueue_custom_operation
+#elif defined(ACPP_EXT_ENQUEUE_CUSTOM_OPERATION)
+#define DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
+#define DEVICE_SYCL_DIRECT_OPERATION_NAME adaptiveCpp_enqueue_custom_operation
+#elif defined(SYCL_EXT_ACPP_ENQUEUE_CUSTOM_OPERATION)
+#define DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
+#define DEVICE_SYCL_DIRECT_OPERATION_NAME ext_acpp_enqueue_custom_operation
+#elif defined(SYCL_EXT_ONEAPI_ENQUEUE_CUSTOM_OPERATION)
+#define DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
+#define DEVICE_SYCL_DIRECT_OPERATION_NAME ext_oneapi_enqueue_custom_operation
+#endif
+
+#ifdef DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
+#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...){});
+#elif defined(SYCL_EXT_ONEAPI_ENQUEUE_BARRIER) && !defined(DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT)
+#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.ext_oneapi_barrier();
+#else
+#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.single_task([=](){});
 #endif
 
 namespace device {
@@ -32,19 +58,15 @@ public:
   void setDevice(int deviceId) override;
 
   int getDeviceId() override;
-  size_t getLaneSize() override;
   int getNumDevices() override;
-  unsigned getMaxThreadBlockSize() override;
-  unsigned getMaxSharedMemSize() override;
   unsigned getGlobMemAlignment() override;
   std::string getDeviceInfoAsText(int deviceId) override;
   void syncDevice() override;
-  void checkOffloading() override;
 
   void allocateStackMem() override;
   void *allocGlobMem(size_t size) override;
-  void *allocUnifiedMem(size_t size) override;
-  void *allocPinnedMem(size_t size) override;
+  void *allocUnifiedMem(size_t size, Destination hint) override;
+  void *allocPinnedMem(size_t size, Destination hint) override;
   char *getStackMemory(size_t requestedBytes) override;
   void freeMem(void *devPtr) override;
   void freeGlobMem(void *devPtr) override;
@@ -79,28 +101,20 @@ public:
   void *getDefaultStream() override;
   void syncDefaultStreamWithHost() override;
 
-  void *getNextCircularStream() override;
-  void resetCircularStreamCounter() override;
-  size_t getCircularStreamSize() override;
-  void syncStreamFromCircularBufferWithHost(void* streamPtr) override;
-  void syncCircularBuffersWithHost() override;
-
-  void forkCircularStreamsFromDefault() override;
-  void joinCircularStreamsToDefault() override;
-  bool isCircularStreamsJoinedWithDefault() override;
-
   bool isCapableOfGraphCapturing() override;
   void streamBeginCapture(std::vector<void*>& streamPtrs) override;
   void streamEndCapture() override;
   DeviceGraphHandle getLastGraphHandle() override;
   void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
 
-  void* createGenericStream() override;
+  void* createStream(double priority) override;
   void destroyGenericStream(void* streamPtr) override;
   void syncStreamWithHost(void* streamPtr) override;
   bool isStreamWorkDone(void* streamPtr) override;
   void syncStreamWithEvent(void* streamPtr, void* eventPtr) override;
   void streamHostFunction(void* streamPtr, const std::function<void()>& function) override;
+
+  void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) override;
 
   void* createEvent() override;
   void destroyEvent(void* eventPtr) override;
@@ -115,6 +129,8 @@ public:
   void popLastProfilingMark() override;
 
   bool isUnifiedMemoryDefault() override;
+
+  void setupPrinting(int rank) override;
 
 private:
   std::vector<DeviceContext*> availableDevices;
@@ -144,11 +160,14 @@ private:
   void initDevices();
 
   std::string getCurrentDeviceInfoAsText();
-  std::string getDeviceInfoAsText(cl::sycl::device dev);
+  std::string getDeviceInfoAsTextInternal(cl::sycl::device& dev);
 
   bool deviceInitialized;
   int currentDeviceId;
+  InfoPrinter printer;
 };
 } // namespace device
 
-#endif
+
+#endif // SEISSOLDEVICE_INTERFACES_SYCL_SYCLWRAPPEDAPI_H_
+

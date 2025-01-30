@@ -1,5 +1,9 @@
-#ifndef DEVICE_SUBMODULE_BASETESTSUITE_H
-#define DEVICE_SUBMODULE_BASETESTSUITE_H
+// SPDX-FileCopyrightText: 2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_TESTS_BASETESTSUITE_H_
+#define SEISSOLDEVICE_TESTS_BASETESTSUITE_H_
 
 #include "device.h"
 #include "gtest/gtest.h"
@@ -33,4 +37,6 @@ std::mt19937 randomEngine;
 };
 
 
-#endif // DEVICE_SUBMODULE_BASETESTSUITE_H
+
+#endif // SEISSOLDEVICE_TESTS_BASETESTSUITE_H_
+

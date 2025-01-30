@@ -1,18 +1,27 @@
-#ifndef DEVICE_INTERFACE_STATUS_H
-#define DEVICE_INTERFACE_STATUS_H
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_COMMON_COMMON_H_
+#define SEISSOLDEVICE_INTERFACES_COMMON_COMMON_H_
 
 #include "utils/env.h"
-#include <string>
-#include <vector>
 #include <array>
 #include <cassert>
+#include <cmath>
+#include <memory>
+#include <ostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "utils/logger.h"
 
 namespace device {
 enum StatusID {
   DriverApiInitialized = 0,
   DeviceSelected,
   InterfaceInitialized,
-  CircularStreamBufferInitialized,
   StackMemAllocated,
   Count
 };
@@ -27,31 +36,63 @@ U align(T number, U alignment) {
   size_t alignmentFactor = (number + alignment - 1) / alignment;
   return alignmentFactor * alignment;
 }
-}
+} // namespace device
 
-inline int getMpiRankFromEnv() {
-  std::vector<std::string> rankEnvVars{{"SLURM_PROCID"},
-                                       {"OMPI_COMM_WORLD_RANK"},
-                                       {"MV2_COMM_WORLD_RANK"},
-                                       {"PMI_RANK"}};
-  constexpr int defaultValue{-1};
-  int value{defaultValue};
-  utils::Env env;
-  for (auto& envVar : rankEnvVars) {
-    value = env.get(envVar.c_str(), defaultValue);
-    if (value != defaultValue) break;
+constexpr auto mapPercentage(int minval, int maxval, double value) {
+  if (std::isnan(value)) {
+    return 0;
   }
-  return (value != defaultValue) ? value : 0;
+  
+  const auto convminval = static_cast<double>(minval);
+  const auto convmaxval = static_cast<double>(maxval);
+
+  const auto transformed = value * (convmaxval - convminval + 1) + convminval;
+  return std::max(std::min(static_cast<int>(std::floor(transformed)), maxval), minval);
 }
 
-inline size_t getMaxConcurrencyLevel(int defaultValue) {
-  auto concurrencyLevel = utils::Env::get("DEVICE_MAX_CONCURRENCY_LEVEL",
-                                          defaultValue);
-  if (concurrencyLevel <= 0) {
-    concurrencyLevel = defaultValue;
+class InfoPrinter {
+public:
+  struct InfoPrinterLine {
+    std::shared_ptr<std::ostringstream> stream;
+    InfoPrinter& printer;
+
+    InfoPrinterLine(InfoPrinter& printer) : printer(printer), stream(std::make_shared<std::ostringstream>()) {}
+
+    template<typename T>
+    InfoPrinterLine& operator <<(const T& data) {
+      *stream << data;
+      return *this;
+    }
+
+    ~InfoPrinterLine() {
+      if (printer.rank < 0) {
+        printer.stringCache.emplace_back(stream->str());
+      }
+      else {
+        logInfo() << stream->str().c_str();
+      }
+      stream = nullptr;
+    }
+  };
+
+  InfoPrinterLine printInfo() {
+    return InfoPrinterLine(*this);
   }
 
-  return static_cast<size_t>(concurrencyLevel);
-}
+  void setRank(int rank) {
+    this->rank = rank;
 
-#endif // DEVICE_INTERFACE_STATUS_H
+    for (const auto& string : stringCache) {
+      logInfo() << string;
+    }
+
+    stringCache.resize(0);
+  }
+
+private:
+  int rank{-1};
+  std::vector<std::string> stringCache;
+};
+
+
+#endif // SEISSOLDEVICE_INTERFACES_COMMON_COMMON_H_

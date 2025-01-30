@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "matrix_manip.hpp"
 #include <algorithm>
 #include <cassert>
@@ -43,3 +47,4 @@ std::pair<VectorT, CpuMatrixDataT> getDLU(const CpuMatrixDataT &matrix) {
   }
   return std::make_pair(diagonal, lu);
 }
+

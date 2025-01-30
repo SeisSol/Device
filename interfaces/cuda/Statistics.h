@@ -1,5 +1,9 @@
-#ifndef DEVICE_STATISTICS_H
-#define DEVICE_STATISTICS_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_CUDA_STATISTICS_H_
+#define SEISSOLDEVICE_INTERFACES_CUDA_STATISTICS_H_
 
 namespace device {
 struct Statistics {
@@ -12,4 +16,6 @@ struct Statistics {
 };
 } // namespace device
 
-#endif // DEVICE_STATISTICS_H
+
+#endif // SEISSOLDEVICE_INTERFACES_CUDA_STATISTICS_H_
+

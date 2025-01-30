@@ -1,5 +1,9 @@
-#ifndef DEVICE_STACK_H
-#define DEVICE_STACK_H
+// SPDX-FileCopyrightText: 2022-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_SYCL_DEVICESTACK_H_
+#define SEISSOLDEVICE_INTERFACES_SYCL_DEVICESTACK_H_
 
 #include <CL/sycl.hpp>
 #include <stack>
@@ -30,4 +34,6 @@ private:
 
 } // namespace device
 
-#endif
+
+#endif // SEISSOLDEVICE_INTERFACES_SYCL_DEVICESTACK_H_
+

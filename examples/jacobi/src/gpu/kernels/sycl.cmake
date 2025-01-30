@@ -1,4 +1,7 @@
-#NOTE: We need the device API to call kernels when using oneAPI
+# SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 if (TARGET device)
     message("target device has already been added!")
 else()
@@ -27,3 +30,4 @@ else()
     find_package(DpcppFlags REQUIRED)
     target_link_libraries(${TARGET_NAME} PRIVATE dpcpp::device_flags)
 endif()
+

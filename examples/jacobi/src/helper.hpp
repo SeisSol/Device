@@ -1,5 +1,9 @@
-#ifndef JSOLVER_HELPER_HPP
-#define JSOLVER_HELPER_HPP
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_HELPER_HPP_
+#define SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_HELPER_HPP_
 
 #include "datatypes.hpp"
 #include <chrono>
@@ -188,4 +192,6 @@ private:
   bool isStopped{false};
 };
 
-#endif // JSOLVER_HELPER_HPP
+
+#endif // SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_HELPER_HPP_
+

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "utils/logger.h"
 #include "utils/env.h"
 #include <cuda.h>
@@ -50,35 +54,17 @@ void ConcreteAPI::initialize() {
     cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking); CHECK_ERR;
     cudaEventCreate(&defaultStreamEvent); CHECK_ERR;
 
-    this->createCircularStreamAndEvents();
-
     int result{0};
     cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, currentDeviceId);
     CHECK_ERR;
     allowedConcurrentManagedAccess = result != 0;
+
+    cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
+    CHECK_ERR;
   }
   else {
     logWarning() << "Device Interface has already been initialized";
   }
-}
-
-void ConcreteAPI::createCircularStreamAndEvents() {
-  isFlagSet<StatusID::InterfaceInitialized>(status);
-
-  auto concurrencyLevel = getMaxConcurrencyLevel(4);
-  circularStreamBuffer.resize(concurrencyLevel);
-  for (auto &stream : circularStreamBuffer) {
-    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); CHECK_ERR;
-    CHECK_ERR;
-  }
-
-  circularStreamEvents.resize(concurrencyLevel);
-  for (auto &event : circularStreamEvents) {
-    cudaEventCreate(&event);
-    CHECK_ERR;
-  }
-
-  status[StatusID::CircularStreamBufferInitialized] = true;
 }
 
 void ConcreteAPI::allocateStackMem() {
@@ -89,16 +75,15 @@ void ConcreteAPI::allocateStackMem() {
 
   try {
     char *valueString = std::getenv("DEVICE_STACK_MEM_SIZE");
-    const auto rank = getMpiRankFromEnv();
     if (!valueString) {
-      logInfo(rank)
+      printer.printInfo()
           << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
           << "The default amount of the device memory (1 GB) "
           << "is going to be used to store temp. variables during execution of compute-algorithms.";
     } else {
       double requestedStackMem = std::stod(std::string(valueString));
       maxStackMem = factor * requestedStackMem;
-      logInfo(rank) << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
+      printer.printInfo() << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
                     << requestedStackMem << "GB of the device memory is going to be used "
                     << "to store temp. variables during execution of compute-algorithms.";
     }
@@ -127,36 +112,11 @@ void ConcreteAPI::finalize() {
 
   }
 
-  if (status[StatusID::CircularStreamBufferInitialized]) {
-    for (auto &stream : circularStreamBuffer) {
-      cudaStreamDestroy(stream);
-      CHECK_ERR;
-    }
-    circularStreamBuffer.clear();
-
-    for (auto &event : circularStreamEvents) {
-      cudaEventDestroy(event);
-      CHECK_ERR;
-    }
-    circularStreamEvents.clear();
-
-    for (auto &graphInstance : graphs) {
-      cudaGraphExecDestroy(graphInstance.instance);
-      CHECK_ERR;
-
-      cudaGraphDestroy(graphInstance.graph);
-      CHECK_ERR;
-    }
-    graphs.clear();
-
-    status[StatusID::CircularStreamBufferInitialized] = false;
-  }
-
   if (status[StatusID::InterfaceInitialized]) {
     cudaStreamDestroy(defaultStream); CHECK_ERR;
     cudaEventDestroy(defaultStreamEvent); CHECK_ERR;
     if (!genericStreams.empty()) {
-      logInfo(currentDeviceId) << "DEVICE::WARNING:" << genericStreams.size()
+      printer.printInfo() << "DEVICE::WARNING:" << genericStreams.size()
                                << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
         cudaStreamDestroy(stream); CHECK_ERR;
@@ -178,24 +138,6 @@ int ConcreteAPI::getDeviceId() {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
   return currentDeviceId;
-}
-
-size_t ConcreteAPI::getLaneSize() {
-  return static_cast<size_t>(device::internals::WARP_SIZE);
-}
-
-unsigned ConcreteAPI::getMaxThreadBlockSize() {
-  int blockSize{};
-  cudaDeviceGetAttribute(&blockSize, cudaDevAttrMaxThreadsPerBlock, currentDeviceId);
-  CHECK_ERR;
-  return static_cast<unsigned>(blockSize);
-}
-
-unsigned ConcreteAPI::getMaxSharedMemSize() {
-  int sharedMemSize{};
-  cudaDeviceGetAttribute(&sharedMemSize, cudaDevAttrMaxSharedMemoryPerBlock, currentDeviceId);
-  CHECK_ERR;
-  return static_cast<unsigned>(sharedMemSize);
 }
 
 unsigned ConcreteAPI::getGlobMemAlignment() {
@@ -277,3 +219,8 @@ void ConcreteAPI::popLastProfilingMark() {
   nvtxRangePop();
 #endif
 }
+
+void ConcreteAPI::setupPrinting(int rank) {
+  printer.setRank(rank);
+}
+

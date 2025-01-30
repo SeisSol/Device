@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "HipWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
@@ -38,9 +42,6 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 
 void ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
-
   graphs.push_back(GraphDetails{});
 
   GraphDetails &graphInstance = graphs.back();
@@ -56,9 +57,6 @@ void ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
 
 void ConcreteAPI::streamEndCapture() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
-  assert(!isCircularStreamsForked && "circular streams must be joined before graph capturing");
-
   auto& graphInstance = graphs.back();
   hipStreamEndCapture(static_cast<hipStream_t>(graphInstance.streamPtr), &(graphInstance.graph));
   CHECK_ERR;
@@ -73,7 +71,6 @@ void ConcreteAPI::streamEndCapture() {
 
 DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
   assert(graphs.back().ready && "a graph has not been fully captured");
   return DeviceGraphHandle(graphs.size() - 1);
 #else
@@ -84,10 +81,10 @@ DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
 
 void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
-  isFlagSet<CircularStreamBufferInitialized>(status);
   assert(graphHandle.isInitialized() && "a graph must be captured before launching");
   auto &graphInstance = graphs[graphHandle.getGraphId()];
   hipGraphLaunch(graphInstance.instance, reinterpret_cast<hipStream_t>(streamPtr));
   CHECK_ERR;
 #endif
 }
+

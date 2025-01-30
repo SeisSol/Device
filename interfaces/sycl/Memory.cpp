@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "SyclWrappedAPI.h"
 #include <iostream>
 
@@ -10,7 +14,7 @@ void *ConcreteAPI::allocGlobMem(size_t size) {
   return ptr;
 }
 
-void *ConcreteAPI::allocUnifiedMem(size_t size) {
+void *ConcreteAPI::allocUnifiedMem(size_t size, Destination hint) {
   auto *ptr = malloc_shared(size, *this->currentDefaultQueue);
   this->currentStatistics->allocatedUnifiedMemBytes += size;
   this->currentStatistics->allocatedMemBytes += size;
@@ -18,7 +22,7 @@ void *ConcreteAPI::allocUnifiedMem(size_t size) {
   return ptr;
 }
 
-void *ConcreteAPI::allocPinnedMem(size_t size) {
+void *ConcreteAPI::allocPinnedMem(size_t size, Destination hint) {
   auto *ptr = malloc_host(size, *this->currentDefaultQueue);
   this->currentStatistics->allocatedMemBytes += size;
   this->currentMemoryToSizeMap->insert({ptr, size});
@@ -105,3 +109,4 @@ void ConcreteAPI::unpinMemory(void* ptr) {
 void* ConcreteAPI::devicePointer(void* ptr) {
   return ptr;
 }
+

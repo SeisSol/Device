@@ -1,9 +1,17 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <assert.h>
+#include <driver_types.h>
 #include <iostream>
 #include <sstream>
 
+#include "AbstractAPI.h"
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
+
+#include "utils/logger.h"
 
 using namespace device;
 
@@ -17,12 +25,16 @@ void *ConcreteAPI::allocGlobMem(size_t size) {
   return devPtr;
 }
 
-void *ConcreteAPI::allocUnifiedMem(size_t size) {
+void *ConcreteAPI::allocUnifiedMem(size_t size, Destination hint) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
   cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal);
   CHECK_ERR;
-  if (allowedConcurrentManagedAccess) {
+  if (hint == Destination::Host) {
+    cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId);
+    CHECK_ERR;
+  }
+  else if (allowedConcurrentManagedAccess) {
     cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation, currentDeviceId);
     CHECK_ERR;
   }
@@ -32,10 +44,11 @@ void *ConcreteAPI::allocUnifiedMem(size_t size) {
   return devPtr;
 }
 
-void *ConcreteAPI::allocPinnedMem(size_t size) {
+void *ConcreteAPI::allocPinnedMem(size_t size, Destination hint) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
-  cudaHostAlloc(&devPtr, size, cudaHostAllocDefault);
+  const auto flag = hint == Destination::Host ? cudaHostAllocDefault : cudaHostAllocMapped;
+  cudaHostAlloc(&devPtr, size, flag);
   CHECK_ERR;
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
@@ -80,11 +93,14 @@ void ConcreteAPI::freePinnedMem(void *devPtr) {
 
 char *ConcreteAPI::getStackMemory(size_t requestedBytes) {
   isFlagSet<StackMemAllocated>(status);
-  assert(((stackMemByteCounter + requestedBytes) < maxStackMem) &&
-         "DEVICE:: run out of a device stack memory");
   char *mem = &stackMemory[stackMemByteCounter];
 
   size_t requestedAlignedBytes = align(requestedBytes, getGlobMemAlignment());
+
+  if ((stackMemByteCounter + requestedAlignedBytes) >= maxStackMem) {
+    logError() << "DEVICE:: run out of device stack memory";
+  }
+
   stackMemByteCounter += requestedAlignedBytes;
   stackMemMeter.push(requestedAlignedBytes);
   return mem;
@@ -142,3 +158,4 @@ void* ConcreteAPI::devicePointer(void* ptr) {
   CHECK_ERR;
   return result;
 }
+

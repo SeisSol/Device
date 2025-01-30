@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "helper.hpp"
 #include "host/subroutines.hpp"
 #include "matrix_manip.hpp"
@@ -147,3 +151,4 @@ void gpu::Solver::tearDown() {
   device.api->freeMem(devLU->indices);
   devLU.reset(nullptr);
 }
+

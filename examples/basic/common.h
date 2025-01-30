@@ -1,5 +1,9 @@
-#ifndef EXAMPLES_COMMON_H
-#define EXAMPLES_COMMON_H
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_EXAMPLES_BASIC_COMMON_H_
+#define SEISSOLDEVICE_EXAMPLES_BASIC_COMMON_H_
 
 #include <cmath>
 #include <iostream>
@@ -16,4 +20,6 @@ using real = float;
 #error RealSize not supported.
 #endif
 
-#endif // EXAMPLES_COMMON_H
+
+#endif // SEISSOLDEVICE_EXAMPLES_BASIC_COMMON_H_
+

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "AbstractAPI.h"
 #include "interfaces/hip/Internals.h"
 #include <cassert>
@@ -106,3 +110,4 @@ void Algorithms::incrementalAdd(
   CHECK_ERR;
 }
 } // namespace device
+
