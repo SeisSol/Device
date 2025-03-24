@@ -199,6 +199,13 @@ std::string ConcreteAPI::getPciAddress(int deviceId) {
   return str.str();
 }
 
+void ConcreteAPI::profilingMessage(const std::string& message) {
+#ifdef PROFILING_ENABLED
+  isFlagSet<DeviceSelected>(status);
+  nvtxMark(message.c_str());
+#endif
+}
+
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
 #ifdef PROFILING_ENABLED
   isFlagSet<DeviceSelected>(status);

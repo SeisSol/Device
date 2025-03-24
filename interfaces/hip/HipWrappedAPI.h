@@ -97,6 +97,7 @@ public:
 
   void initialize() override;
   void finalize() override;
+  void profilingMessage(const std::string& message) override;
   void putProfilingMark(const std::string &name, ProfilingColors color) override;
   void popLastProfilingMark() override;
 

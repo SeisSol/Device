@@ -106,6 +106,7 @@ struct AbstractAPI {
 
   virtual void initialize() = 0;
   virtual void finalize() = 0;
+  virtual void profilingMessage(const std::string& message) = 0;
   virtual void putProfilingMark(const std::string &name, ProfilingColors color) = 0;
   virtual void popLastProfilingMark() = 0;
 

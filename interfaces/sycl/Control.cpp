@@ -156,6 +156,9 @@ std::string ConcreteAPI::getPciAddress(int deviceId) {
 #endif
 }
 
+void ConcreteAPI::profilingMessage(const std::string& message) {
+}
+
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
   // ToDo: check if there is some similar functionality in VTUNE
 }
