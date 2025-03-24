@@ -26,7 +26,7 @@ DeviceType fromSyclType(cl::sycl::info::device_type type) {
 
 bool compare(cl::sycl::device devA, cl::sycl::device devB) {
   std::string env;
-  env += utils::Env::get("PREFERRED_DEVICE_TYPE", "");
+  env += utils::Env("").get("PREFERRED_DEVICE_TYPE", "");
 
   auto typeA = devA.get_info<cl::sycl::info::device::device_type>();
   auto typeB = devB.get_info<cl::sycl::info::device::device_type>();
