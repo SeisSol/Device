@@ -11,7 +11,7 @@
 #include "hip/hip_runtime.h"
 
 #ifdef PROFILING_ENABLED
-#include "roctx.h"
+#include <roctracer/roctx.h>
 #endif
 
 #include "HipWrappedAPI.h"
@@ -209,6 +209,13 @@ std::string ConcreteAPI::getPciAddress(int deviceId) {
   std::ostringstream str;
   str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":" << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
   return str.str();
+}
+
+void ConcreteAPI::profilingMessage(const std::string& message) {
+#ifdef PROFILING_ENABLED
+  isFlagSet<DeviceSelected>(status);
+  roctxMark(message.c_str());
+#endif
 }
 
 void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
