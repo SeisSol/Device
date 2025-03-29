@@ -2,96 +2,133 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-
-#include "Reduction.h"
+#include "LocalCommon.h"
+#include "Internals.h"
 #include "algorithms/Common.h"
-#include "DeviceMacros.h"
 #include <cassert>
 #include <device.h>
 #include <math.h>
 
 namespace device {
 template <typename T> struct Sum {
-  T defaultValue{deduceDefaultValue<T>(ReductionType::Add)};
-  __device__ T operator()(T op1, T op2) { return op1 + op2; }
+  T defaultValue{0};
+  __device__ __forceinline__ T operator()(T op1, T op2) { return op1 + op2; }
 };
 
 template <typename T> struct Max {
-  T defaultValue{deduceDefaultValue<T>(ReductionType::Max)};
-  __device__ T operator()(T op1, T op2) { return op1 > op2 ? op1 : op2; }
+  T defaultValue{std::numeric_limits<T>::min()};
+  __device__ __forceinline__ T operator()(T op1, T op2) { return op1 > op2 ? op1 : op2; }
 };
 
 template <typename T> struct Min {
-  T defaultValue{deduceDefaultValue<T>(ReductionType::Min)};
-  __device__ T operator()(T op1, T op2) { return op1 > op2 ? op2 : op1; }
+  T defaultValue{std::numeric_limits<T>::max()};
+  __device__ __forceinline__ T operator()(T op1, T op2) { return op1 > op2 ? op2 : op1; }
 };
 
 
-template <typename T> T Algorithms::reduceVector(T *buffer, size_t size, const ReductionType type, void* streamPtr) {
-  assert(api != nullptr && "api has not been attached to algorithms sub-system");
-  size_t adjustedSize = device::alignToMultipleOf(size, internals::WARP_SIZE);
-  const size_t totalBuffersSize = adjustedSize * sizeof(T);
-  T *reductionBuffer = reinterpret_cast<T *>(api->getStackMemory(totalBuffersSize));
+#if defined(__CUDACC__) || defined(__HIP_PLATFORM_NVIDIA__) && defined(__HIP__)
+template <typename T>
+__forceinline__ __device__ T shuffledown(T value, int offset) {
+  constexpr unsigned int fullMask = 0xffffffff;
+  return __shfl_down_sync(fullMask, value, offset);
+}
+#endif
 
-  this->fillArray(reductionBuffer,
-                  deduceDefaultValue<T>(type),
-                  adjustedSize,
-                  streamPtr);
-  CHECK_ERR;
+// no OCKL reduction for now
+#if defined(__HIP_PLATFORM_AMD__) && defined(__HIP__)
+template <typename T>
+__forceinline__ __device__ T shuffledown(T value, int offset) {
+  return __shfl_down(value, offset);
+}
+#endif
 
-  api->copyBetween(reductionBuffer, buffer, size * sizeof(T));
+// a rather "dumb", but general reduction kernel
+// (not intended for intensive use; there's the thrust libraries instead)
 
-  dim3 block(internals::WARP_SIZE, 1, 1);
-  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+template <typename T, typename OperationT>
+__launch_bounds__(1024)
+void __global__ kernel_reduce(T* result, const T* vector, size_t size, bool overrideResult, OperationT operation) {
+  __shared__ T shmem[256];
+  const auto warpCount = blockDim.x / warpSize;
+  const auto currentWarp = threadIdx.x / warpSize;
+  const auto threadInWarp = threadIdx.x % warpSize;
+  const auto warpsNeeded = (size + warpSize - 1) / warpSize;
 
-  auto launchReduce = [&](dim3& grid, size_t size) {
-    switch (type) {
-    case ReductionType::Add: {
-      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, reductionBuffer, size, device::Sum<T>());
-      break;
-    }
-    case ReductionType::Max: {
-      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, reductionBuffer, size, device::Max<T>());
-      break;
-    }
-    case ReductionType::Min: {
-      DEVICE_KERNEL_LAUNCH(kernel_reduce, grid, block, 0, stream, reductionBuffer, size, device::Min<T>());
-      break;
-    }
-    default: {
-      assert(false && "reduction type is not implemented");
-    }
-      CHECK_ERR;
-    }
-  };
+  auto acc = operation.defaultValue;
+  
+  #pragma unroll 4
+  for (std::size_t i = currentWarp; i < warpsNeeded; i += warpCount) {
+    const auto id = threadInWarp + i * warpSize;
+    auto value = (id < size) ? ntload(&vector[id]) : operation.defaultValue;
 
-  dim3 grid{};
-  for (size_t reducedSize = adjustedSize;
-      reducedSize >= internals::WARP_SIZE;
-      reducedSize /= internals::WARP_SIZE) {
-    grid = internals::computeGrid1D(internals::WARP_SIZE, reducedSize);
-    launchReduce(grid, reducedSize);
+    for (int offset = 1; offset < warpSize; offset *= 2) {
+      value = operation(value, shuffledown(value, offset));
+    }
+
+    acc = operation(acc, value);
   }
 
-  if (grid.x > 1) {
-      auto reducedSize = static_cast<size_t>(grid.x);
-      grid = dim3(1, 1, 1);
-      launchReduce(grid, reducedSize);
+  if (threadInWarp == 0) {
+    shmem[currentWarp] = acc;
   }
 
-  T result{};
-  api->syncStreamWithHost(streamPtr);
-  api->copyFrom(&result, reductionBuffer, sizeof(T));
-  this->fillArray(reinterpret_cast<char *>(reductionBuffer),
-                  static_cast<char>(0),
-                  totalBuffersSize,
-                  streamPtr);
-  CHECK_ERR;
-  api->popStackMemory();
-  return result;
+  __syncthreads();
+
+  if (currentWarp == 0) {
+    const auto lastWarpsNeeded = (warpCount + warpSize - 1) / warpSize;
+    auto lastAcc = operation.defaultValue;
+    #pragma unroll 2
+    for (int i = 0; i < lastWarpsNeeded; i += warpSize) {
+      const auto id = threadInWarp + i * warpSize;
+      auto value = (i < warpCount) ? shmem[id] : operation.defaultValue;
+
+      for (int offset = 1; offset < warpSize; offset *= 2) {
+        value = operation(value, shuffledown(value, offset));
+      }
+
+      lastAcc = operation(lastAcc, value);
+    }
+
+    if (threadIdx.x == 0) {
+      if (overrideResult) {
+        ntstore(result, lastAcc);
+      }
+      else {
+        ntstore(result, operation(ntload(result), lastAcc));
+      }
+    }
+  }
 }
 
-template unsigned Algorithms::reduceVector(unsigned *buffer, size_t size, ReductionType type, void* streamPtr);
-template real Algorithms::reduceVector(real *buffer, size_t size, ReductionType type, void* streamPtr);
+template <typename T> void Algorithms::reduceVector(T* result, const T *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr) {
+  auto* stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+
+  dim3 grid(1, 1, 1);
+  dim3 block(1024, 1, 1);
+
+  switch (type) {
+  case ReductionType::Add: {
+    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Sum<T>());
+    break;
+  }
+  case ReductionType::Max: {
+    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Max<T>());
+    break;
+  }
+  case ReductionType::Min: {
+    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Min<T>());
+    break;
+  }
+  default: {
+    assert(false && "reduction type is not implemented");
+    }
+  }
+  CHECK_ERR;
+}
+
+template void Algorithms::reduceVector(int* result, const int *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned* result, const unsigned *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(float* result, const float *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(double* result, const double *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
 } // namespace device
 

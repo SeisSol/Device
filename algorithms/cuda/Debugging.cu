@@ -10,6 +10,7 @@
 
 namespace device {
 
+template<>
 void Algorithms::compareDataWithHost(const real *hostPtr, const real *devPtr, const size_t numElements,
                                      const std::string &dataName) {
 

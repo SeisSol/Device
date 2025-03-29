@@ -12,7 +12,7 @@
 namespace device {
   namespace internals {
 
-    constexpr static int DefaultBlockDim = 256;
+    constexpr static int DefaultBlockDim = 1024;
     
     using deviceStreamT = hipStream_t;
     void checkErr(const std::string &file, int line);

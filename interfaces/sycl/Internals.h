@@ -15,7 +15,7 @@ namespace device {
 namespace internals {
 constexpr int WARP_SIZE = 32;
 
-constexpr static int DefaultBlockDim = 256;
+constexpr static int DefaultBlockDim = 1024;
 
 /*
  * Computes the execution range for a 1D range kernel given a target work group size and a total size.
