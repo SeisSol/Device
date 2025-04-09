@@ -38,8 +38,7 @@ void QueueWrapper::dependency(QueueWrapper& other) {
     DEVICE_SYCL_EMPTY_OPERATION(h);
   });
   queue.submit([&](cl::sycl::handler& h) {
-    h.depends_on(queueEvent);
-    DEVICE_SYCL_EMPTY_OPERATION(h);
+    DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(h, queueEvent);
   });
 #endif
 }

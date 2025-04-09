@@ -37,11 +37,18 @@
 #endif
 
 #ifdef DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
-#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...){});
+#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...) {});
+#define DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(handle, event)                                                          \
+  handle.depends_on(event);                                                                                            \
+  handle.DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...) {});
 #elif defined(SYCL_EXT_ONEAPI_ENQUEUE_BARRIER) && !defined(DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT)
 #define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.ext_oneapi_barrier();
+#define DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(handle, event) handle.ext_oneapi_barrier({event});
 #else
-#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.single_task([=](){});
+#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.single_task([=]() {});
+#define DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(handle, event)                                                          \
+  handle.depends_on(event);                                                                                            \
+  handle.single_task([=]() {});
 #endif
 
 namespace device {

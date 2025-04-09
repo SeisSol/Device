@@ -61,8 +61,7 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
 
   queue->submit([&](cl::sycl::handler& h) {
-    h.depends_on(event->syclEvent.value());
-    DEVICE_SYCL_EMPTY_OPERATION(h);
+    DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(h, event->syclEvent.value());
   });
 }
 
