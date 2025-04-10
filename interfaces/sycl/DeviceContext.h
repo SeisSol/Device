@@ -20,7 +20,6 @@ public:
   DeviceContext(const cl::sycl::device &targetDevice, size_t concurrencyLevel);
   std::unordered_map<void *, size_t> memoryToSizeMap;
   DeviceCircularQueueBuffer queueBuffer;
-  DeviceStack stack;
   Statistics statistics;
 private:
   void onExceptionOccurred(cl::sycl::exception_list &exceptions);

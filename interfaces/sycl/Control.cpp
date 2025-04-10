@@ -54,7 +54,6 @@ void ConcreteAPI::setDevice(int id) {
 
   this->currentDeviceId = id;
   auto *next = this->availableDevices[id];
-  this->currentDeviceStack = &next->stack;
   this->currentStatistics = &next->statistics;
   this->currentQueueBuffer = &next->queueBuffer;
   this->currentDefaultQueue = &this->currentQueueBuffer->getDefaultQueue();
@@ -64,10 +63,6 @@ void ConcreteAPI::setDevice(int id) {
 }
 
 void ConcreteAPI::initialize() {}
-
-void ConcreteAPI::allocateStackMem() {
-  this->currentDeviceStack->initMemory();
-}
 
 void ConcreteAPI::finalize() {
   if (m_isFinalized) {
@@ -82,7 +77,6 @@ void ConcreteAPI::finalize() {
 
   this->graphs.clear();
 
-  this->currentDeviceStack = nullptr;
   this->currentStatistics = nullptr;
   this->currentQueueBuffer = nullptr;
   this->currentDefaultQueue = nullptr;

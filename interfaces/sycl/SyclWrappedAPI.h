@@ -63,16 +63,16 @@ public:
   std::string getDeviceInfoAsText(int deviceId) override;
   void syncDevice() override;
 
-  void allocateStackMem() override;
   void *allocGlobMem(size_t size, bool compress) override;
   void *allocUnifiedMem(size_t size, bool compress, Destination hint) override;
   void *allocPinnedMem(size_t size, bool compress, Destination hint) override;
-  char *getStackMemory(size_t requestedBytes) override;
   void freeGlobMem(void *devPtr) override;
   void freeUnifiedMem(void *devPtr) override;
   void freePinnedMem(void *devPtr) override;
-  void popStackMemory() override;
   std::string getMemLeaksReport() override;
+
+  void *allocMemAsync(size_t size, void* streamPtr) override;
+  void freeMemAsync(void *devPtr, void* streamPtr) override;
 
   void pinMemory(void* ptr, size_t size) override;
   void unpinMemory(void* ptr) override;
@@ -156,6 +156,8 @@ private:
 #endif
 
   std::vector<GraphDetails> graphs;
+
+  void freeMem(void *devPtr);
 
   void initDevices();
 

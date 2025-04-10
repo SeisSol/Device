@@ -67,51 +67,7 @@ void ConcreteAPI::initialize() {
   }
 }
 
-void ConcreteAPI::allocateStackMem() {
-  isFlagSet<StatusID::DeviceSelected>(status);
-
-  // try to detect the amount of temp. memory from the environment
-  const size_t factor = 1024 * 1024 * 1024; //!< bytes in 1 GB
-
-  try {
-    char *valueString = std::getenv("DEVICE_STACK_MEM_SIZE");
-    if (!valueString) {
-      printer.printInfo()
-          << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has not been set. "
-          << "The default amount of the device memory (1 GB) "
-          << "is going to be used to store temp. variables during execution of compute-algorithms.";
-    } else {
-      double requestedStackMem = std::stod(std::string(valueString));
-      maxStackMem = factor * requestedStackMem;
-      printer.printInfo() << "From device: env. variable \"DEVICE_STACK_MEM_SIZE\" has been detected. "
-                    << requestedStackMem << "GB of the device memory is going to be used "
-                    << "to store temp. variables during execution of compute-algorithms.";
-    }
-  } catch (const std::invalid_argument &err) {
-    logError() << "DEVICE::ERROR: " << err.what() << ". File: " << __FILE__
-               << ", line: " << __LINE__;
-  } catch (const std::out_of_range &err) {
-    logError() << "DEVICE::ERROR: " << err.what() << ". File: " << __FILE__
-               << ", line: " << __LINE__;
-  }
-
-  cudaMalloc(&stackMemory, maxStackMem);
-  CHECK_ERR;
-
-  status[StatusID::StackMemAllocated] = true;
-}
-
 void ConcreteAPI::finalize() {
-  if (status[StatusID::StackMemAllocated]) {
-    cudaFree(stackMemory);
-    CHECK_ERR;
-    stackMemory = nullptr;
-    stackMemByteCounter = 0;
-    stackMemMeter = std::stack<size_t>{};
-    status[StatusID::StackMemAllocated] = false;
-
-  }
-
   if (status[StatusID::InterfaceInitialized]) {
     cudaStreamDestroy(defaultStream); CHECK_ERR;
     cudaEventDestroy(defaultStreamEvent); CHECK_ERR;

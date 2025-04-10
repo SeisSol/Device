@@ -30,16 +30,16 @@ public:
   std::string getDeviceInfoAsText(int deviceId) override;
   void syncDevice() override;
 
-  void allocateStackMem() override;
   void *allocGlobMem(size_t size, bool compress) override;
   void *allocUnifiedMem(size_t size, bool compress, Destination hint) override;
   void *allocPinnedMem(size_t size, bool compress, Destination hint) override;
-  char *getStackMemory(size_t requestedBytes) override;
   void freeGlobMem(void *devPtr) override;
   void freeUnifiedMem(void *devPtr) override;
   void freePinnedMem(void *devPtr) override;
-  void popStackMemory() override;
   std::string getMemLeaksReport() override;
+
+  void *allocMemAsync(size_t size, void* streamPtr) override;
+  void freeMemAsync(void *devPtr, void* streamPtr) override;
 
   void pinMemory(void* ptr, size_t size) override;
   void unpinMemory(void* ptr) override;
@@ -123,11 +123,6 @@ private:
     bool ready{false};
   };
   std::vector<GraphDetails> graphs;
-
-  char *stackMemory = nullptr;
-  size_t stackMemByteCounter = 0;
-  size_t maxStackMem = 1024 * 1024 * 1024; //!< 1GB in bytes
-  std::stack<size_t> stackMemMeter{};
 
   Statistics statistics{};
   std::unordered_map<void *, size_t> memToSizeMap{{nullptr, 0}};

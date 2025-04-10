@@ -12,7 +12,6 @@ DeviceContext::DeviceContext(const cl::sycl::device &targetDevice, size_t concur
     : queueBuffer{DeviceCircularQueueBuffer{targetDevice,
                                             [&](cl::sycl::exception_list l) { onExceptionOccurred(l); },
                                             concurrencyLevel}},
-      stack{DeviceStack{queueBuffer.getDefaultQueue()}},
       statistics{Statistics{}} {}
 
 void DeviceContext::onExceptionOccurred(cl::sycl::exception_list &exceptions) {

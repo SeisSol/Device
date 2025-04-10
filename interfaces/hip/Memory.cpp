@@ -77,34 +77,28 @@ void ConcreteAPI::freePinnedMem(void *devPtr) {
   hipHostFree(devPtr); CHECK_ERR;
 }
 
-
-char* ConcreteAPI::getStackMemory(size_t requestedBytes) {
-  isFlagSet<StackMemAllocated>(status);
-  char *mem = &stackMemory[stackMemByteCounter];
-
-  size_t requestedAlignedBytes = align(requestedBytes, getGlobMemAlignment());
-
-  if ((stackMemByteCounter + requestedAlignedBytes) >= maxStackMem) {
-    logError() << "DEVICE:: run out of a device stack memory";
+void *ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
+  if (size == 0) {
+    return nullptr;
   }
-
-  stackMemByteCounter += requestedAlignedBytes;
-  stackMemMeter.push(requestedAlignedBytes);
-  return mem;
+  else {
+    void* ptr;
+    hipMallocAsync(&ptr, size, static_cast<hipStream_t>(streamPtr));
+    CHECK_ERR;
+    return ptr;
+  }
 }
-
-
-void ConcreteAPI::popStackMemory() {
-  isFlagSet<StackMemAllocated>(status);
-  stackMemByteCounter -= stackMemMeter.top();
-  stackMemMeter.pop();
+void ConcreteAPI::freeMemAsync(void *devPtr, void* streamPtr) {
+  if (devPtr != nullptr) {
+    hipFreeAsync(ptr, static_cast<hipStream_t>(streamPtr));
+    CHECK_ERR;
+  }
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {
   isFlagSet<DeviceSelected>(status);
   std::ostringstream report{};
   report << "Memory Leaks, bytes: " << (statistics.allocatedMemBytes - statistics.deallocatedMemBytes) << '\n';
-  report << "Stack Memory Leaks, bytes: " << stackMemByteCounter << '\n';
   return report.str();
 }
 

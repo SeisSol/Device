@@ -11,6 +11,7 @@ void *ConcreteAPI::allocGlobMem(size_t size, bool compress) {
   auto *ptr = malloc_device(size, *this->currentDefaultQueue);
   this->currentStatistics->allocatedMemBytes += size;
   this->currentMemoryToSizeMap->insert({ptr, size});
+  this->currentDefaultQueue->wait();
   return ptr;
 }
 
@@ -19,6 +20,7 @@ void *ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
   this->currentStatistics->allocatedUnifiedMemBytes += size;
   this->currentStatistics->allocatedMemBytes += size;
   this->currentMemoryToSizeMap->insert({ptr, size});
+  this->currentDefaultQueue->wait();
   return ptr;
 }
 
@@ -26,7 +28,24 @@ void *ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
   auto *ptr = malloc_host(size, *this->currentDefaultQueue);
   this->currentStatistics->allocatedMemBytes += size;
   this->currentMemoryToSizeMap->insert({ptr, size});
+  this->currentDefaultQueue->wait();
   return ptr;
+}
+
+void ConcreteAPI::freeMem(void *devPtr) {
+  // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behaviour
+  // contrast to C++/CUDA/HIP
+  if(devPtr != nullptr) {
+    if (this->currentMemoryToSizeMap->find(devPtr) == this->currentMemoryToSizeMap->end())
+      throw std::invalid_argument(this->getDeviceInfoAsText(this->currentDeviceId)
+                                      .append("an attempt to delete memory that has not been allocated. Is this "
+                                              "a pointer to this device or was this a double free?"));
+
+    this->currentStatistics->deallocatedMemBytes += this->currentMemoryToSizeMap->at(devPtr);
+    this->currentMemoryToSizeMap->erase(devPtr);
+    free(devPtr, this->currentDefaultQueue->get_context());
+    this->currentDefaultQueue->wait();
+  }
 }
 
 void ConcreteAPI::freeGlobMem(void *devPtr) {
@@ -53,12 +72,19 @@ void ConcreteAPI::freePinnedMem(void *devPtr) {
   }
 }
 
-char *ConcreteAPI::getStackMemory(size_t requestedBytes) {
-  size_t requestedAlignedBytes = align(requestedBytes, getGlobMemAlignment());
-  return this->currentDeviceStack->getStackMemory(requestedAlignedBytes);
+void *ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
+  if (size == 0) {
+    return nullptr;
+  }
+  else {
+    return malloc_device(size, *static_cast<cl::sycl::queue*>(streamPtr));
+  }
 }
-
-void ConcreteAPI::popStackMemory() { this->currentDeviceStack->popStackMemory(); }
+void ConcreteAPI::freeMemAsync(void *devPtr, void* streamPtr) {
+  if (devPtr != nullptr) {
+    free(devPtr, *static_cast<cl::sycl::queue*>(streamPtr));
+  }
+}
 
 std::string ConcreteAPI::getMemLeaksReport() {
   std::ostringstream report{};
@@ -66,7 +92,6 @@ std::string ConcreteAPI::getMemLeaksReport() {
   report << "----MEMORY REPORT----\n";
   report << "Memory Leaks, bytes: "
          << (this->currentStatistics->allocatedMemBytes - this->currentStatistics->deallocatedMemBytes) << '\n';
-  report << "Stack Memory Leaks, bytes: " << this->currentDeviceStack->getStackMemByteCounter() << '\n';
   report << "---------------------\n";
 
   return report.str();

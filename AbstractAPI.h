@@ -43,16 +43,16 @@ struct AbstractAPI {
   virtual std::string getDeviceName(int deviceId) = 0;
   virtual std::string getPciAddress(int deviceId) = 0;
 
-  virtual void allocateStackMem() = 0;
   virtual void *allocGlobMem(size_t size, bool compress = false) = 0;
   virtual void *allocUnifiedMem(size_t size, bool compress = false, Destination hint = Destination::CurrentDevice) = 0;
   virtual void *allocPinnedMem(size_t size, bool compress = false, Destination hint = Destination::Host) = 0;
-  virtual char *getStackMemory(size_t requestedBytes) = 0;
   virtual void freeGlobMem(void *devPtr) = 0;
   virtual void freeUnifiedMem(void *devPtr) = 0;
   virtual void freePinnedMem(void *devPtr) = 0;
-  virtual void popStackMemory() = 0;
   virtual std::string getMemLeaksReport() = 0;
+
+  virtual void *allocMemAsync(size_t size, void* streamPtr) = 0;
+  virtual void freeMemAsync(void *devPtr, void* streamPtr) = 0;
 
   virtual void pinMemory(void* ptr, size_t size) = 0;
   virtual void unpinMemory(void* ptr) = 0;
