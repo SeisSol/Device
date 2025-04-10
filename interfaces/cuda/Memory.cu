@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include <assert.h>
+#include <cstring>
 #include <driver_types.h>
 #include <iostream>
 #include <sstream>
@@ -13,13 +14,69 @@
 
 #include "utils/logger.h"
 
+#include <cuda.h>
+
 using namespace device;
+
+namespace {
+
+// adapted from https://github.com/NVIDIA/cuda-samples/blob/master/Samples/3_CUDA_Features/cudaCompressibleMemory/compMalloc.cpp
+
+void* driverAllocate(std::size_t size, const CUmemAllocationProp& prop) {
+  std::size_t granularity = 1;
+  cuMemGetAllocationGranularity(&granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM);
+  CHECK_ERR;
+
+  size = (size + granularity - 1) / size;
+
+  CUdeviceptr cptr;
+  cuMemAddressReserve(&cptr, size, 0, 0, 0);
+  CHECK_ERR;
+  // cf. https://docs.nvidia.com/cuda/hopper-tuning-guide/index.html?highlight=inline%20compression#inline-compression
+  CUmemGenericAllocationHandle allocationHandle;
+  cuMemCreate(&allocationHandle, size, &prop, 0);
+  CHECK_ERR;
+  cuMemMap(cptr, size, 0, allocationHandle, 0);
+  CHECK_ERR;
+  cuMemRelease(allocationHandle);
+  CHECK_ERR;
+
+  return reinterpret_cast<void*>(cptr);
+}
+
+void driverFree(void* ptr, std::size_t size, const CUmemAllocationProp& prop) {
+  std::size_t granularity = 1;
+  cuMemGetAllocationGranularity(&granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM);
+  CHECK_ERR;
+
+  size = (size + granularity - 1) / size;
+
+  CUdeviceptr cptr = reinterpret_cast<CUdeviceptr>(ptr);
+
+  cuMemUnmap(cptr, size);
+  cuMemAddressFree(cptr, size);
+}
+
+} // namespace
 
 void *ConcreteAPI::allocGlobMem(size_t size, bool compress) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
-  cudaMalloc(&devPtr, size);
-  CHECK_ERR;
+  if (compress && canCompress) {
+    CUmemAllocationProp prop = {};
+    std::memset(&prop, 0, sizeof(CUmemAllocationProp));
+    prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
+    prop.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+    prop.location.id = currentDeviceId;
+    prop.allocFlags.compressionType = CU_MEM_ALLOCATION_COMP_GENERIC;
+
+    devPtr = driverAllocate(size, prop);
+    allocationProperties[devPtr] = reinterpret_cast<void*>(new CUmemAllocationProp(prop));
+  }
+  else {
+    cudaMalloc(&devPtr, size);
+    CHECK_ERR;
+  }
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
   return devPtr;
@@ -60,8 +117,13 @@ void ConcreteAPI::freeGlobMem(void *devPtr) {
   assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
-  cudaFree(devPtr);
-  CHECK_ERR;
+  if (allocationProperties.find(devPtr) != allocationProperties.end()) {
+    driverFree(devPtr, memToSizeMap.at(devPtr), *reinterpret_cast<CUmemAllocationProp>(allocationProperties.at(devPtr)));
+  }
+  else {
+    cudaFree(devPtr);
+    CHECK_ERR;
+  }
 }
 
 void ConcreteAPI::freeUnifiedMem(void *devPtr) {

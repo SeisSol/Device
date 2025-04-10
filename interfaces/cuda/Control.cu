@@ -61,6 +61,10 @@ void ConcreteAPI::initialize() {
 
     cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
     CHECK_ERR;
+
+    int canCompressProto = 0;
+    cuDeviceGetAttribute(&canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, currentDeviceId);
+    canCompress = canCompressProto != 0;
   }
   else {
     logWarning() << "Device Interface has already been initialized";

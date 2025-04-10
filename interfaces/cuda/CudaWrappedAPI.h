@@ -110,6 +110,7 @@ private:
   bool allowedConcurrentManagedAccess{false};
   
   bool usmDefault{false};
+  bool canCompress{false};
 
   cudaStream_t defaultStream{nullptr};
   cudaEvent_t defaultStreamEvent{};
@@ -129,6 +130,8 @@ private:
 
   int priorityMin, priorityMax;
   InfoPrinter printer;
+
+  std::unordered_map<void *, void *> allocationProperties;
 };
 } // namespace device
 
