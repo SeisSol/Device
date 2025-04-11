@@ -42,7 +42,7 @@ public:
 
   void deallocate(T *ptr, std::size_t) {
     if (ptr) {
-      api->freeMem(ptr);
+      api->freeGlobMem(ptr);
     }
   }
 

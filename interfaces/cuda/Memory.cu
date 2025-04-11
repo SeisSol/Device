@@ -118,7 +118,7 @@ void ConcreteAPI::freeGlobMem(void *devPtr) {
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
   if (allocationProperties.find(devPtr) != allocationProperties.end()) {
-    driverFree(devPtr, memToSizeMap.at(devPtr), *reinterpret_cast<CUmemAllocationProp>(allocationProperties.at(devPtr)));
+    driverFree(devPtr, memToSizeMap.at(devPtr), *reinterpret_cast<CUmemAllocationProp*>(allocationProperties.at(devPtr)));
   }
   else {
     cudaFree(devPtr);
