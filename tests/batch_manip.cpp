@@ -113,8 +113,8 @@ TEST_F(BatchManip, touchNoClean32) {
 }
 
 TEST_F(BatchManip, scatterToUniform32) {
-  const int N = 100;
-  const int M = 120;
+  const int N = 10000;
+  const int M = 12000;
 
   float *data2 = (float *)device->api->allocGlobMem(N * M * sizeof(float));
   testWrapper<float>(N, M, false, [&](float** batch, float* data) {

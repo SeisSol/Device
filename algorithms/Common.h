@@ -126,13 +126,13 @@ DEVICE_DEVICEFUNC std::size_t iimemcpy(void* dst, const void* src, std::size_t o
     const T* csrc = reinterpret_cast<const T*>(src);
     const auto start = offset / sizeof(T);
     const auto end1 = (count - offset) / sizeof(T);
-    const auto end = OnlyFull ? (end1 / stride) * stride : end1;
+    const auto end = OnlyFull ? ((end1 / stride) * stride) : end1;
 #pragma unroll 4
     for (std::size_t i = local; i < end; i += stride) {
         const auto data = ntload<T>(reinterpret_cast<const T*>(csrc + start + i));
         ntstore<T>(reinterpret_cast<T*>(cdst + start + i), data);
     }
-    return offset + end * sizeof(T);
+    return end * sizeof(T);
 }
 
 DEVICE_DEVICEFUNC void imemcpy(void* dst, const void* src, std::size_t count, int local, std::size_t stride) {
@@ -148,13 +148,13 @@ DEVICE_DEVICEFUNC std::size_t iimemset(void* dst, std::size_t offset, std::size_
     T* cdst = reinterpret_cast<T*>(dst);
     const auto start = offset / sizeof(T);
     const auto end1 = (count - offset) / sizeof(T);
-    const auto end = OnlyFull ? (end1 / stride) * stride : end1;
+    const auto end = OnlyFull ? ((end1 / stride) * stride) : end1;
 #pragma unroll 4
     for (std::size_t i = local; i < end; i += stride) {
         const T data{};
         ntstore<T>(reinterpret_cast<T*>(cdst + start + i), data);
     }
-    return offset + end * sizeof(T);
+    return end * sizeof(T);
 }
 
 DEVICE_DEVICEFUNC void imemset(void* dst, std::size_t count, int local, std::size_t stride) {
