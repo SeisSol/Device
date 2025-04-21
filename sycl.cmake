@@ -17,13 +17,8 @@ set(DEVICE_SOURCE_FILES device.cpp
         algorithms/sycl/ArrayManip.cpp
         algorithms/sycl/BatchManip.cpp
         algorithms/sycl/Debugging.cpp
+        algorithms/sycl/Reduction.cpp
         )
-
-if (${DEVICE_BACKEND} STREQUAL "oneapi")
-    list(APPEND DEVICE_SOURCE_FILES "algorithms/sycl/Reduction_ONEAPI.cpp")
-else()
-    list(APPEND DEVICE_SOURCE_FILES "algorithms/sycl/Reduction.cpp")
-endif()
 
 add_library(device SHARED ${DEVICE_SOURCE_FILES})
 

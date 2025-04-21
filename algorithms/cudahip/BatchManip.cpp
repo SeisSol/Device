@@ -3,59 +3,44 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "AbstractAPI.h"
-#include "LocalCommon.h"
+#include "algorithms/Common.h"
 #include "Internals.h"
 #include <device.h>
 #include <cassert>
 
 namespace device {
-  template<typename T>
-  __global__ void kernel_streamBatchedData(T **baseSrcPtr,
-                                           T **baseDstPtr,
+  __global__ void kernel_streamBatchedData(const void **baseSrcPtr,
+    void **baseDstPtr,
                                            size_t elementSize, size_t elementCount) {
     for (size_t block = blockIdx.x; block < elementCount; block += gridDim.x) {
-      T *srcElement = baseSrcPtr[block];
-      T *dstElement = baseDstPtr[block];
-#pragma unroll 4
-      for (int index = threadIdx.x; index < elementSize; index += device::internals::DefaultBlockDim) {
-        ntstore(&dstElement[index], ntload(&srcElement[index]));
+      const void *srcElement = baseSrcPtr[block];
+      void *dstElement = baseDstPtr[block];
+      if (srcElement != nullptr && dstElement != nullptr) {
+        imemcpy(dstElement, srcElement, elementSize, threadIdx.x, device::internals::DefaultBlockDim);
       }
     }
   }
 
-  template<typename T>
-  void Algorithms::streamBatchedData(T **baseSrcPtr,
-                                     T **baseDstPtr,
-                                     unsigned elementSize,
-                                     unsigned numElements,
+  void Algorithms::streamBatchedDataI(const void **baseSrcPtr,
+                                    void **baseDstPtr,
+                                    size_t elementSize,
+                                    size_t numElements,
                                      void* streamPtr) {
     dim3 block(device::internals::DefaultBlockDim, 1, 1);
-    dim3 grid(blockcount(kernel_streamBatchedData<T>), 1, 1);
+    dim3 grid(blockcount(kernel_streamBatchedData), 1, 1);
     auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
     kernel_streamBatchedData<<<grid, block, 0, stream>>>(baseSrcPtr, baseDstPtr, elementSize, numElements);
     CHECK_ERR;
   }
 
-  template void Algorithms::streamBatchedData(float **baseSrcPtr,
-                                     float **baseDstPtr,
-                                     unsigned elementSize,
-                                     unsigned numElements,
-                                     void* streamPtr);
-                                     
-  template void Algorithms::streamBatchedData(double **baseSrcPtr,
-                                     double **baseDstPtr,
-                                     unsigned elementSize,
-                                     unsigned numElements,
-                                     void* streamPtr);
-
 
 //--------------------------------------------------------------------------------------------------
   template<typename T>
-  __global__ void kernel_accumulateBatchedData(T **baseSrcPtr,
+  __global__ void kernel_accumulateBatchedData(const T **baseSrcPtr,
                                                T **baseDstPtr,
                                                size_t elementSize, size_t elementCount) {
     for (size_t block = blockIdx.x; block < elementCount; block += gridDim.x) {
-      T *srcElement = baseSrcPtr[block];
+      const T *srcElement = baseSrcPtr[block];
       T *dstElement = baseDstPtr[block];
   #pragma unroll 4
       for (int index = threadIdx.x; index < elementSize; index += device::internals::DefaultBlockDim) {
@@ -65,10 +50,10 @@ namespace device {
   }
 
   template<typename T>
-  void Algorithms::accumulateBatchedData(T **baseSrcPtr,
+  void Algorithms::accumulateBatchedData(const T **baseSrcPtr,
                                          T **baseDstPtr,
-                                         unsigned elementSize,
-                                         unsigned numElements,
+                                         size_t elementSize,
+                                         size_t numElements,
                                          void* streamPtr) {
     dim3 block(device::internals::DefaultBlockDim, 1, 1);
     dim3 grid(blockcount(kernel_accumulateBatchedData<T>), 1, 1);
@@ -77,60 +62,44 @@ namespace device {
     CHECK_ERR;
   }
 
-  template void Algorithms::accumulateBatchedData(float **baseSrcPtr,
+  template void Algorithms::accumulateBatchedData(const float **baseSrcPtr,
                                          float **baseDstPtr,
-                                         unsigned elementSize,
-                                         unsigned numElements,
+                                         size_t elementSize,
+                                         size_t numElements,
                                          void* streamPtr);
 
-  template void Algorithms::accumulateBatchedData(double **baseSrcPtr,
+  template void Algorithms::accumulateBatchedData(const double **baseSrcPtr,
                                          double **baseDstPtr,
-                                         unsigned elementSize,
-                                         unsigned numElements,
+                                         size_t elementSize,
+                                         size_t numElements,
                                          void* streamPtr);
 
 //--------------------------------------------------------------------------------------------------
-  template<typename T>
-  __global__ void kernel_touchBatchedMemory(T **basePtr, unsigned elementSize, bool clean, size_t elementCount) {
+  __global__ void kernel_touchBatchedMemory(void **basePtr, size_t elementSize, bool clean, size_t elementCount) {
     for (size_t block = blockIdx.x; block < elementCount; block += gridDim.x) {
-      T *element = basePtr[block];
+      void *element = basePtr[block];
       if (element != nullptr) {
-  #pragma unroll 4
-        for (int index = threadIdx.x; index < elementSize; index += device::internals::DefaultBlockDim) {
-          if (clean) {
-            ntstore(&element[index], T(0));
-          } else {
-            ntstore(&element[index], ntload(&element[index]));
-          }
+        if (clean) {
+          imemset(element, elementSize, threadIdx.x, device::internals::DefaultBlockDim);
+        }
+        else {
+          imemcpy(element, element, elementSize, threadIdx.x, device::internals::DefaultBlockDim);
         }
       }
     }
   }
 
-  template<typename T>
-  void Algorithms::touchBatchedMemory(T **basePtr,
-                                      unsigned elementSize,
-                                      unsigned numElements,
+  void Algorithms::touchBatchedMemoryI(void **basePtr,
+    size_t elementSize,
+                                      size_t numElements,
                                       bool clean,
                                       void* streamPtr) {
     dim3 block(device::internals::DefaultBlockDim, 1, 1);
-    dim3 grid(blockcount(kernel_touchBatchedMemory<T>), 1, 1);
+    dim3 grid(blockcount(kernel_touchBatchedMemory), 1, 1);
     auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
     kernel_touchBatchedMemory<<<grid, block, 0, stream>>>(basePtr, elementSize, clean, numElements);
     CHECK_ERR;
   }
-
-  template void Algorithms::touchBatchedMemory(float **basePtr,
-                                      unsigned elementSize,
-                                      unsigned numElements,
-                                      bool clean,
-                                      void* streamPtr);
-
-  template void Algorithms::touchBatchedMemory(double **basePtr,
-                                      unsigned elementSize,
-                                      unsigned numElements,
-                                      bool clean,
-                                      void* streamPtr);
 
 
 //--------------------------------------------------------------------------------------------------
@@ -156,113 +125,52 @@ void Algorithms::setToValue(T** out, T value, size_t elementSize, size_t numElem
 
 template void Algorithms::setToValue(float** out, float value, size_t elementSize, size_t numElements, void* streamPtr);
 template void Algorithms::setToValue(double** out, double value, size_t elementSize, size_t numElements, void* streamPtr);
+template void Algorithms::setToValue(int** out, int value, size_t elementSize, size_t numElements, void* streamPtr);
+template void Algorithms::setToValue(unsigned** out, unsigned value, size_t elementSize, size_t numElements, void* streamPtr);
+template void Algorithms::setToValue(char** out, char value, size_t elementSize, size_t numElements, void* streamPtr);
 
 //--------------------------------------------------------------------------------------------------
-  template<typename T>
-  __global__ void kernel_copyUniformToScatter(T *src, T **dst, size_t srcOffset, size_t copySize, size_t elementCount) {
+  __global__ void kernel_copyUniformToScatter(const void *src, void **dst, size_t srcOffset, size_t copySize, size_t elementCount) {
     for (size_t block = blockIdx.x; block < elementCount; block += gridDim.x) {
-      T *srcElement = &src[block * srcOffset];
-      T *dstElement = dst[block];
-  #pragma unroll 4
-      for (int index = threadIdx.x; index < copySize; index += device::internals::DefaultBlockDim) {
-        ntstore(&dstElement[index], ntload(&srcElement[index]));
-      }
+      const void *srcElement = reinterpret_cast<const void*>(&reinterpret_cast<const char*>(src)[block * srcOffset]);
+      void *dstElement = dst[block];
+      imemcpy(dstElement, srcElement, copySize, threadIdx.x, device::internals::DefaultBlockDim);
     }
   }
 
-  template<typename T>
-  void Algorithms::copyUniformToScatter(T *src,
-                                        T **dst,
+  void Algorithms::copyUniformToScatterI(const void *src,
+                                        void **dst,
                                         size_t srcOffset,
                                         size_t copySize,
                                         size_t numElements,
                                         void* streamPtr) {
     dim3 block(device::internals::DefaultBlockDim, 1, 1);
-    dim3 grid(blockcount(kernel_copyUniformToScatter<T>), 1, 1);
+    dim3 grid(blockcount(kernel_copyUniformToScatter), 1, 1);
     auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
     kernel_copyUniformToScatter<<<grid, block, 0, stream>>>(src, dst, srcOffset, copySize, numElements);
     CHECK_ERR;
   }
-  template void Algorithms::copyUniformToScatter(double *src,
-                                                 double **dst,
-                                                 size_t srcOffset,
-                                                 size_t copySize,
-                                                 size_t numElements,
-                                                 void* streamPtr);
-
-  template void Algorithms::copyUniformToScatter(float *src,
-                                                 float **dst,
-                                                 size_t srcOffset,
-                                                 size_t copySize,
-                                                 size_t numElements,
-                                                 void* streamPtr);
-
-  template void Algorithms::copyUniformToScatter(int *src,
-                                                 int **dst,
-                                                 size_t srcOffset,
-                                                 size_t copySize,
-                                                 size_t numElements,
-                                                 void* streamPtr);
-
-  template void Algorithms::copyUniformToScatter(char *src,
-                                                 char **dst,
-                                                 size_t srcOffset,
-                                                 size_t copySize,
-                                                 size_t numElements,
-                                                 void* streamPtr);
 
 //--------------------------------------------------------------------------------------------------
-  template<typename T>
-  __global__ void kernel_copyScatterToUniform(T **src, T *dst, size_t dstOffset, size_t copySize, size_t elementCount) {
+  __global__ void kernel_copyScatterToUniform(const void **src, void *dst, size_t dstOffset, size_t copySize, size_t elementCount) {
     for (size_t block = blockIdx.x; block < elementCount; block += gridDim.x) {
-      T *srcElement = src[block];
-      T *dstElement = &dst[block * dstOffset];
-  #pragma unroll 4
-      for (int index = threadIdx.x; index < copySize; index += device::internals::DefaultBlockDim) {
-        ntstore(&dstElement[index], ntload(&srcElement[index]));
-      }
+      const void *srcElement = src[block];
+      void *dstElement = reinterpret_cast<void*>(&reinterpret_cast<char*>(dst)[block * dstOffset]);
+      imemcpy(dstElement, srcElement, copySize, threadIdx.x, device::internals::DefaultBlockDim);
     }
   }
 
-  template<typename T>
-  void Algorithms::copyScatterToUniform(T **src,
-                                        T *dst,
+  void Algorithms::copyScatterToUniformI(const void **src,
+                                        void *dst,
                                         size_t dstOffset,
                                         size_t copySize,
                                         size_t numElements,
                                         void* streamPtr) {
     dim3 block(device::internals::DefaultBlockDim, 1, 1);
-    dim3 grid(blockcount(kernel_copyScatterToUniform<T>), 1, 1);
+    dim3 grid(blockcount(kernel_copyScatterToUniform), 1, 1);
     auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
     kernel_copyScatterToUniform<<<grid, block, 0, stream>>>(src, dst, dstOffset, copySize, numElements);
     CHECK_ERR;
   }
-  template void Algorithms::copyScatterToUniform(double **src,
-                                                 double *dst,
-                                                 size_t dstOffset,
-                                                 size_t copySize,
-                                                 size_t numElements,
-                                                 void* streamPtr);
-
-  template void Algorithms::copyScatterToUniform(float **src,
-                                                 float *dst,
-                                                 size_t dstOffset,
-                                                 size_t copySize,
-                                                 size_t numElements,
-                                                 void* streamPtr);
-
-  template void Algorithms::copyScatterToUniform(int **src,
-                                                 int *dst,
-                                                 size_t dstOffset,
-                                                 size_t copySize,
-                                                 size_t numElements,
-                                                 void* streamPtr);
-
-  template void Algorithms::copyScatterToUniform(char **src,
-                                                 char *dst,
-                                                 size_t dstOffset,
-                                                 size_t copySize,
-                                                 size_t numElements,
-                                                 void* streamPtr);
 } // namespace device
 

@@ -35,7 +35,6 @@ target_compile_features(device PRIVATE cxx_std_17)
 
 target_compile_definitions(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
         -DDEVICE_${BACKEND_UPPER_CASE}_LANG;
-        -DREAL_SIZE=${REAL_SIZE_IN_BYTES}
         >)
 
 if (USE_GRAPH_CAPTURING)

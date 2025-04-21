@@ -28,21 +28,6 @@ if (NOT DEFINED DEVICE_ARCH)
             "Supported for example: sm_60, sm_61, sm_70, sm_71, gfx906, gfx908, dg1, bdw, skl, Gen8, Gen9, Gen11, Gen12LP")
 endif()
 
-#check REAL_SIZE
-if (NOT DEFINED REAL_SIZE_IN_BYTES)
-    message(FATAL_ERROR "REAL_SIZE_IN_BYTES variable has not been provided into the submodule")
-else()
-    set(FOUND OFF)
-    foreach(VARIANT 4 8)
-        if (${REAL_SIZE_IN_BYTES} EQUAL ${VARIANT})
-            set(FOUND ON)
-        endif()
-    endforeach()
-    if (NOT FOUND)
-        message(FATAL_ERROR "REAL_SIZE_IN_BYTES must be either 4 or 8. Given: ${REAL_SIZE}")
-    endif()
-endif()
-
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 option(ENABLE_PROFILING_MARKERS "Enable profiling markers (if available)" OFF)
@@ -72,7 +57,7 @@ if (ENABLE_PROFILING_MARKERS)
   target_compile_definitions(device PRIVATE PROFILING_ENABLED)
 endif()
 
-target_compile_definitions(device PRIVATE DEVICE_${BACKEND_UPPER_CASE}_LANG REAL_SIZE=${REAL_SIZE_IN_BYTES})
+target_compile_definitions(device PRIVATE DEVICE_${BACKEND_UPPER_CASE}_LANG)
 
 if (LOG_LEVEL_MASTER)
   target_compile_definitions(device PRIVATE LOG_LEVEL=${LOG_LEVEL_MASTER})
