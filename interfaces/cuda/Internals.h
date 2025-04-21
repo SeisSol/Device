@@ -30,7 +30,6 @@ inline dim3 computeBlock1D(const int &leadingDim, const size_t size) {
   return dim3(numItems, 1, 1);
 }
 
-constexpr int WARP_SIZE = 32;
 } // namespace internals
 } // namespace device
 

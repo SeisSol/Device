@@ -36,8 +36,7 @@ endif()
 if (IS_NVCC_PLATFORM)
     set(DEVICE_NVCC -arch=${DEVICE_ARCH};
                     -dc;
-                    --expt-relaxed-constexpr;
-                    -DCUDA_UNDERHOOD)
+                    --expt-relaxed-constexpr)
 else()
     set(DEVICE_HIPCC -std=c++17;
                      -O3;

@@ -150,7 +150,7 @@ int ConcreteAPI::getDeviceId() {
 
 unsigned ConcreteAPI::getGlobMemAlignment() {
   // TODO: use hipDeviceGetAttribute
-#ifdef CUDA_UNDERHOOD
+#ifdef __CUDACC__
   return 128;
 #else
   return 256;

@@ -13,8 +13,6 @@
 
 namespace device {
 namespace internals {
-constexpr int WARP_SIZE = 32;
-
 constexpr static int DefaultBlockDim = 1024;
 
 /*
@@ -25,13 +23,6 @@ constexpr static int DefaultBlockDim = 1024;
 inline cl::sycl::nd_range<1> computeExecutionRange1D(const size_t targetWorkGroupSize, const size_t totalSize) {
   size_t factor = (totalSize + targetWorkGroupSize - 1) / targetWorkGroupSize;
   return cl::sycl::nd_range<>{{factor * targetWorkGroupSize}, {targetWorkGroupSize}};
-}
-
-/*
- * Computes an execution range using a default size for the work group.
- */
-inline cl::sycl::nd_range<1> computeDefaultExecutionRange1D(const size_t totalSize) {
-  return computeExecutionRange1D(WARP_SIZE, totalSize);
 }
 
 } // namespace internals

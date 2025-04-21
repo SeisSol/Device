@@ -22,17 +22,14 @@ set(DEVICE_SOURCE_FILES device.cpp
 
 add_library(device SHARED ${DEVICE_SOURCE_FILES})
 
-if (${DEVICE_BACKEND} STREQUAL "hipsycl")
+if ((${DEVICE_BACKEND} STREQUAL "acpp") OR (${DEVICE_BACKEND} STREQUAL "hipsycl"))
     set(ACPP_TARGETS "cuda:${DEVICE_ARCH}")
     find_package(AdaptiveCpp CONFIG REQUIRED)
     find_package(OpenMP REQUIRED)
-    target_compile_options(device PRIVATE -Wno-unknown-cuda-version ${OpenMP_CXX_FLAGS})
-    target_link_libraries(device PRIVATE ${OpenMP_LIBRARIES})
+    target_compile_options(device PRIVATE -Wno-unknown-cuda-version)
+    target_link_libraries(device PRIVATE OpenMP::OpenMP_CXX)
     add_sycl_to_target(TARGET device SOURCES ${DEVICE_SOURCE_FILES})
-    target_compile_definitions(device PRIVATE HIPSYCL_UNDERHOOD)
 else()
     find_package(DpcppFlags REQUIRED)
     target_link_libraries(device PRIVATE dpcpp::device_flags)
-    target_compile_definitions(device PRIVATE ONEAPI_UNDERHOOD)
 endif()
-
