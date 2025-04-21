@@ -27,7 +27,7 @@ void* driverAllocate(std::size_t size, const CUmemAllocationProp& prop) {
   cuMemGetAllocationGranularity(&granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM);
   CHECK_ERR;
 
-  size = (size + granularity - 1) / size;
+  size = ((size + granularity - 1) / granularity) * granularity;
 
   CUdeviceptr cptr;
   cuMemAddressReserve(&cptr, size, 0, 0, 0);
@@ -41,6 +41,13 @@ void* driverAllocate(std::size_t size, const CUmemAllocationProp& prop) {
   cuMemRelease(allocationHandle);
   CHECK_ERR;
 
+  CUmemAccessDesc accessDescriptor{};
+  accessDescriptor.location.id = prop.location.id;
+  accessDescriptor.location.type = prop.location.type;
+  accessDescriptor.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
+
+  cuMemSetAccess(cptr, size, &accessDescriptor, 1);
+
   return reinterpret_cast<void*>(cptr);
 }
 
@@ -49,12 +56,14 @@ void driverFree(void* ptr, std::size_t size, const CUmemAllocationProp& prop) {
   cuMemGetAllocationGranularity(&granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM);
   CHECK_ERR;
 
-  size = (size + granularity - 1) / size;
+  size = ((size + granularity - 1) / granularity) * granularity;
 
   CUdeviceptr cptr = reinterpret_cast<CUdeviceptr>(ptr);
 
   cuMemUnmap(cptr, size);
+  CHECK_ERR;
   cuMemAddressFree(cptr, size);
+  CHECK_ERR;
 }
 
 } // namespace
@@ -157,7 +166,7 @@ void *ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
 }
 void ConcreteAPI::freeMemAsync(void *devPtr, void* streamPtr) {
   if (devPtr != nullptr) {
-    cudaFreeAsync(ptr, static_cast<cudaStream_t>(streamPtr));
+    cudaFreeAsync(devPtr, static_cast<cudaStream_t>(streamPtr));
     CHECK_ERR;
   }
 }
