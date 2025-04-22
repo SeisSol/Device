@@ -14,7 +14,7 @@
 
 using namespace device;
 
-void* ConcreteAPI::allocGlobMem(size_t size) {
+void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
   hipMalloc(&devPtr, size); CHECK_ERR;
@@ -24,7 +24,7 @@ void* ConcreteAPI::allocGlobMem(size_t size) {
 }
 
 
-void* ConcreteAPI::allocUnifiedMem(size_t size, Destination hint) {
+void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
   hipMallocManaged(&devPtr, size, hipMemAttachGlobal); CHECK_ERR;
@@ -43,7 +43,7 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, Destination hint) {
 }
 
 
-void* ConcreteAPI::allocPinnedMem(size_t size, Destination hint) {
+void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
   const auto flag = hint == Destination::Host ? hipHostMallocDefault : hipHostMallocMapped;
@@ -51,15 +51,6 @@ void* ConcreteAPI::allocPinnedMem(size_t size, Destination hint) {
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
   return devPtr;
-}
-
-
-void ConcreteAPI::freeMem(void *devPtr) {
-  isFlagSet<DeviceSelected>(status);
-  assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) 
-         && "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
-  hipFree(devPtr); CHECK_ERR;
 }
 
 void ConcreteAPI::freeGlobMem(void *devPtr) {
@@ -86,34 +77,28 @@ void ConcreteAPI::freePinnedMem(void *devPtr) {
   hipHostFree(devPtr); CHECK_ERR;
 }
 
-
-char* ConcreteAPI::getStackMemory(size_t requestedBytes) {
-  isFlagSet<StackMemAllocated>(status);
-  char *mem = &stackMemory[stackMemByteCounter];
-
-  size_t requestedAlignedBytes = align(requestedBytes, getGlobMemAlignment());
-
-  if ((stackMemByteCounter + requestedAlignedBytes) >= maxStackMem) {
-    logError() << "DEVICE:: run out of a device stack memory";
+void *ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
+  if (size == 0) {
+    return nullptr;
   }
-
-  stackMemByteCounter += requestedAlignedBytes;
-  stackMemMeter.push(requestedAlignedBytes);
-  return mem;
+  else {
+    void* ptr;
+    hipMallocAsync(&ptr, size, static_cast<hipStream_t>(streamPtr));
+    CHECK_ERR;
+    return ptr;
+  }
 }
-
-
-void ConcreteAPI::popStackMemory() {
-  isFlagSet<StackMemAllocated>(status);
-  stackMemByteCounter -= stackMemMeter.top();
-  stackMemMeter.pop();
+void ConcreteAPI::freeMemAsync(void *devPtr, void* streamPtr) {
+  if (devPtr != nullptr) {
+    hipFreeAsync(ptr, static_cast<hipStream_t>(streamPtr));
+    CHECK_ERR;
+  }
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {
   isFlagSet<DeviceSelected>(status);
   std::ostringstream report{};
   report << "Memory Leaks, bytes: " << (statistics.allocatedMemBytes - statistics.deallocatedMemBytes) << '\n';
-  report << "Stack Memory Leaks, bytes: " << stackMemByteCounter << '\n';
   return report.str();
 }
 
