@@ -2,22 +2,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+if(NOT DEFINED ROCM_PATH)
+    if (NOT DEFINED ENV{ROCM_PATH})
+        # default location
+        set(ROCM_PATH "/opt/rocm" CACHE PATH "Path to which ROCm has been installed")
+    else()
+        set(ROCM_PATH $ENV{ROCM_PATH} CACHE PATH "Path to which ROCm has been installed")
+    endif()
+endif()
+
 # ensure that we have set HIP_PATH
 if(NOT DEFINED HIP_PATH)
     if(NOT DEFINED ENV{HIP_PATH})
-        if (NOT DEFINED ENV{ROCM_PATH})
-            # default location
-            set(HIP_PATH "/opt/rocm" CACHE PATH "Path to which HIP has been installed")
-        else()
-            set(HIP_PATH $ENV{ROCM_PATH} CACHE PATH "Path to which HIP has been installed")
-        endif()
+        set(HIP_PATH ${ROCM_PATH} CACHE PATH "Path to which HIP has been installed")
     else()
         set(HIP_PATH $ENV{HIP_PATH} CACHE PATH "Path to which HIP has been installed")
     endif()
 endif()
 
 # set the CMAKE_MODULE_PATH for the helper cmake files from HIP
-set(CMAKE_MODULE_PATH "${HIP_PATH}/cmake" "${HIP_PATH}/lib/cmake/hip" ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH "${HIP_PATH}/cmake" "${HIP_PATH}/lib/cmake/hip" "${ROCM_PATH}/cmake" ${CMAKE_MODULE_PATH})
 
 find_package(HIP REQUIRED)
 
@@ -77,3 +81,8 @@ else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
 endif()
 
+if (ENABLE_PROFILING_MARKERS)
+    # cf. https://github.com/ROCm/rocprofiler/blob/amd-master/tests-v2/featuretests/tracer/CMakeLists.txt
+    find_library(ROCTX_LIBRARY NAMES roctx64 HINTS ${ROCM_PATH}/lib)
+    target_link_libraries(device PRIVATE ${ROCTX_LIBRARY})
+endif()

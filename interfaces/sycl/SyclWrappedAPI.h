@@ -37,11 +37,18 @@
 #endif
 
 #ifdef DEVICE_SYCL_SUPPORTS_DIRECT_OPERATION
-#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...){});
+#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...) {});
+#define DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(handle, event)                                                          \
+  handle.depends_on(event);                                                                                            \
+  handle.DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...) {});
 #elif defined(SYCL_EXT_ONEAPI_ENQUEUE_BARRIER) && !defined(DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT)
 #define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.ext_oneapi_barrier();
+#define DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(handle, event) handle.ext_oneapi_barrier({event});
 #else
-#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.single_task([=](){});
+#define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.single_task([=]() {});
+#define DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(handle, event)                                                          \
+  handle.depends_on(event);                                                                                            \
+  handle.single_task([=]() {});
 #endif
 
 namespace device {
@@ -63,17 +70,16 @@ public:
   std::string getDeviceInfoAsText(int deviceId) override;
   void syncDevice() override;
 
-  void allocateStackMem() override;
-  void *allocGlobMem(size_t size) override;
-  void *allocUnifiedMem(size_t size, Destination hint) override;
-  void *allocPinnedMem(size_t size, Destination hint) override;
-  char *getStackMemory(size_t requestedBytes) override;
-  void freeMem(void *devPtr) override;
+  void *allocGlobMem(size_t size, bool compress) override;
+  void *allocUnifiedMem(size_t size, bool compress, Destination hint) override;
+  void *allocPinnedMem(size_t size, bool compress, Destination hint) override;
   void freeGlobMem(void *devPtr) override;
   void freeUnifiedMem(void *devPtr) override;
   void freePinnedMem(void *devPtr) override;
-  void popStackMemory() override;
   std::string getMemLeaksReport() override;
+
+  void *allocMemAsync(size_t size, void* streamPtr) override;
+  void freeMemAsync(void *devPtr, void* streamPtr) override;
 
   void pinMemory(void* ptr, size_t size) override;
   void unpinMemory(void* ptr) override;
@@ -125,6 +131,7 @@ public:
 
   void initialize() override;
   void finalize() override;
+  void profilingMessage(const std::string& message) override;
   void putProfilingMark(const std::string &name, ProfilingColors color) override;
   void popLastProfilingMark() override;
 
@@ -156,6 +163,8 @@ private:
 #endif
 
   std::vector<GraphDetails> graphs;
+
+  void freeMem(void *devPtr);
 
   void initDevices();
 
