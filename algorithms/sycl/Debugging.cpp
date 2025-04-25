@@ -6,22 +6,25 @@
 #include "interfaces/sycl/Internals.h"
 #include "utils/logger.h"
 
-#include <CL/sycl.hpp>
+#include "algorithms/Common.h"
+
+#include <sycl/sycl.hpp>
 #include <device.h>
 
 using namespace device::internals;
 
 namespace device {
-void Algorithms::compareDataWithHost(const real *hostPtr, const real *devPtr, const size_t numElements,
+  template<typename T>
+void Algorithms::compareDataWithHost(const T *hostPtr, const T *devPtr, const size_t numElements,
                                      const std::string &dataName) {
   std::stringstream stream;
   stream << "DEVICE:: comparing array: " << dataName << '\n';
 
-  real *temp = new real[numElements];
+  T *temp = new T[numElements];
 
-  api->copyFrom(temp, devPtr, numElements * sizeof(real));
+  api->copyFrom(temp, devPtr, numElements * sizeof(T));
 
-  constexpr real EPS = 1e-12;
+  constexpr T EPS = 1e-12;
   for (unsigned i = 0; i < numElements; ++i) {
     if (abs(hostPtr[i] - temp[i]) > EPS) {
       if ((std::isnan(hostPtr[i])) || (std::isnan(temp[i]))) {
@@ -43,5 +46,10 @@ void Algorithms::compareDataWithHost(const real *hostPtr, const real *devPtr, co
   logInfo() << stream.str();
   delete[] temp;
 }
+template void Algorithms::compareDataWithHost(const float *hostPtr, const float *devPtr, const size_t numElements,
+  const std::string &dataName);
+  template void Algorithms::compareDataWithHost(const double *hostPtr, const double *devPtr, const size_t numElements,
+    const std::string &dataName);
+
 } // namespace device
 

@@ -12,7 +12,7 @@
 namespace device {
   namespace internals {
 
-    constexpr static int DefaultBlockDim = 256;
+    constexpr static int DefaultBlockDim = 1024;
     
     using deviceStreamT = hipStream_t;
     void checkErr(const std::string &file, int line);
@@ -31,11 +31,6 @@ namespace device {
       return dim3(numItems, 1, 1);
     }
 
-#ifdef CUDA_UNDERHOOD
-    constexpr int WARP_SIZE = 32;
-#else
-    constexpr int WARP_SIZE = 64;
-#endif
   }
 }
 

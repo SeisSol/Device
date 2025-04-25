@@ -12,6 +12,8 @@
 #include <sycl/queue.hpp>
 #endif // ONEAPI_UNDERHOOD
 
+#include <sycl/sycl.hpp>
+
 using namespace device;
 
 void *ConcreteAPI::getDefaultStream() {
@@ -57,11 +59,17 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
   auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
 
+#ifdef __ACPP__
+  queuePtr->DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...) {
+    function();
+  });
+#else
   queuePtr->submit([&](cl::sycl::handler& h) {
     h.host_task([=]() {
       function();
     });
   });
+#endif
 }
 
 void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
@@ -73,7 +81,11 @@ void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t
       if (*spinLocation == value) {
         return;
       }
+
+      // not yet supported by ACPP
+#ifndef __ACPP__
       sycl::atomic_fence(sycl::memory_order::acq_rel, sycl::memory_scope::system);
+#endif
     }
   });
 }

@@ -14,14 +14,17 @@ add_library(device SHARED device.cpp
                  interfaces/cuda/Streams.cu
                  interfaces/cuda/Graphs.cu
                  interfaces/cuda/Internals.cu
-                 algorithms/cuda/ArrayManip.cu
-                 algorithms/cuda/BatchManip.cu
-                 algorithms/cuda/Debugging.cu
-                 algorithms/cuda/Reduction.cpp)
+                 algorithms/cudahip/ArrayManip.cpp
+                 algorithms/cudahip/BatchManip.cpp
+                 algorithms/cudahip/Debugging.cpp
+                 algorithms/cudahip/Reduction.cpp)
 
 set_target_properties(device PROPERTIES POSITION_INDEPENDENT_CODE ON)
 set_source_files_properties(device.cpp
-                            algorithms/cuda/Reduction.cpp
+                                algorithms/cudahip/ArrayManip.cpp
+                                algorithms/cudahip/BatchManip.cpp
+                                algorithms/cudahip/Debugging.cpp
+                                algorithms/cudahip/Reduction.cpp
                             PROPERTIES LANGUAGE CUDA)
 
 
@@ -32,7 +35,6 @@ target_compile_features(device PRIVATE cxx_std_17)
 
 target_compile_definitions(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
         -DDEVICE_${BACKEND_UPPER_CASE}_LANG;
-        -DREAL_SIZE=${REAL_SIZE_IN_BYTES}
         >)
 
 if (USE_GRAPH_CAPTURING)

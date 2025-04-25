@@ -33,9 +33,12 @@ TEST_F(Reductions, Add) {
 
   auto expectedResult = std::accumulate(vector.begin(), vector.end(), 0, std::plus<unsigned>());
 
-  auto testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Add, device->api->getDefaultStream());
-  device->api->popStackMemory();
-  EXPECT_EQ(expectedResult, testResult);
+  unsigned* testResult = reinterpret_cast<unsigned*>(device->api->allocPinnedMem(sizeof(unsigned)));
+
+  device->algorithms.reduceVector(testResult, devVector, true, size, ReductionType::Add, device->api->getDefaultStream());
+  device->api->syncDefaultStreamWithHost();
+  EXPECT_EQ(expectedResult, *testResult);
+  device->api->freePinnedMem(testResult);
 }
 
 TEST_F(Reductions, Max) {
@@ -56,9 +59,12 @@ TEST_F(Reductions, Max) {
   auto initValue = std::numeric_limits<unsigned>::min();
   auto expectedResult = std::accumulate(vector.begin(), vector.end(), initValue, max);
 
-  auto testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Max, device->api->getDefaultStream());
-  device->api->popStackMemory();
-  EXPECT_EQ(expectedResult, testResult);
+  unsigned* testResult = reinterpret_cast<unsigned*>(device->api->allocPinnedMem(sizeof(unsigned)));
+
+  device->algorithms.reduceVector(testResult, devVector, true, size, ReductionType::Max, device->api->getDefaultStream());
+  device->api->syncDefaultStreamWithHost();
+  EXPECT_EQ(expectedResult, *testResult);
+  device->api->freePinnedMem(testResult);
 }
 
 TEST_F(Reductions, Min) {
@@ -77,8 +83,11 @@ TEST_F(Reductions, Min) {
   auto initValue = std::numeric_limits<unsigned>::max();
   auto expectedResult = std::accumulate(vector.begin(), vector.end(), initValue, min);
 
-  auto testResult = device->algorithms.reduceVector(devVector, size, ReductionType::Min, device->api->getDefaultStream());
-  device->api->popStackMemory();
-  EXPECT_EQ(expectedResult, testResult);
+  unsigned* testResult = reinterpret_cast<unsigned*>(device->api->allocPinnedMem(sizeof(unsigned)));
+
+  device->algorithms.reduceVector(testResult, devVector, true, size, ReductionType::Min, device->api->getDefaultStream());
+  device->api->syncDefaultStreamWithHost();
+  EXPECT_EQ(expectedResult, *testResult);
+  device->api->freePinnedMem(testResult);
 }
 

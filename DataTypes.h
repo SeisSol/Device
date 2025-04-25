@@ -8,14 +8,6 @@
 #include <cstddef>
 #include <limits>
 
-#if REAL_SIZE == 8
-using real = double;
-#elif REAL_SIZE == 4
-using real = float;
-#else
-#error REAL_SIZE not supported.
-#endif
-
 namespace device {
 struct DeviceGraphHandle {
   static const size_t invalidId{std::numeric_limits<size_t>::max()};

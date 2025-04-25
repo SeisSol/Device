@@ -3,15 +3,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "AbstractAPI.h"
-#include "interfaces/cuda/Internals.h"
+#include "algorithms/Common.h"
+#include "Internals.h"
 #include <cassert>
+#include <cstdint>
 #include <device.h>
 
 namespace device {
-template <typename T> __global__ void kernel_scaleArray(T *array, const T scalar, const size_t numElements) {
+template <typename T> __global__ void kernel_scaleArray(T *array, T scalar, const size_t numElements) {
   size_t index = threadIdx.x + blockIdx.x * blockDim.x;
-  if (index < numElements) {
-    array[index] *= scalar;
+#pragma unroll 4
+  for (; index < numElements; index += blockDim.x * gridDim.x) {
+    ntstore(&array[index], static_cast<T>(ntload(&array[index]) * scalar));
   }
 }
 
@@ -20,54 +23,53 @@ template <typename T> void Algorithms::scaleArray(T *devArray,
                                                   const size_t numElements,
                                                   void* streamPtr) {
   dim3 block(device::internals::DefaultBlockDim, 1, 1);
-  dim3 grid = internals::computeGrid1D(block, numElements);
+  dim3 grid(blockcount(kernel_scaleArray<T>), 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_scaleArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
   CHECK_ERR;
 }
-template void Algorithms::scaleArray(real *devArray, real scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::scaleArray(float *devArray, float scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::scaleArray(double *devArray, double scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::scaleArray(int *devArray, int scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::scaleArray(unsigned *devArray, unsigned scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::scaleArray(char *devArray, char scalar, const size_t numElements, void* streamPtr);
 
 //--------------------------------------------------------------------------------------------------
 template <typename T> __global__ void kernel_fillArray(T *array, T scalar, const size_t numElements) {
   size_t index = threadIdx.x + blockIdx.x * blockDim.x;
-  if (index < numElements) {
-    array[index] = scalar;
+#pragma unroll 4
+  for (; index < numElements; index += blockDim.x * gridDim.x) {
+    ntstore(&array[index], scalar);
   }
 }
 
 template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, const size_t numElements, void* streamPtr) {
   dim3 block(device::internals::DefaultBlockDim, 1, 1);
-  dim3 grid = internals::computeGrid1D(block, numElements);
+  dim3 grid(blockcount(kernel_fillArray<T>), 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_fillArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
   CHECK_ERR;
 }
-template void Algorithms::fillArray(real *devArray, real scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::fillArray(float *devArray, float scalar, const size_t numElements, void* streamPtr);
+template void Algorithms::fillArray(double *devArray, double scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::fillArray(int *devArray, int scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::fillArray(unsigned *devArray, unsigned scalar, const size_t numElements, void* streamPtr);
 template void Algorithms::fillArray(char *devArray, char scalar, const size_t numElements, void* streamPtr);
 
 //--------------------------------------------------------------------------------------------------
-__global__ void kernel_touchMemory(real *ptr, size_t size, bool clean) {
+__global__ void kernel_touchMemory(void *ptr, size_t size, bool clean) {
   int id = threadIdx.x + blockIdx.x * blockDim.x;
-  if (id < size) {
-    if (clean) {
-      ptr[id] = 0;
-    } else {
-      real& value = ptr[id];
-      // Do something dummy here. We just need to check the pointers point to valid memory locations.
-      // Avoid compiler optimization. Possibly, implement a dummy code with asm.
-      value += 1;
-      value -= 1;
-    }
+  if (clean) {
+    imemset(ptr, size, id, blockDim.x * gridDim.x);
+  }
+  else {
+    imemcpy(ptr, ptr, size, id, blockDim.x * gridDim.x);
   }
 }
 
-void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr) {
+void Algorithms::touchMemoryI(void *ptr, size_t size, bool clean, void* streamPtr) {
   dim3 block(device::internals::DefaultBlockDim, 1, 1);
-  dim3 grid = internals::computeGrid1D(block, size);
+  dim3 grid(blockcount(kernel_touchMemory), 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
   kernel_touchMemory<<<grid, block, 0, stream>>>(ptr, size, clean);
   CHECK_ERR;
@@ -75,29 +77,30 @@ void Algorithms::touchMemory(real *ptr, size_t size, bool clean, void* streamPtr
 
 //--------------------------------------------------------------------------------------------------
 __global__ void kernel_incrementalAdd(
-  real** out,
-  real *base,
+  uintptr_t* out,
+  uintptr_t base,
   size_t increment,
   size_t numElements) {
   int id = threadIdx.x + blockIdx.x * blockDim.x;
-  if (id < numElements) {
-    out[id] = base + id * increment;
+#pragma unroll 4
+  for (; id < numElements; id += blockDim.x * gridDim.x) {
+    ntstore(&out[id], base + id * increment);
   }
 }
 
-
-void Algorithms::incrementalAdd(
-  real** out,
-  real *base,
+void Algorithms::incrementalAddI(
+  void** out,
+  void *base,
   size_t increment,
   size_t numElements,
   void* streamPtr) {
 
   dim3 block(device::internals::DefaultBlockDim, 1, 1);
-  dim3 grid = internals::computeGrid1D(block, numElements);
+  dim3 grid(blockcount(kernel_incrementalAdd), 1, 1);
   auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
-  kernel_incrementalAdd<<<grid, block, 0, stream>>>(out, base, increment, numElements);
+  kernel_incrementalAdd<<<grid, block, 0, stream>>>(reinterpret_cast<uintptr_t*>(out), reinterpret_cast<uintptr_t>(base), increment, numElements);
   CHECK_ERR;
 }
+
 } // namespace device
 

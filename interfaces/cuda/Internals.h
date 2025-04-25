@@ -12,7 +12,7 @@ namespace device {
 namespace internals {
 using deviceStreamT = cudaStream_t;
 
-constexpr static int DefaultBlockDim = 256;
+constexpr static int DefaultBlockDim = 1024;
 
 void checkErr(const std::string &file, int line);
 inline dim3 computeGrid1D(const dim3 &block, const size_t size) {
@@ -30,7 +30,6 @@ inline dim3 computeBlock1D(const int &leadingDim, const size_t size) {
   return dim3(numItems, 1, 1);
 }
 
-constexpr int WARP_SIZE = 32;
 } // namespace internals
 } // namespace device
 

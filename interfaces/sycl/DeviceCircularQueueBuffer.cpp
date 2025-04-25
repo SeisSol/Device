@@ -7,6 +7,8 @@
 #include "SyclWrappedAPI.h"
 #include "utils/logger.h"
 
+#include <sycl/sycl.hpp>
+
 namespace device {
 
 // very inconvenient, but AdaptiveCpp doesn't allow much freedom when constructing a property_list

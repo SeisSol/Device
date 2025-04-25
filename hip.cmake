@@ -40,8 +40,7 @@ endif()
 if (IS_NVCC_PLATFORM)
     set(DEVICE_NVCC -arch=${DEVICE_ARCH};
                     -dc;
-                    --expt-relaxed-constexpr;
-                    -DCUDA_UNDERHOOD)
+                    --expt-relaxed-constexpr)
 else()
     set(DEVICE_HIPCC -std=c++17;
                      -O3;
@@ -59,10 +58,10 @@ set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Memory.cpp
                         interfaces/hip/Streams.cpp
                         interfaces/hip/Graphs.cpp
-                        algorithms/hip/ArrayManip.cpp
-                        algorithms/hip/BatchManip.cpp
-                        algorithms/hip/Debugging.cpp
-                        algorithms/hip/Reduction.cpp)
+                        algorithms/cudahip/ArrayManip.cpp
+                        algorithms/cudahip/BatchManip.cpp
+                        algorithms/cudahip/Debugging.cpp
+                        algorithms/cudahip/Reduction.cpp)
 
 set(CMAKE_HIP_CREATE_SHARED_LIBRARY "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HCC_PATH} <CMAKE_SHARED_LIBRARY_CXX_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_CXX_FLAGS> -o <TARGET> <OBJECTS> <LINK_LIBRARIES>")
 

@@ -18,9 +18,6 @@ set(DEVICE_ARCH ${SM})
 set(DEVICE_BACKEND "cuda" CACHE STRING "type of an interface")
 set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "cuda" "hip" "oneapi" "hipsycl")
 
-set(REAL_SIZE_IN_BYTES "8" CACHE STRING "size of the floating point data type")
-set_property(CACHE REAL_SIZE_IN_BYTES PROPERTY STRINGS "8" "4")
-
 add_subdirectory(root)
 
 find_package(GTest REQUIRED)
@@ -28,7 +25,6 @@ find_package(GTest REQUIRED)
 add_executable(tests main.cpp reductions.cpp array_manip.cpp memory.cpp batch_manip.cpp)
 target_link_libraries(tests PRIVATE device ${GTEST_BOTH_LIBRARIES})
 target_include_directories(tests PRIVATE root ${GTEST_INCLUDE_DIR})
-target_compile_definitions(tests PRIVATE REAL_SIZE=${REAL_SIZE_IN_BYTES})
 
 if (DEVICE_BACKEND STREQUAL "hipsycl")
   find_package(OpenMP REQUIRED)
