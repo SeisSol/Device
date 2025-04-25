@@ -97,8 +97,8 @@ int blockcount(F&& func, int blocksize) {
     return smCount * blocksPerSM;
 }
 
-using LocalInt4 = int4;
-using LocalInt2 = int2;
+using LocalInt4 = __attribute__((vector_size(16))) int;
+using LocalInt2 = __attribute__((vector_size(8))) int;
 #else
 #define DEVICE_DEVICEFUNC
 template<typename T>

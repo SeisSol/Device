@@ -45,7 +45,7 @@ TEST_F(Memories, copy2DMemory) {
     }
   }
 
-  device->api->freeMem(arr);
+  device->api->freeGlobMem(arr);
 }
 
 /*
@@ -81,7 +81,7 @@ TEST_F(Memories, copy2DMemoryWithSrcPitch) {
     }
   }
 
-  device->api->freeMem(arr);
+  device->api->freeGlobMem(arr);
 }
 */
 
@@ -120,7 +120,7 @@ TEST_F(Memories, copy2DMemoryWithDstPitch) {
     }
   }
 
-  device->api->freeMem(arr);
+  device->api->freeGlobMem(arr);
 }
 */
 

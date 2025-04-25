@@ -49,8 +49,8 @@ int main(int argc, char *argv[]) {
   device.api->copyFrom(outputArray, dOutputArray, sizeof(real) * size);
 
   // deallocate mem. on a device
-  device.api->freeMem(dInputArray);
-  device.api->freeMem(dOutputArray);
+  device.api->freeGlobMem(dInputArray);
+  device.api->freeGlobMem(dOutputArray);
 
   std::cout << device.api->getMemLeaksReport();
 

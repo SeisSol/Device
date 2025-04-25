@@ -6,7 +6,6 @@
 #define SEISSOLDEVICE_INTERFACES_SYCL_DEVICECONTEXT_H_
 
 #include "DeviceCircularQueueBuffer.h"
-#include "DeviceStack.h"
 #include "Statistics.h"
 #include <unordered_map>
 

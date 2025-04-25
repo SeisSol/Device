@@ -11,7 +11,6 @@ set(DEVICE_SOURCE_FILES device.cpp
         interfaces/sycl/Memory.cpp
         interfaces/sycl/Streams.cpp
         interfaces/sycl/DeviceContext.cpp
-        interfaces/sycl/DeviceStack.cpp
         interfaces/sycl/DeviceCircularQueueBuffer.cpp
         interfaces/sycl/DeviceType.cpp
         algorithms/sycl/ArrayManip.cpp

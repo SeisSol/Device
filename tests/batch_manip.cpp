@@ -31,8 +31,8 @@ public:
 
     std::forward<F>(inner)(batch, data);
 
-    device->api->freeMem(data);
-    device->api->freeMem(batch);
+    device->api->freeGlobMem(data);
+    device->api->freeGlobMem(batch);
   }
 };
 
@@ -130,7 +130,7 @@ TEST_F(BatchManip, scatterToUniform32) {
       EXPECT_EQ(1, i);
     }
   });
-  device->api->freeMem(data2);
+  device->api->freeGlobMem(data2);
 }
 
 TEST_F(BatchManip, uniformToScatter32) {
@@ -151,7 +151,7 @@ TEST_F(BatchManip, uniformToScatter32) {
       EXPECT_EQ(1, i);
     }
   });
-  device->api->freeMem(data2);
+  device->api->freeGlobMem(data2);
 }
 
 
@@ -251,7 +251,7 @@ TEST_F(BatchManip, scatterToUniform64) {
       EXPECT_EQ(1, i);
     }
   });
-  device->api->freeMem(data2);
+  device->api->freeGlobMem(data2);
 }
 
 TEST_F(BatchManip, uniformToScatter64) {
@@ -272,7 +272,7 @@ TEST_F(BatchManip, uniformToScatter64) {
       EXPECT_EQ(1, i);
     }
   });
-  device->api->freeMem(data2);
+  device->api->freeGlobMem(data2);
 }
 
 
