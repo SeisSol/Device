@@ -8,17 +8,17 @@
 #include "utils/logger.h"
 
 namespace device {
-DeviceContext::DeviceContext(const cl::sycl::device &targetDevice, size_t concurrencyLevel)
+DeviceContext::DeviceContext(const sycl::device &targetDevice, size_t concurrencyLevel)
     : queueBuffer{DeviceCircularQueueBuffer{targetDevice,
-                                            [&](cl::sycl::exception_list l) { onExceptionOccurred(l); },
+                                            [&](sycl::exception_list l) { onExceptionOccurred(l); },
                                             concurrencyLevel}},
       statistics{Statistics{}} {}
 
-void DeviceContext::onExceptionOccurred(cl::sycl::exception_list &exceptions) {
+void DeviceContext::onExceptionOccurred(sycl::exception_list &exceptions) {
   for (auto &excep : exceptions) {
     try {
       rethrow_exception(excep);
-    } catch (const cl::sycl::exception &e) {
+    } catch (const sycl::exception &e) {
       logError() << e.what();
     }
   }

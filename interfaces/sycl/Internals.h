@@ -7,7 +7,7 @@
 
 #include "device.h"
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <string>
 
 
@@ -20,9 +20,9 @@ constexpr static int DefaultBlockDim = 1024;
  * The method determines how many work groups are needed to handle the total size given the local execution size
  * and returns a range to be used within a kernel submission.
  */
-inline cl::sycl::nd_range<1> computeExecutionRange1D(const size_t targetWorkGroupSize, const size_t totalSize) {
+inline sycl::nd_range<1> computeExecutionRange1D(const size_t targetWorkGroupSize, const size_t totalSize) {
   size_t factor = (totalSize + targetWorkGroupSize - 1) / targetWorkGroupSize;
-  return cl::sycl::nd_range<>{{factor * targetWorkGroupSize}, {targetWorkGroupSize}};
+  return sycl::nd_range<>{{factor * targetWorkGroupSize}, {targetWorkGroupSize}};
 }
 
 } // namespace internals

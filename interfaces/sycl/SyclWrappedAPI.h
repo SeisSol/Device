@@ -10,7 +10,7 @@
 #include "DeviceContext.h"
 #include "Statistics.h"
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <stack>
 #include <string>
 #include <unordered_map>
@@ -142,7 +142,7 @@ public:
 private:
   std::vector<DeviceContext*> availableDevices;
 
-  cl::sycl::queue *currentDefaultQueue;
+  sycl::queue *currentDefaultQueue;
   bool isCircularStreamsForked{false};
 
   DeviceStack *currentDeviceStack;
@@ -169,7 +169,7 @@ private:
   void initDevices();
 
   std::string getCurrentDeviceInfoAsText();
-  std::string getDeviceInfoAsTextInternal(cl::sycl::device& dev);
+  std::string getDeviceInfoAsTextInternal(sycl::device& dev);
 
   bool deviceInitialized;
   int currentDeviceId;

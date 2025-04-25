@@ -5,7 +5,7 @@
 #ifndef SEISSOLDEVICE_INTERFACES_SYCL_DEVICECIRCULARQUEUEBUFFER_H_
 #define SEISSOLDEVICE_INTERFACES_SYCL_DEVICECIRCULARQUEUEBUFFER_H_
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <functional>
 #include <stack>
 #include <string.h>
@@ -14,9 +14,9 @@
 
 namespace device {
 struct QueueWrapper {
-  cl::sycl::queue queue;
+  sycl::queue queue;
   QueueWrapper() = default;
-  QueueWrapper(const cl::sycl::device& dev, const std::function<void(cl::sycl::exception_list l)>& f);
+  QueueWrapper(const sycl::device& dev, const std::function<void(sycl::exception_list l)>& f);
 
   void synchronize();
   void dependency(QueueWrapper& other);
@@ -29,32 +29,32 @@ public:
    * Creates a new circular buffer containing sycl queues. The buffer needs
    * an async exception handler and a capacity that is currently per default 8.
    */
-  DeviceCircularQueueBuffer(const cl::sycl::device& dev,
-                            const std::function<void(cl::sycl::exception_list l)>& f,
+  DeviceCircularQueueBuffer(const sycl::device& dev,
+                            const std::function<void(sycl::exception_list l)>& f,
                             size_t capacity = 6);
 
   /*
    * Returns the default queue created by a device.
    */
-  cl::sycl::queue &getDefaultQueue();
+  sycl::queue &getDefaultQueue();
 
   /*
    * Returns the generic queue created by a device.
    * Note, this queue can be used for asynchronous
    * memory copies
    */
-  cl::sycl::queue &getGenericQueue();
+  sycl::queue &getGenericQueue();
 
   /*
    * Returns the next queue within the capacity of this buffer.
    */
-  cl::sycl::queue &getNextQueue();
+  sycl::queue &getNextQueue();
 
-  cl::sycl::queue* newQueue(double priority);
+  sycl::queue* newQueue(double priority);
 
   void deleteQueue(void* queue);
 
-  std::vector<cl::sycl::queue> allQueues();
+  std::vector<sycl::queue> allQueues();
 
   /*
    * Resets the index to the current element.
@@ -69,7 +69,7 @@ public:
   /*
    * Synchronizes a queue from the buffer with the host device.
    */
-  void syncQueueWithHost(cl::sycl::queue *queuePtr);
+  void syncQueueWithHost(sycl::queue *queuePtr);
 
   /*
    * Synchronizes all queues from the buffer with the host device.
@@ -79,7 +79,7 @@ public:
   /*
    *Returns true if the queue pointer is available on the buffer.
    */
-  bool exists(cl::sycl::queue *queuePtr);
+  bool exists(sycl::queue *queuePtr);
 
   void forkQueueDepencency();
 
@@ -89,10 +89,10 @@ private:
   QueueWrapper defaultQueue;
   QueueWrapper genericQueue;
   std::vector<QueueWrapper> queues;
-  std::vector<cl::sycl::queue*> externalQueues;
+  std::vector<sycl::queue*> externalQueues;
   size_t counter;
-  cl::sycl::device deviceReference;
-  std::function<void(cl::sycl::exception_list)> handlerReference;
+  sycl::device deviceReference;
+  std::function<void(sycl::exception_list)> handlerReference;
 };
 
 } // namespace device
