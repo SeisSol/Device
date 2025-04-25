@@ -23,7 +23,7 @@ inline size_t alignToMultipleOf(size_t size, size_t base) {
 template<typename F>
 int blockcount(F&& func, int blocksize = internals::DefaultBlockDim);
 
-#if defined(__ACPP__) || defined(__DPCPP__)
+#if defined(__ACPP__) || (defined(SYCL_LANGUAGE_VERSION) && defined(__INTEL_LLVM_COMPILER))
 #define DEVICE_DEVICEFUNC inline
 template<typename T>
 DEVICE_DEVICEFUNC void ntstore(T* location, T value) {

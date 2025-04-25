@@ -28,7 +28,7 @@ namespace device {
                                      void* streamPtr) {
     dim3 block(device::internals::DefaultBlockDim, 1, 1);
     dim3 grid(blockcount(kernel_streamBatchedData), 1, 1);
-    auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+    auto stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
     kernel_streamBatchedData<<<grid, block, 0, stream>>>(baseSrcPtr, baseDstPtr, elementSize, numElements);
     CHECK_ERR;
   }
@@ -57,7 +57,7 @@ namespace device {
                                          void* streamPtr) {
     dim3 block(device::internals::DefaultBlockDim, 1, 1);
     dim3 grid(blockcount(kernel_accumulateBatchedData<T>), 1, 1);
-    auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+    auto stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
     kernel_accumulateBatchedData<<<grid, block, 0, stream>>>(baseSrcPtr, baseDstPtr, elementSize, numElements);
     CHECK_ERR;
   }
@@ -96,7 +96,7 @@ namespace device {
                                       void* streamPtr) {
     dim3 block(device::internals::DefaultBlockDim, 1, 1);
     dim3 grid(blockcount(kernel_touchBatchedMemory), 1, 1);
-    auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+    auto stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
     kernel_touchBatchedMemory<<<grid, block, 0, stream>>>(basePtr, elementSize, clean, numElements);
     CHECK_ERR;
   }
@@ -118,7 +118,7 @@ template<typename T>
 void Algorithms::setToValue(T** out, T value, size_t elementSize, size_t numElements, void* streamPtr) {
   dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid(blockcount(kernel_setToValue<T>), 1, 1);
-  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  auto stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
   kernel_setToValue<<<grid, block, 0, stream>>>(out, value, elementSize, numElements);
   CHECK_ERR;
 }
@@ -146,7 +146,7 @@ template void Algorithms::setToValue(char** out, char value, size_t elementSize,
                                         void* streamPtr) {
     dim3 block(device::internals::DefaultBlockDim, 1, 1);
     dim3 grid(blockcount(kernel_copyUniformToScatter), 1, 1);
-    auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+    auto stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
     kernel_copyUniformToScatter<<<grid, block, 0, stream>>>(src, dst, srcOffset, copySize, numElements);
     CHECK_ERR;
   }
@@ -168,7 +168,7 @@ template void Algorithms::setToValue(char** out, char value, size_t elementSize,
                                         void* streamPtr) {
     dim3 block(device::internals::DefaultBlockDim, 1, 1);
     dim3 grid(blockcount(kernel_copyScatterToUniform), 1, 1);
-    auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+    auto stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
     kernel_copyScatterToUniform<<<grid, block, 0, stream>>>(src, dst, dstOffset, copySize, numElements);
     CHECK_ERR;
   }

@@ -24,7 +24,7 @@ template <typename T> void Algorithms::scaleArray(T *devArray,
                                                   void* streamPtr) {
   dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid(blockcount(kernel_scaleArray<T>), 1, 1);
-  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  auto stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
   kernel_scaleArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
   CHECK_ERR;
 }
@@ -46,7 +46,7 @@ template <typename T> __global__ void kernel_fillArray(T *array, T scalar, const
 template <typename T> void Algorithms::fillArray(T *devArray, const T scalar, const size_t numElements, void* streamPtr) {
   dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid(blockcount(kernel_fillArray<T>), 1, 1);
-  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  auto stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
   kernel_fillArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
   CHECK_ERR;
 }
@@ -70,7 +70,7 @@ __global__ void kernel_touchMemory(void *ptr, size_t size, bool clean) {
 void Algorithms::touchMemoryI(void *ptr, size_t size, bool clean, void* streamPtr) {
   dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid(blockcount(kernel_touchMemory), 1, 1);
-  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  auto stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
   kernel_touchMemory<<<grid, block, 0, stream>>>(ptr, size, clean);
   CHECK_ERR;
 }
@@ -97,7 +97,7 @@ void Algorithms::incrementalAddI(
 
   dim3 block(device::internals::DefaultBlockDim, 1, 1);
   dim3 grid(blockcount(kernel_incrementalAdd), 1, 1);
-  auto stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  auto stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
   kernel_incrementalAdd<<<grid, block, 0, stream>>>(reinterpret_cast<uintptr_t*>(out), reinterpret_cast<uintptr_t>(base), increment, numElements);
   CHECK_ERR;
 }

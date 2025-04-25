@@ -14,7 +14,7 @@ namespace device {
 
     constexpr static int DefaultBlockDim = 1024;
     
-    using deviceStreamT = hipStream_t;
+    using DeviceStreamT = hipStream_t;
     void checkErr(const std::string &file, int line);
     inline dim3 computeGrid1D(const dim3 &block, const size_t size) {
       int numBlocks = (size + block.x - 1) / block.x;

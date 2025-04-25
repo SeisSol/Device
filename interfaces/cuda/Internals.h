@@ -10,7 +10,7 @@
 #define CHECK_ERR device::internals::checkErr(__FILE__, __LINE__)
 namespace device {
 namespace internals {
-using deviceStreamT = cudaStream_t;
+using DeviceStreamT = cudaStream_t;
 
 constexpr static int DefaultBlockDim = 1024;
 

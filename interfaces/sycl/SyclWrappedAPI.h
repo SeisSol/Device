@@ -56,7 +56,7 @@ class ConcreteAPI : public AbstractAPI {
 
 public:
   ConcreteAPI()
-      : availableDevices{std::vector<DeviceContext *>{}}, currentDefaultQueue{nullptr}, currentDeviceStack{nullptr},
+      : availableDevices{std::vector<DeviceContext *>{}}, currentDefaultQueue{nullptr},
         currentQueueBuffer{nullptr}, currentStatistics{nullptr}, currentMemoryToSizeMap{nullptr}, deviceInitialized{false},
         currentDeviceId{0}{
     this->initDevices();
@@ -145,7 +145,6 @@ private:
   sycl::queue *currentDefaultQueue;
   bool isCircularStreamsForked{false};
 
-  DeviceStack *currentDeviceStack;
   DeviceCircularQueueBuffer *currentQueueBuffer;
   Statistics *currentStatistics;
   std::unordered_map<void *, size_t> *currentMemoryToSizeMap;

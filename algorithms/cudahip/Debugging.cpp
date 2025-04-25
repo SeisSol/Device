@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "AbstractAPI.h"
-#include "interfaces/cuda/Internals.h"
+#include "Internals.h"
 #include "utils/logger.h"
 #include <cassert>
 #include <device.h>
@@ -18,10 +18,10 @@ void Algorithms::compareDataWithHost(const T *hostPtr, const T *devPtr, const si
   stream << "DEVICE:: comparing array: " << dataName << '\n';
 
   T *temp = new T[numElements];
-  cudaMemcpy(temp, devPtr, numElements * sizeof(T), cudaMemcpyDeviceToHost);
+  api->copyFrom(temp, devPtr, numElements * sizeof(T));
   CHECK_ERR;
   constexpr T EPS = 1e-12;
-  for (unsigned i = 0; i < numElements; ++i) {
+  for (size_t i = 0; i < numElements; ++i) {
     if (abs(hostPtr[i] - temp[i]) > EPS) {
       if ((std::isnan(hostPtr[i])) || (std::isnan(temp[i]))) {
         stream << "DEVICE:: results is NAN. Cannot proceed\n";
@@ -45,8 +45,8 @@ void Algorithms::compareDataWithHost(const T *hostPtr, const T *devPtr, const si
 
 template void Algorithms::compareDataWithHost(const float *hostPtr, const float *devPtr, const size_t numElements,
   const std::string &dataName);
-  template void Algorithms::compareDataWithHost(const double *hostPtr, const double *devPtr, const size_t numElements,
-    const std::string &dataName);
+template void Algorithms::compareDataWithHost(const double *hostPtr, const double *devPtr, const size_t numElements,
+  const std::string &dataName);
 
 } // namespace device
 

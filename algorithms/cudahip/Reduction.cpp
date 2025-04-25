@@ -100,7 +100,7 @@ void __global__ kernel_reduce(T* result, const T* vector, size_t size, bool over
 }
 
 template <typename T> void Algorithms::reduceVector(T* result, const T *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr) {
-  auto* stream = reinterpret_cast<internals::deviceStreamT>(streamPtr);
+  auto* stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
 
   dim3 grid(1, 1, 1);
   dim3 block(1024, 1, 1);

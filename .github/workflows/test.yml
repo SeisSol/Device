@@ -119,5 +119,5 @@ jobs:
           export CXX=${{matrix.setup.cxx}}
           export FC=${{matrix.setup.fc}}
 
-          cmake .. -GNinja -DDEVICE_BACKEND=${{matrix.setup.backend}} -DSM=${{matrix.setup.arch}} -DWITH_MPI=OFF -DWITH_TESTS=ON
+          cmake .. -GNinja -DDEVICE_BACKEND=${{matrix.setup.backend}} -DSM=${{matrix.setup.arch}}
           ninja

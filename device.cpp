@@ -4,13 +4,11 @@
 
 #include "device.h"
 
-#ifdef DEVICE_CUDA_LANG
-#include "CudaWrappedAPI.h"
-#elif DEVICE_HIP_LANG
-#include "HipWrappedAPI.h"
-#elif DEVICE_ONEAPI_LANG
-#include "interfaces/sycl/SyclWrappedAPI.h"
-#elif DEVICE_HIPSYCL_LANG
+#ifdef DEVICE_LANG_CUDA
+#include "interfaces/cuda/CudaWrappedAPI.h"
+#elif DEVICE_LANG_HIP
+#include "interfaces/hip/HipWrappedAPI.h"
+#elif DEVICE_LANG_SYCL
 #include "interfaces/sycl/SyclWrappedAPI.h"
 #else
 #error "Unknown interface for the device wrapper"
