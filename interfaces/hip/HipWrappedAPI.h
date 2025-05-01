@@ -71,9 +71,8 @@ public:
   void syncDefaultStreamWithHost() override;
 
   bool isCapableOfGraphCapturing() override;
-  void streamBeginCapture(std::vector<void*>& streamPtrs) override;
-  void streamEndCapture() override;
-  DeviceGraphHandle getLastGraphHandle() override;
+  DeviceGraphHandle streamBeginCapture(std::vector<void*>& streamPtrs) override;
+  void streamEndCapture(DeviceGraphHandle handle) override;
   void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
 
   void* createStream(double priority) override;
@@ -116,7 +115,7 @@ private:
   struct GraphDetails {
     hipGraph_t graph;
     hipGraphExec_t instance;
-    void* streamPtr;
+    std::vector<void*> streamPtrs;
     bool ready{false};
   };
   std::vector<GraphDetails> graphs;

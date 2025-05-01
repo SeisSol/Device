@@ -3,9 +3,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "CudaWrappedAPI.h"
+#include "DataTypes.h"
 #include "Internals.h"
 #include "utils/logger.h"
 #include <cassert>
+#include <cuda_runtime_api.h>
+#include <driver_types.h>
+#include <mutex>
 
 using namespace device;
 
@@ -23,14 +27,6 @@ using namespace device;
  *    syncGraph(graph)                   // 2
  * */
 
-namespace device {
-namespace graph_capturing {
-
-__global__ void kernel_firstCapturingKernel() {}
-} // namespace graph_capturing
-} // namespace device
-
-
 bool ConcreteAPI::isCapableOfGraphCapturing() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   return true;
@@ -40,49 +36,55 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 }
 
 
-void ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
+DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
+  auto handle = DeviceGraphHandle();
 #ifdef DEVICE_USE_GRAPH_CAPTURING
-  graphs.push_back(GraphDetails{});
+  {
+    std::lock_guard guard(apiMutex);
+    graphs.push_back(GraphDetails{});
+    handle = DeviceGraphHandle(graphs.size() - 1);
 
-  GraphDetails &graphInstance = graphs.back();
-  graphInstance.ready = false;
-
-  graphInstance.streamPtr = streamPtrs[0];
+    GraphDetails &graphInstance = graphs[handle.getGraphId()];  
+    graphInstance.ready = false;
+    graphInstance.streamPtrs = streamPtrs;
+  }
 
   cudaStreamBeginCapture(static_cast<cudaStream_t>(streamPtrs[0]), cudaStreamCaptureModeThreadLocal);
   CHECK_ERR;
 #endif
+  return handle;
 }
 
-
-void ConcreteAPI::streamEndCapture() {
+void ConcreteAPI::streamEndCapture(DeviceGraphHandle handle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
-  auto& graphInstance = graphs.back();
-  cudaStreamEndCapture(static_cast<cudaStream_t>(graphInstance.streamPtr), &(graphInstance.graph));
+  GraphDetails graphInstance{};
+  {
+    std::lock_guard guard(apiMutex);
+    graphInstance = graphs[handle.getGraphId()];
+  }
+  cudaStreamEndCapture(static_cast<cudaStream_t>(graphInstance.streamPtrs[0]), &(graphInstance.graph));
   CHECK_ERR;
 
   cudaGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0);
   CHECK_ERR;
 
   graphInstance.ready = true;
+
+  {
+    std::lock_guard guard(apiMutex);
+    graphs[handle.getGraphId()] = graphInstance;
+  }
 #endif
 }
-
-
-DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  assert(graphs.back().ready && "a graph has not been fully captured");
-  return DeviceGraphHandle(graphs.size() - 1);
-#else
-  return DeviceGraphHandle();
-#endif
-}
-
 
 void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   assert(graphHandle.isInitialized() && "a graph must be captured before launching");
-  auto &graphInstance = graphs[graphHandle.getGraphId()];
+  GraphDetails graphInstance{};
+  {
+    std::lock_guard guard(apiMutex);
+    graphInstance = graphs[graphHandle.getGraphId()];
+  }
   cudaGraphLaunch(graphInstance.instance, reinterpret_cast<cudaStream_t>(streamPtr));
   CHECK_ERR;
 #endif

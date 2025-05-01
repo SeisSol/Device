@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -80,9 +81,8 @@ struct AbstractAPI {
   virtual void syncDefaultStreamWithHost() = 0;
 
   virtual bool isCapableOfGraphCapturing() = 0;
-  virtual void streamBeginCapture(std::vector<void*>& streamPtrs) = 0;
-  virtual void streamEndCapture() = 0;
-  virtual DeviceGraphHandle getLastGraphHandle() = 0;
+  virtual DeviceGraphHandle streamBeginCapture(std::vector<void*>& streamPtrs) = 0;
+  virtual void streamEndCapture(DeviceGraphHandle handle) = 0;
   virtual void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) = 0;
 
   virtual void* createStream(double priority = NAN) = 0;
@@ -115,6 +115,7 @@ struct AbstractAPI {
 
 protected:
   bool m_isFinalized = false;
+  std::mutex apiMutex;
 };
 } // namespace device
 
