@@ -45,10 +45,10 @@ TEST(Subroutines, MultMatrixVec) {
   //we dont need a sync here; all API queues are in order and this memory copy is synchronous
   api->copyFrom(res, devRes, size * sizeof(real));
 
-  api->freeMem(matrix.data);
-  api->freeMem(matrix.indices);
-  api->freeMem(devV);
-  api->freeMem(devRes);
+  api->freeGlobMem(matrix.data);
+  api->freeGlobMem(matrix.indices);
+  api->freeGlobMem(devV);
+  api->freeGlobMem(devRes);
 
   ASSERT_THAT(res, ElementsAreArray(ref));
 }

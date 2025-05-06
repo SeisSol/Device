@@ -18,14 +18,14 @@ void ConcreteAPI::initDevices() {
     throw new std::invalid_argument("Cannot initialize the devices twice!");
   }
 
-  for (auto const &platform : cl::sycl::platform::get_platforms()) {
+  for (auto const &platform : sycl::platform::get_platforms()) {
     for (auto const &device : platform.get_devices()) {
 
-      auto platName = device.get_platform().get_info<cl::sycl::info::platform::name>();
-      auto devName = device.get_info<cl::sycl::info::device::name>();
-      auto type = device.get_info<cl::sycl::info::device::device_type>();
+      auto platName = device.get_platform().get_info<sycl::info::platform::name>();
+      auto devName = device.get_info<sycl::info::device::name>();
+      auto type = device.get_info<sycl::info::device::device_type>();
 
-      if (type == cl::sycl::info::device_type::gpu) {
+      if (type == sycl::info::device_type::gpu) {
         if (devName.find("Intel") != std::string::npos) {
           if (platName.find("Level-Zero") == std::string::npos) {
             continue;
@@ -111,14 +111,14 @@ std::string ConcreteAPI::getDeviceInfoAsText(int id) {
 }
 std::string ConcreteAPI::getCurrentDeviceInfoAsText() { return this->getDeviceInfoAsText(this->currentDeviceId); }
 
-std::string ConcreteAPI::getDeviceInfoAsTextInternal(cl::sycl::device& dev) {
+std::string ConcreteAPI::getDeviceInfoAsTextInternal(sycl::device& dev) {
   std::ostringstream info{};
 
-  info << "platform:" << dev.get_platform().get_info<cl::sycl::info::platform::name>() << "\n";
-  info << "    name:" << dev.get_info<cl::sycl::info::device::name>() << "\n";
-  info << "    type: " << convertToString(dev.get_info<cl::sycl::info::device::device_type>()) << "\n";
-  info << "    driver_version: " << dev.get_info<cl::sycl::info::device::driver_version>() << "\n";
-  // if (dev.get_info<info::device::device_type>() != cl::sycl::info::device_type::host)
+  info << "platform:" << dev.get_platform().get_info<sycl::info::platform::name>() << "\n";
+  info << "    name:" << dev.get_info<sycl::info::device::name>() << "\n";
+  info << "    type: " << convertToString(dev.get_info<sycl::info::device::device_type>()) << "\n";
+  info << "    driver_version: " << dev.get_info<sycl::info::device::driver_version>() << "\n";
+  // if (dev.get_info<info::device::device_type>() != sycl::info::device_type::host)
   // info << "    device id: " << dev.get() << "\n";
 
   return info.str();
@@ -127,7 +127,7 @@ std::string ConcreteAPI::getDeviceInfoAsTextInternal(cl::sycl::device& dev) {
 bool ConcreteAPI::isUnifiedMemoryDefault() {
   // suboptimal (i.e. we'd need to query if USM needs to be migrated or not), but there's probably nothing better for now
   auto device = this->availableDevices[this->currentDeviceId]->queueBuffer.getDefaultQueue().get_device();
-  return device.has(cl::sycl::aspect::usm_system_allocations);
+  return device.has(sycl::aspect::usm_system_allocations);
 }
 
 std::string ConcreteAPI::getApiName() {
@@ -137,7 +137,7 @@ std::string ConcreteAPI::getApiName() {
 std::string ConcreteAPI::getDeviceName(int deviceId) {
   auto device = this->availableDevices[deviceId]->queueBuffer.getDefaultQueue().get_device();
 
-  return device.get_info<cl::sycl::info::device::name>();
+  return device.get_info<sycl::info::device::name>();
 }
 
 std::string ConcreteAPI::getPciAddress(int deviceId) {

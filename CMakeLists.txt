@@ -33,7 +33,6 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 option(ENABLE_PROFILING_MARKERS "Enable profiling markers (if available)" OFF)
 
 string(TOLOWER ${DEVICE_BACKEND} BACKEND_FOLDER)
-string(TOUPPER ${DEVICE_BACKEND} BACKEND_UPPER_CASE)
 
 # define device library
 if (${DEVICE_BACKEND} STREQUAL "cuda")
@@ -47,6 +46,8 @@ elseif((${DEVICE_BACKEND} STREQUAL "oneapi") OR (${DEVICE_BACKEND} STREQUAL "hip
     include(sycl.cmake)
 endif()
 
+string(TOUPPER ${BACKEND_FOLDER} BACKEND_UPPER_CASE)
+
 # common options
 target_compile_features(device PRIVATE cxx_std_17)
 
@@ -57,7 +58,7 @@ if (ENABLE_PROFILING_MARKERS)
   target_compile_definitions(device PRIVATE PROFILING_ENABLED)
 endif()
 
-target_compile_definitions(device PRIVATE DEVICE_${BACKEND_UPPER_CASE}_LANG)
+target_compile_definitions(device PRIVATE DEVICE_LANG_${BACKEND_UPPER_CASE})
 
 if (LOG_LEVEL_MASTER)
   target_compile_definitions(device PRIVATE LOG_LEVEL=${LOG_LEVEL_MASTER})

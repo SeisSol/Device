@@ -77,12 +77,12 @@ void *ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
     return nullptr;
   }
   else {
-    return malloc_device(size, *static_cast<cl::sycl::queue*>(streamPtr));
+    return malloc_device(size, *static_cast<sycl::queue*>(streamPtr));
   }
 }
 void ConcreteAPI::freeMemAsync(void *devPtr, void* streamPtr) {
   if (devPtr != nullptr) {
-    free(devPtr, *static_cast<cl::sycl::queue*>(streamPtr));
+    free(devPtr, *static_cast<sycl::queue*>(streamPtr));
   }
 }
 
@@ -99,7 +99,7 @@ std::string ConcreteAPI::getMemLeaksReport() {
 
 size_t ConcreteAPI::getMaxAvailableMem() {
   auto device = this->currentDefaultQueue->get_device();
-  return device.get_info<cl::sycl::info::device::global_mem_size>();
+  return device.get_info<sycl::info::device::global_mem_size>();
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() { return this->currentStatistics->allocatedMemBytes; }

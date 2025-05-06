@@ -8,28 +8,28 @@
 
 namespace device {
 
-DeviceType fromSyclType(cl::sycl::info::device_type type) {
-  if (type == cl::sycl::info::device_type::gpu) {
+DeviceType fromSyclType(sycl::info::device_type type) {
+  if (type == sycl::info::device_type::gpu) {
     return DeviceType::GPU;
   }
-  if (type == cl::sycl::info::device_type::cpu) {
+  if (type == sycl::info::device_type::cpu) {
     return DeviceType::CPU;
   }
-  if (type == cl::sycl::info::device_type::host) {
+  if (type == sycl::info::device_type::host) {
     return DeviceType::HOST;
   }
-  if (type == cl::sycl::info::device_type::accelerator) {
+  if (type == sycl::info::device_type::accelerator) {
     return DeviceType::FPGA;
   }
   return DeviceType::OTHERS;
 }
 
-bool compare(cl::sycl::device devA, cl::sycl::device devB) {
+bool compare(sycl::device devA, sycl::device devB) {
   std::string env;
   env += utils::Env("").get("PREFERRED_DEVICE_TYPE", "");
 
-  auto typeA = devA.get_info<cl::sycl::info::device::device_type>();
-  auto typeB = devB.get_info<cl::sycl::info::device::device_type>();
+  auto typeA = devA.get_info<sycl::info::device::device_type>();
+  auto typeB = devB.get_info<sycl::info::device::device_type>();
 
   if (convertToString(typeA).compare(env) == 0) {
     return true;
@@ -46,7 +46,7 @@ bool compare(cl::sycl::device devA, cl::sycl::device devB) {
   return fromSyclType(typeA) < fromSyclType(typeB);
 }
 
-std::string convertToString(cl::sycl::info::device_type type) {
+std::string convertToString(sycl::info::device_type type) {
   switch (fromSyclType(type)) {
   case DeviceType::GPU:
     return "GPU";

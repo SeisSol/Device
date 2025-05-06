@@ -11,16 +11,16 @@ using namespace device;
 
 void ConcreteAPI::copyTo(void *dst, const void *src, size_t size) {
   this->currentStatistics->explicitlyTransferredDataToDeviceBytes += size;
-  this->currentDefaultQueue->submit([&](cl::sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  this->currentDefaultQueue->submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
 }
 
 void ConcreteAPI::copyFrom(void *dst, const void *src, size_t size) {
   this->currentStatistics->explicitlyTransferredDataToHostBytes += size;
-  this->currentDefaultQueue->submit([&](cl::sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  this->currentDefaultQueue->submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
 }
 
 void ConcreteAPI::copyBetween(void *dst, const void *src, size_t size) {
-  this->currentDefaultQueue->submit([&](cl::sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  this->currentDefaultQueue->submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
 }
 
 void ConcreteAPI::copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width, size_t height) {
@@ -45,12 +45,12 @@ void ConcreteAPI::copy2dArrayFrom(void *dst, size_t dpitch, const void *src, siz
 }
 
 void ConcreteAPI::copyToAsync(void *dst, const void *src, size_t count, void *streamPtr) {
-  auto *targetQueue = (streamPtr != nullptr) ? static_cast<cl::sycl::queue *>(streamPtr) : this->currentDefaultQueue;
+  auto *targetQueue = (streamPtr != nullptr) ? static_cast<sycl::queue *>(streamPtr) : this->currentDefaultQueue;
   if (!this->currentQueueBuffer->exists(targetQueue))
     throw std::invalid_argument(getDeviceInfoAsText(currentDeviceId)
                                     .append("tried to prefetch usm on a queue that is not known to this device"));
 
-  targetQueue->submit([&](cl::sycl::handler &cgh) { cgh.memcpy(dst, src, count); });
+  targetQueue->submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, count); });
 }
 
 void ConcreteAPI::copyFromAsync(void *dst, const void *src, size_t count, void *streamPtr) {
@@ -62,11 +62,11 @@ void ConcreteAPI::copyBetweenAsync(void *dst, const void *src, size_t count, voi
 }
 
 void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void *devPtr, size_t count, void *streamPtr) {
-  auto *asQueue = (streamPtr != nullptr) ? static_cast<cl::sycl::queue *>(streamPtr) : this->currentDefaultQueue;
+  auto *asQueue = (streamPtr != nullptr) ? static_cast<sycl::queue *>(streamPtr) : this->currentDefaultQueue;
   if (!this->currentQueueBuffer->exists(asQueue))
     throw std::invalid_argument(getDeviceInfoAsText(currentDeviceId)
                                     .append("tried to prefetch usm on a queue that is not known to this device"));
 
-  asQueue->submit([&](cl::sycl::handler &cgh) { cgh.prefetch(devPtr, count); });
+  asQueue->submit([&](sycl::handler &cgh) { cgh.prefetch(devPtr, count); });
 }
 

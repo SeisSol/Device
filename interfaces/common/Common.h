@@ -56,7 +56,7 @@ public:
     std::shared_ptr<std::ostringstream> stream;
     InfoPrinter& printer;
 
-    InfoPrinterLine(InfoPrinter& printer) : printer(printer), stream(std::make_shared<std::ostringstream>()) {}
+    InfoPrinterLine(InfoPrinter& printer) : stream(std::make_shared<std::ostringstream>()), printer(printer) {}
 
     template<typename T>
     InfoPrinterLine& operator <<(const T& data) {

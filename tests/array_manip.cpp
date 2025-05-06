@@ -30,7 +30,7 @@ TEST_F(ArrayManip, fill) {
     EXPECT_EQ(scalar, i);
   }
 
-  device->api->freeMem(arr);
+  device->api->freeGlobMem(arr);
 }
 
 TEST_F(ArrayManip, touchClean32) {
@@ -48,7 +48,7 @@ TEST_F(ArrayManip, touchClean32) {
     EXPECT_EQ(0, i);
   }
 
-  device->api->freeMem(arr);
+  device->api->freeGlobMem(arr);
 }
 
 TEST_F(ArrayManip, touchNoClean32) {
@@ -67,7 +67,7 @@ TEST_F(ArrayManip, touchNoClean32) {
     EXPECT_EQ(0, i);
   }
 
-  device->api->freeMem(arr);
+  device->api->freeGlobMem(arr);
 }
 
 TEST_F(ArrayManip, touchClean64) {
@@ -85,7 +85,7 @@ TEST_F(ArrayManip, touchClean64) {
     EXPECT_EQ(0, i);
   }
 
-  device->api->freeMem(arr);
+  device->api->freeGlobMem(arr);
 }
 
 TEST_F(ArrayManip, touchNoClean64) {
@@ -104,7 +104,7 @@ TEST_F(ArrayManip, touchNoClean64) {
     EXPECT_EQ(0, i);
   }
 
-  device->api->freeMem(arr);
+  device->api->freeGlobMem(arr);
 }
 
 TEST_F(ArrayManip, scale) {
@@ -122,6 +122,6 @@ TEST_F(ArrayManip, scale) {
     EXPECT_EQ(5, i);
   }
 
-  device->api->freeMem(arr);
+  device->api->freeGlobMem(arr);
 }
 

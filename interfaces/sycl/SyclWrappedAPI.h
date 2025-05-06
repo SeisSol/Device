@@ -10,7 +10,7 @@
 #include "DeviceContext.h"
 #include "Statistics.h"
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <stack>
 #include <string>
 #include <unordered_map>
@@ -56,7 +56,7 @@ class ConcreteAPI : public AbstractAPI {
 
 public:
   ConcreteAPI()
-      : availableDevices{std::vector<DeviceContext *>{}}, currentDefaultQueue{nullptr}, currentDeviceStack{nullptr},
+      : availableDevices{std::vector<DeviceContext *>{}}, currentDefaultQueue{nullptr},
         currentQueueBuffer{nullptr}, currentStatistics{nullptr}, currentMemoryToSizeMap{nullptr}, deviceInitialized{false},
         currentDeviceId{0}{
     this->initDevices();
@@ -108,9 +108,8 @@ public:
   void syncDefaultStreamWithHost() override;
 
   bool isCapableOfGraphCapturing() override;
-  void streamBeginCapture(std::vector<void*>& streamPtrs) override;
-  void streamEndCapture() override;
-  DeviceGraphHandle getLastGraphHandle() override;
+  DeviceGraphHandle streamBeginCapture(std::vector<void*>& streamPtrs) override;
+  void streamEndCapture(DeviceGraphHandle handle) override;
   void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
 
   void* createStream(double priority) override;
@@ -142,10 +141,9 @@ public:
 private:
   std::vector<DeviceContext*> availableDevices;
 
-  cl::sycl::queue *currentDefaultQueue;
+  sycl::queue *currentDefaultQueue;
   bool isCircularStreamsForked{false};
 
-  DeviceStack *currentDeviceStack;
   DeviceCircularQueueBuffer *currentQueueBuffer;
   Statistics *currentStatistics;
   std::unordered_map<void *, size_t> *currentMemoryToSizeMap;
@@ -169,7 +167,7 @@ private:
   void initDevices();
 
   std::string getCurrentDeviceInfoAsText();
-  std::string getDeviceInfoAsTextInternal(cl::sycl::device& dev);
+  std::string getDeviceInfoAsTextInternal(sycl::device& dev);
 
   bool deviceInitialized;
   int currentDeviceId;

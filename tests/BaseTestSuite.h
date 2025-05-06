@@ -19,15 +19,12 @@ static bool setUp = false;
 class BaseTestSuite : public ::testing::Test
 {
 public:
-    DeviceInstance *device;
+  DeviceInstance *device;
 
   BaseTestSuite() { randomEngine.seed(randomDevice()); }
 
 void SetUp() {
-    device = &DeviceInstance::getInstance();
-  if(!setUp) {
-    device->api->allocateStackMem();
-  }
+  device = &DeviceInstance::getInstance();
   setUp = true;
 }
 

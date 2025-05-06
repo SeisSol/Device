@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include "DataTypes.h"
 #include "HipWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
@@ -23,13 +24,6 @@ using namespace device;
  *    syncGraph(graph)                   // 2
  * */
 
-namespace device {
-namespace graph_capturing {
-
-__global__ void kernel_firstCapturingKernel() {}
-} // namespace graph_capturing
-} // namespace device
-
 
 bool ConcreteAPI::isCapableOfGraphCapturing() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
@@ -40,41 +34,46 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 }
 
 
-void ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
+DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
+  auto handle = DeviceGraphHandle();
 #ifdef DEVICE_USE_GRAPH_CAPTURING
-  graphs.push_back(GraphDetails{});
+  {
+    std::lock_guard guard(apiMutex);
+    graphs.push_back(GraphDetails{});
+    handle = DeviceGraphHandle(graphs.size() - 1);
 
-  GraphDetails &graphInstance = graphs.back();
-  graphInstance.ready = false;
-
-  graphInstance.streamPtr = streamPtrs[0];
+    GraphDetails &graphInstance = graphs[handle.getGraphId()];  
+    graphInstance.ready = false;
+    graphInstance.streamPtrs = streamPtrs;
+  }
 
   hipStreamBeginCapture(static_cast<hipStream_t>(streamPtrs[0]), hipStreamCaptureModeThreadLocal);
   CHECK_ERR;
+  return DeviceGraphHandle(graphs.size() - 1);
 #endif
+  return handle;
 }
 
 
-void ConcreteAPI::streamEndCapture() {
+void ConcreteAPI::streamEndCapture(DeviceGraphHandle handle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
-  auto& graphInstance = graphs.back();
-  hipStreamEndCapture(static_cast<hipStream_t>(graphInstance.streamPtr), &(graphInstance.graph));
+  GraphDetails graphInstance{};
+  {
+    std::lock_guard guard(apiMutex);
+    graphInstance = graphs[handle.getGraphId()];
+  }
+  hipStreamEndCapture(static_cast<hipStream_t>(graphInstance.streamPtrs[0]), &(graphInstance.graph));
   CHECK_ERR;
 
   hipGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0);
   CHECK_ERR;
 
   graphInstance.ready = true;
-#endif
-}
 
-
-DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  assert(graphs.back().ready && "a graph has not been fully captured");
-  return DeviceGraphHandle(graphs.size() - 1);
-#else
-  return DeviceGraphHandle();
+  {
+    std::lock_guard guard(apiMutex);
+    graphs[handle.getGraphId()] = graphInstance;
+  }
 #endif
 }
 
@@ -82,7 +81,11 @@ DeviceGraphHandle ConcreteAPI::getLastGraphHandle() {
 void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   assert(graphHandle.isInitialized() && "a graph must be captured before launching");
-  auto &graphInstance = graphs[graphHandle.getGraphId()];
+  GraphDetails graphInstance{};
+  {
+    std::lock_guard guard(apiMutex);
+    graphInstance = graphs[graphHandle.getGraphId()];
+  }
   hipGraphLaunch(graphInstance.instance, reinterpret_cast<hipStream_t>(streamPtr));
   CHECK_ERR;
 #endif

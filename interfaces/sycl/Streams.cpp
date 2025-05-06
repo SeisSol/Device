@@ -36,13 +36,13 @@ void ConcreteAPI::destroyGenericStream(void* queue) {
 
 
 void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
-  auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
+  auto *queuePtr = static_cast<sycl::queue *>(streamPtr);
   this->currentQueueBuffer->syncQueueWithHost(queuePtr);
 }
 
 
 bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
-  auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
+  auto *queuePtr = static_cast<sycl::queue *>(streamPtr);
 
   // if we have the oneAPI extension available, only check for an empty queue here
   // otherwise, synchronize
@@ -57,14 +57,14 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
 }
 
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
-  auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
+  auto *queuePtr = static_cast<sycl::queue *>(streamPtr);
 
 #ifdef __ACPP__
   queuePtr->DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...) {
     function();
   });
 #else
-  queuePtr->submit([&](cl::sycl::handler& h) {
+  queuePtr->submit([&](sycl::handler& h) {
     h.host_task([=]() {
       function();
     });
@@ -74,7 +74,7 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
 
 void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
   // for now, spin wait here
-  auto *queuePtr = static_cast<cl::sycl::queue *>(streamPtr);
+  auto *queuePtr = static_cast<sycl::queue *>(streamPtr);
   volatile uint32_t* spinLocation = location;
   queuePtr->single_task([=]() {
     while (true) {

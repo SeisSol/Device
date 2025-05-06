@@ -90,7 +90,7 @@ void *ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
 }
 void ConcreteAPI::freeMemAsync(void *devPtr, void* streamPtr) {
   if (devPtr != nullptr) {
-    hipFreeAsync(ptr, static_cast<hipStream_t>(streamPtr));
+    hipFreeAsync(devPtr, static_cast<hipStream_t>(streamPtr));
     CHECK_ERR;
   }
 }

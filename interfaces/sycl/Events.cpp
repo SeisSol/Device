@@ -16,7 +16,7 @@ using namespace device;
 
 namespace {
 struct Event {
-    std::optional<cl::sycl::event> syclEvent;
+    std::optional<sycl::event> syclEvent;
 };
 } // namespace
 
@@ -39,28 +39,28 @@ void ConcreteAPI::syncEventWithHost(void* eventPtr) {
 bool ConcreteAPI::isEventCompleted(void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
   // (NOTE: we do not poll here on the SYCL implementation, i.e. we may get MPI-like issues)
-  return !event->syclEvent.has_value() || event->syclEvent.value().get_info<cl::sycl::info::event::command_execution_status>() == cl::sycl::info::event_command_status::complete;
+  return !event->syclEvent.has_value() || event->syclEvent.value().get_info<sycl::info::event::command_execution_status>() == sycl::info::event_command_status::complete;
 }
 
 void ConcreteAPI::recordEventOnHost(void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
-  event->syclEvent = std::make_optional<cl::sycl::event>();
+  event->syclEvent = std::make_optional<sycl::event>();
 }
 
 void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
-  auto* queue = static_cast<cl::sycl::queue*>(streamPtr);
+  auto* queue = static_cast<sycl::queue*>(streamPtr);
   auto* event = static_cast<Event*>(eventPtr);
 
-  event->syclEvent = std::make_optional<cl::sycl::event>(queue->submit([&](cl::sycl::handler& h) {
+  event->syclEvent = std::make_optional<sycl::event>(queue->submit([&](sycl::handler& h) {
     DEVICE_SYCL_EMPTY_OPERATION(h);
   }));
 }
 
 void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
-  auto* queue = static_cast<cl::sycl::queue*>(streamPtr);
+  auto* queue = static_cast<sycl::queue*>(streamPtr);
   auto* event = static_cast<Event*>(eventPtr);
 
-  queue->submit([&](cl::sycl::handler& h) {
+  queue->submit([&](sycl::handler& h) {
     DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(h, event->syclEvent.value());
   });
 }

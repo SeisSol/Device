@@ -11,15 +11,15 @@ include(CheckCXXSourceCompiles)
 
 
 set(_SYCL_TEST_PROGRAM "
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 int main(int argc, char* argv[]) {
-  cl::sycl::queue queue;
+  sycl::queue queue;
   const unsigned size{32};
-  auto *data = cl::sycl::malloc_shared<float>(size, queue);
-  queue.submit([&] (cl::sycl::handler& cgh) {
-    cgh.parallel_for(cl::sycl::range<1>(size),
-                     [=](cl::sycl::id<1> i) {
-      data[i] = cl::sycl::pown(static_cast<float>(i), 2);
+  auto *data = sycl::malloc_shared<float>(size, queue);
+  queue.submit([&] (sycl::handler& cgh) {
+    cgh.parallel_for(sycl::range<1>(size),
+                     [=](sycl::id<1> i) {
+      data[i] = sycl::pown(static_cast<float>(i), 2);
     });
   });
   queue.wait();

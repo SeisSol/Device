@@ -139,16 +139,16 @@ void gpu::Solver::setUp(const CpuMatrixDataT &lu, const VectorT &rhs, const Vect
 
 void gpu::Solver::tearDown() {
   DeviceInstance &device = DeviceInstance::getInstance();
-  device.api->freeMem(devResidual);
-  device.api->freeMem(devInvDiag);
-  device.api->freeMem(devDiag);
-  device.api->freeMem(devTemp);
-  device.api->freeMem(devX);
-  device.api->freeMem(devTempX);
-  device.api->freeMem(devRhs);
+  device.api->freeGlobMem(devResidual);
+  device.api->freeGlobMem(devInvDiag);
+  device.api->freeGlobMem(devDiag);
+  device.api->freeGlobMem(devTemp);
+  device.api->freeGlobMem(devX);
+  device.api->freeGlobMem(devTempX);
+  device.api->freeGlobMem(devRhs);
 
-  device.api->freeMem(devLU->data);
-  device.api->freeMem(devLU->indices);
+  device.api->freeGlobMem(devLU->data);
+  device.api->freeGlobMem(devLU->indices);
   devLU.reset(nullptr);
 }
 
