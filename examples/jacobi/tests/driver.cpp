@@ -24,9 +24,9 @@ int main(int argc, char **argv) {
   WorkSpaceT ws{MPI_COMM_WORLD};
 #endif
 
-  DeviceInstance &device = DeviceInstance::getInstance();
-  device.api->setDevice(ws.rank);
-  device.api->initialize();
+  DeviceInstance &device = DeviceInstance::instance();
+  device.api().setDevice(ws.rank);
+  device.api().initialize();
 
   ::testing::InitGoogleTest(&argc, argv);
   int result = RUN_ALL_TESTS();

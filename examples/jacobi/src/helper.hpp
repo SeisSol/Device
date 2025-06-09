@@ -96,8 +96,8 @@ public:
         std::memcpy(reinterpret_cast<char *>(dest), reinterpret_cast<char *>(src), recvCounts[0] * sizeof(real));
       }
     } else {
-      device::DeviceInstance &device = device::DeviceInstance::getInstance();
-      device.api->copyBetween(dest, src, recvCounts[0] * sizeof(real));
+      device::DeviceInstance &device = device::DeviceInstance::instance();
+      device.api().copyBetween(dest, src, recvCounts[0] * sizeof(real));
     }
 #endif
   }

@@ -28,16 +28,16 @@ TEST_F(Memories, copy2DMemory) {
     }
   }
 
-  int *arr = (int *)device->api->allocGlobMem(M * N * sizeof(int));
+  int *arr = (int *)device->api().allocGlobMem(M * N * sizeof(int));
 
   int spitch = N * sizeof(int);
   int dpitch = N * sizeof(int);
   int width = N * sizeof(int);
   int height = M;
 
-  device->api->copy2dArrayTo(arr, dpitch, &hostVector[0], spitch, width, height);
+  device->api().copy2dArrayTo(arr, dpitch, &hostVector[0], spitch, width, height);
   int hostVector2[M][N];
-  device->api->copy2dArrayFrom(&hostVector2[0], dpitch, arr, spitch, width, height);
+  device->api().copy2dArrayFrom(&hostVector2[0], dpitch, arr, spitch, width, height);
 
   for (size_t i = 0; i < M; i++) {
     for (size_t j = 0; j < N; j++) {
@@ -45,7 +45,7 @@ TEST_F(Memories, copy2DMemory) {
     }
   }
 
-  device->api->freeGlobMem(arr);
+  device->api().freeGlobMem(arr);
 }
 
 /*
@@ -64,16 +64,16 @@ TEST_F(Memories, copy2DMemoryWithSrcPitch) {
     }
   }
 
-  int *arr = (int *)device->api->allocGlobMem(M * N * sizeof(int));
+  int *arr = (int *)device->api().allocGlobMem(M * N * sizeof(int));
 
   int spitch = (N + SPI) * sizeof(int);
   int dpitch = N * sizeof(int);
   int width = N * sizeof(int);
   int height = M;
 
-  device->api->copy2dArrayTo(arr, dpitch, &hostVector[0], spitch, width, height);
+  device->api().copy2dArrayTo(arr, dpitch, &hostVector[0], spitch, width, height);
   int hostVector2[M][N];
-  device->api->copy2dArrayFrom(&hostVector2[0], dpitch, arr, dpitch, width, height);
+  device->api().copy2dArrayFrom(&hostVector2[0], dpitch, arr, dpitch, width, height);
 
   for (size_t i = 0; i < M; i++) {
     for (size_t j = 0; j < N; j++) {
@@ -81,7 +81,7 @@ TEST_F(Memories, copy2DMemoryWithSrcPitch) {
     }
   }
 
-  device->api->freeGlobMem(arr);
+  device->api().freeGlobMem(arr);
 }
 */
 
@@ -103,16 +103,16 @@ TEST_F(Memories, copy2DMemoryWithDstPitch) {
     }
   }
 
-  int *arr = (int *)device->api->allocGlobMem(M * (N + DPI) * sizeof(int));
+  int *arr = (int *)device->api().allocGlobMem(M * (N + DPI) * sizeof(int));
 
   int spitch = (N + SPI) * sizeof(int);
   int dpitch = (N + DPI) * sizeof(int);
   int width = N * sizeof(int);
   int height = M;
 
-  device->api->copy2dArrayTo(arr, dpitch, &hostVector[0], spitch, width, height);
+  device->api().copy2dArrayTo(arr, dpitch, &hostVector[0], spitch, width, height);
   int hostVector2[M][N + SPI];
-  device->api->copy2dArrayFrom(&hostVector2[0], spitch, arr, dpitch, width, height);
+  device->api().copy2dArrayFrom(&hostVector2[0], spitch, arr, dpitch, width, height);
 
   for (size_t i = 0; i < M; i++) {
     for (size_t j = 0; j < N + SPI; j++) {
@@ -120,7 +120,7 @@ TEST_F(Memories, copy2DMemoryWithDstPitch) {
     }
   }
 
-  device->api->freeGlobMem(arr);
+  device->api().freeGlobMem(arr);
 }
 */
 
