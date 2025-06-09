@@ -64,10 +64,10 @@ if (LOG_LEVEL_MASTER)
   target_compile_definitions(device PRIVATE LOG_LEVEL=${LOG_LEVEL_MASTER})
 endif()
 
-target_include_directories(device PRIVATE .
-                                          interfaces/${BACKEND_FOLDER}
-                                          interfaces/common
-                                          algorithms/${BACKEND_FOLDER}
-                                          submodules)
+target_include_directories(device PUBLIC .)
 
-target_include_directories(device INTERFACE .)
+if (DEFINED DEVICE_SUBMODULES)
+    target_include_directories(device PRIVATE ${DEVICE_SUBMODULES})
+else()
+    target_include_directories(device PRIVATE submodules)
+endif()
