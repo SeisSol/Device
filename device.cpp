@@ -26,7 +26,7 @@ DeviceInstance::DeviceInstance() {
   apiP = std::make_unique<ConcreteAPI>();
   algorithmsP = std::make_unique<Algorithms>();
 
-  algorithmsP->setDeviceApi(apiP);
+  algorithmsP->setDeviceApi(apiP.get());
 #endif
 }
 

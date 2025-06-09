@@ -44,7 +44,7 @@ elseif((${DEVICE_BACKEND} STREQUAL "oneapi") OR (${DEVICE_BACKEND} STREQUAL "hip
     set(BACKEND_FOLDER "sycl")
     include(sycl.cmake)
 else()
-    add_library(device OBJECT device.cpp)
+    add_library(device OBJECT device.cpp algorithms/Dummy.cpp)
 endif()
 
 # common options
