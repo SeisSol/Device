@@ -77,8 +77,8 @@ void __global__ kernel_reduce(AccT* result, const VecT* vector, size_t size, boo
     const auto lastWarpsNeeded = (warpCount + warpSize - 1) / warpSize;
     auto lastAcc = operation.defaultValue;
     #pragma unroll 2
-    for (int i = 0; i < lastWarpsNeeded; i += warpSize) {
-      const auto id = threadInWarp + i;
+    for (int i = 0; i < lastWarpsNeeded; ++i) {
+      const auto id = threadInWarp + i * warpSize;
       auto value = (id < warpCount) ? shmem[id] : operation.defaultValue;
 
       for (int offset = 1; offset < warpSize; offset *= 2) {
