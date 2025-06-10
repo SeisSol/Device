@@ -44,10 +44,10 @@ __forceinline__ __device__ T shuffledown(T value, int offset) {
 // a rather "dumb", but general reduction kernel
 // (not intended for intensive use; there's the thrust libraries instead)
 
-template <typename T, typename OperationT>
+template <typename AccT, typename VecT, typename OperationT>
 __launch_bounds__(1024)
-void __global__ kernel_reduce(T* result, const T* vector, size_t size, bool overrideResult, OperationT operation) {
-  __shared__ T shmem[256];
+void __global__ kernel_reduce(AccT* result, const VecT* vector, size_t size, bool overrideResult, OperationT operation) {
+  __shared__ AccT shmem[256];
   const auto warpCount = blockDim.x / warpSize;
   const auto currentWarp = threadIdx.x / warpSize;
   const auto threadInWarp = threadIdx.x % warpSize;
@@ -58,7 +58,7 @@ void __global__ kernel_reduce(T* result, const T* vector, size_t size, bool over
   #pragma unroll 4
   for (std::size_t i = currentWarp; i < warpsNeeded; i += warpCount) {
     const auto id = threadInWarp + i * warpSize;
-    auto value = (id < size) ? ntload(&vector[id]) : operation.defaultValue;
+    auto value = (id < size) ? static_cast<AccT>(ntload(&vector[id])) : operation.defaultValue;
 
     for (int offset = 1; offset < warpSize; offset *= 2) {
       value = operation(value, shuffledown(value, offset));
@@ -99,7 +99,7 @@ void __global__ kernel_reduce(T* result, const T* vector, size_t size, bool over
   }
 }
 
-template <typename T> void Algorithms::reduceVector(T* result, const T *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr) {
+template <typename AccT, typename VecT> void Algorithms::reduceVector(AccT* result, const VecT *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr) {
   auto* stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
 
   dim3 grid(1, 1, 1);
@@ -107,15 +107,15 @@ template <typename T> void Algorithms::reduceVector(T* result, const T *buffer, 
 
   switch (type) {
   case ReductionType::Add: {
-    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Sum<T>());
+    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Sum<AccT>());
     break;
   }
   case ReductionType::Max: {
-    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Max<T>());
+    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Max<AccT>());
     break;
   }
   case ReductionType::Min: {
-    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Min<T>());
+    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Min<AccT>());
     break;
   }
   default: {
@@ -127,7 +127,19 @@ template <typename T> void Algorithms::reduceVector(T* result, const T *buffer, 
 
 template void Algorithms::reduceVector(int* result, const int *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
 template void Algorithms::reduceVector(unsigned* result, const unsigned *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(long* result, const int *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned long* result, const unsigned *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(long* result, const long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned long* result, const unsigned long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(long long* result, const int *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned long long* result, const unsigned *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(long long* result, const long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned long long* result, const unsigned long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(long long* result, const long long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned long long* result, const unsigned long long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
 template void Algorithms::reduceVector(float* result, const float *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(double* result, const float *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
 template void Algorithms::reduceVector(double* result, const double *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+
 } // namespace device
 
