@@ -78,8 +78,8 @@ void __global__ kernel_reduce(T* result, const T* vector, size_t size, bool over
     auto lastAcc = operation.defaultValue;
     #pragma unroll 2
     for (int i = 0; i < lastWarpsNeeded; i += warpSize) {
-      const auto id = threadInWarp + i * warpSize;
-      auto value = (i < warpCount) ? shmem[id] : operation.defaultValue;
+      const auto id = threadInWarp + i;
+      auto value = (id < warpCount) ? shmem[id] : operation.defaultValue;
 
       for (int offset = 1; offset < warpSize; offset *= 2) {
         value = operation(value, shuffledown(value, offset));

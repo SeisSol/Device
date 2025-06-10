@@ -20,7 +20,7 @@ class Reductions : public BaseTestSuite {
 
 
 TEST_F(Reductions, Add) {
-  constexpr size_t size = 1001;
+  constexpr size_t size = 10010000;
   std::vector<unsigned> vector(size, 0);
 
   std::uniform_int_distribution<> distribution(10, 50);
@@ -43,7 +43,7 @@ TEST_F(Reductions, Add) {
 }
 
 TEST_F(Reductions, Max) {
-  constexpr size_t size = 2001;
+  constexpr size_t size = 20010000;
   std::vector<unsigned> vector(size, 0);
 
   auto* devVector = reinterpret_cast<unsigned *>(device->api->allocGlobMem(sizeof(unsigned) * size));
@@ -70,7 +70,7 @@ TEST_F(Reductions, Max) {
 }
 
 TEST_F(Reductions, Min) {
-  constexpr size_t size = 3002;
+  constexpr size_t size = 30020000;
   std::vector<unsigned> vector(size, 0);
 
   std::uniform_int_distribution<> distribution(10, 100);
