@@ -53,5 +53,9 @@ if (EXTRA_DEVICE_FLAGS)
 endif()
 
 find_package(CUDAToolkit REQUIRED)
-target_link_libraries(device PUBLIC CUDA::cudart CUDA::cuda_driver CUDA::nvToolsExt)
+target_link_libraries(device PUBLIC CUDA::cudart CUDA::cuda_driver)
+
+if (ENABLE_PROFILING_MARKERS)
+    target_link_libraries(device PUBLIC CUDA::nvtx3)
+endif()
 

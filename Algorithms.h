@@ -14,7 +14,7 @@ class DeviceInstance;
 class Algorithms {
 public:
   friend DeviceInstance;
-  template <typename T> void reduceVector(T* result, const T* buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+  template <typename AccT, typename VecT> void reduceVector(AccT* result, const VecT* buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
 
   template <typename T> void scaleArray(T *devArray, T scalar, size_t numElements, void* streamPtr);
 
