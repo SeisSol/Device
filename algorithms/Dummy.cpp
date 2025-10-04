@@ -114,12 +114,23 @@ template void Algorithms::compareDataWithHost(const float *hostPtr, const float 
 template void Algorithms::compareDataWithHost(const double *hostPtr, const double *devPtr, const size_t numElements,
   const std::string &dataName);
 
-template <typename T> void Algorithms::reduceVector(T* result, const T *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr) {
+template <typename AccT, typename VecT> void Algorithms::reduceVector(AccT* result, const VecT *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr) {
 }
 
 template void Algorithms::reduceVector(int* result, const int *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
 template void Algorithms::reduceVector(unsigned* result, const unsigned *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(long* result, const int *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned long* result, const unsigned *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(long* result, const long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned long* result, const unsigned long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(long long* result, const int *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned long long* result, const unsigned *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(long long* result, const long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned long long* result, const unsigned long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(long long* result, const long long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(unsigned long long* result, const unsigned long long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
 template void Algorithms::reduceVector(float* result, const float *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(double* result, const float *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
 template void Algorithms::reduceVector(double* result, const double *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
 
 } // namespace device

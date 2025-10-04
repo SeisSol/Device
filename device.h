@@ -25,10 +25,9 @@ public:
 
   Algorithms& algorithms();
 
+private:
   std::unique_ptr<AbstractAPI> apiP{nullptr};
   std::unique_ptr<Algorithms> algorithmsP{nullptr};
-
-private:
   DeviceInstance();
 };
 } // namespace device
