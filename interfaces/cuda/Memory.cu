@@ -96,14 +96,26 @@ void *ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
   void *devPtr;
   cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal);
   CHECK_ERR;
+
+  cudaMemLocation location{};
   if (hint == Destination::Host) {
-    cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId);
-    CHECK_ERR;
+    location.id = cudaCpuDeviceId;
+    location.type = cudaMemLocationTypeHost;
   }
   else if (allowedConcurrentManagedAccess) {
-    cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation, currentDeviceId);
-    CHECK_ERR;
+    location.id = currentDeviceId;
+    location.type = cudaMemLocationTypeDevice;
   }
+
+  cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation,
+#if CUDART_VERSION >= 13000
+                       location
+#else
+                       location.type
+#endif
+  );
+  CHECK_ERR;
+
   statistics.allocatedMemBytes += size;
   statistics.allocatedUnifiedMemBytes += size;
   memToSizeMap[devPtr] = size;
