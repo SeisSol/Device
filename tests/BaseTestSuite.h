@@ -24,7 +24,7 @@ public:
   BaseTestSuite() { randomEngine.seed(randomDevice()); }
 
 void SetUp() {
-  device = &DeviceInstance::getInstance();
+  device = &DeviceInstance::instance();
   setUp = true;
 }
 

@@ -125,11 +125,9 @@ std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
   info << "memPitch: " << property.memPitch << '\n';
   info << "maxThreadsPerBlock: " << property.maxThreadsPerBlock << '\n';
   info << "totalConstMem: " << property.totalConstMem << '\n';
-  info << "clockRate: " << property.clockRate << '\n';
   info << "multiProcessorCount: " << property.multiProcessorCount << '\n';
   info << "integrated: " << property.integrated << '\n';
   info << "canMapHostMemory: " << property.canMapHostMemory << '\n';
-  info << "computeMode: " << property.computeMode << '\n';
   info << "concurrentKernels: " << property.concurrentKernels << '\n';
   info << "pciBusID: " << property.pciBusID << '\n';
   info << "pciDeviceID: " << property.pciDeviceID << '\n';

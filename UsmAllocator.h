@@ -22,7 +22,7 @@ public:
   using difference_type = std::ptrdiff_t;
 
   UsmAllocator() noexcept = delete;
-  UsmAllocator(device::DeviceInstance& instance) noexcept : api(instance.api) {}
+  UsmAllocator(device::DeviceInstance& instance) noexcept : api(&instance.api()) {}
 
   UsmAllocator(const UsmAllocator &) noexcept = default;
   UsmAllocator(UsmAllocator &&) noexcept = default;

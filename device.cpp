@@ -3,15 +3,17 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "device.h"
+#include "Algorithms.h"
 
 #ifdef DEVICE_LANG_CUDA
 #include "interfaces/cuda/CudaWrappedAPI.h"
+#define DEVICE_ENABLED
 #elif DEVICE_LANG_HIP
 #include "interfaces/hip/HipWrappedAPI.h"
+#define DEVICE_ENABLED
 #elif DEVICE_LANG_SYCL
 #include "interfaces/sycl/SyclWrappedAPI.h"
-#else
-#error "Unknown interface for the device wrapper"
+#define DEVICE_ENABLED
 #endif
 
 using namespace device;
@@ -20,17 +22,41 @@ DeviceInstance::DeviceInstance() {
   // NOTE: all headers inside of macros define their unique ConcreteInterface.
   // Make sure to not include multiple different interfaces at the same time.
   // Only one interface is allowed per program because of issues of unique compilers, etc.
-  api = new ConcreteAPI;
-  algorithms.setDeviceApi(api);
+#ifdef DEVICE_ENABLED
+  apiP = std::make_unique<ConcreteAPI>();
+  algorithmsP = std::make_unique<Algorithms>();
+
+  algorithmsP->setDeviceApi(apiP.get());
+#endif
 }
 
 DeviceInstance::~DeviceInstance() {
+#ifdef DEVICE_ENABLED
   this->finalize();
-  delete api;
-  api = nullptr;
+#endif
 }
 
 void DeviceInstance::finalize() {
-  api->finalize();
+#ifdef DEVICE_ENABLED
+  api().finalize();
+#endif
 }
 
+DeviceInstance& DeviceInstance::instance() {
+  static DeviceInstance currentInstance;
+  return currentInstance;
+}
+
+AbstractAPI& DeviceInstance::api() {
+  if (apiP == nullptr) {
+    throw std::runtime_error("Device API was called; but it is not initialized.");
+  }
+  return *apiP;
+}
+
+Algorithms& DeviceInstance::algorithms() {
+  if (algorithmsP == nullptr) {
+    throw std::runtime_error("Device API was called; but it is not initialized.");
+  }
+  return *algorithmsP;
+}

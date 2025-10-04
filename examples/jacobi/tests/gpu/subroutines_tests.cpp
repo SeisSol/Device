@@ -12,7 +12,7 @@
 using ::testing::ElementsAreArray;
 
 TEST(Subroutines, MultMatrixVec) {
-  auto *api = ::device::DeviceInstance::getInstance().api;
+  auto *api = ::device::DeviceInstance::instance().api;
   auto defaultStream = api->getDefaultStream();
   const int size = 3;
 
@@ -54,7 +54,7 @@ TEST(Subroutines, MultMatrixVec) {
 }
 
 TEST(Subroutines, VectorManips) {
-  auto *api = ::device::DeviceInstance::getInstance().api;
+  auto *api = ::device::DeviceInstance::instance().api;
   auto defaultStream = api->getDefaultStream();
 
   const int size = 3;

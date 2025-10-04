@@ -71,9 +71,24 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void *devPtr, siz
                                        void *streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream = (streamPtr == nullptr) ? 0 : (static_cast<cudaStream_t>(streamPtr));
+
+  cudaMemLocation location{};
+  if (type == Destination::Host) {
+    location.id = cudaCpuDeviceId;
+    location.type = cudaMemLocationTypeHost;
+  }
+  else if (allowedConcurrentManagedAccess) {
+    location.id = currentDeviceId;
+    location.type = cudaMemLocationTypeDevice;
+  }
+
   cudaMemPrefetchAsync(devPtr,
                        count,
-                       type == Destination::CurrentDevice ? currentDeviceId : cudaCpuDeviceId,
+#if CUDART_VERSION >= 13000
+                       location, 0,
+#else
+                       location.type,
+#endif
                        stream);
   CHECK_ERR;
 }

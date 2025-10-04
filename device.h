@@ -7,6 +7,8 @@
 
 #include "AbstractAPI.h"
 #include "Algorithms.h"
+#include <memory>
+#include <stdexcept>
 
 namespace device {
 
@@ -15,17 +17,17 @@ class DeviceInstance {
 public:
   DeviceInstance(const DeviceInstance &) = delete;
   DeviceInstance &operator=(const DeviceInstance &) = delete;
-  static DeviceInstance &getInstance() {
-    static DeviceInstance instance;
-    return instance;
-  }
+  static DeviceInstance& instance();
   ~DeviceInstance();
   void finalize();
 
-  AbstractAPI *api{nullptr};
-  Algorithms algorithms{};
+  AbstractAPI& api();
+
+  Algorithms& algorithms();
 
 private:
+  std::unique_ptr<AbstractAPI> apiP{nullptr};
+  std::unique_ptr<Algorithms> algorithmsP{nullptr};
   DeviceInstance();
 };
 } // namespace device

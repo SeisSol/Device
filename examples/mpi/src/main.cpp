@@ -10,7 +10,7 @@ using namespace device;
 
 void forkOther(int otherRank) {
 
-  DeviceInstance &device = DeviceInstance::getInstance();
+  DeviceInstance &device = DeviceInstance::instance();
   auto *api = device.api;
   api->setDevice(otherRank);
 
@@ -24,7 +24,7 @@ void forkOther(int otherRank) {
 }
 
 void forkRoot(int rootRank) {
-  DeviceInstance &device = DeviceInstance::getInstance();
+  DeviceInstance &device = DeviceInstance::instance();
   auto *api = device.api;
   api->setDevice(rootRank);
 

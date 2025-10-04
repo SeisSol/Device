@@ -39,22 +39,22 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
   std::tie(invDiag, lu) = getDLU(matrix);
 
   // allocate gpu data structures
-  DeviceInstance &device = DeviceInstance::getInstance();
-  device.api->setDevice(ws.rank);
-  device.api->initialize();
+  DeviceInstance &device = DeviceInstance::instance();
+  device.api().setDevice(ws.rank);
+  device.api().initialize();
   this->setUp(lu, rhs, x, residual, invDiag);
 
   // start solver
   Statistics computeStat(ws, range);
   Statistics commStat(ws, range);
-  auto defaultStream = device.api->getDefaultStream();
+  auto defaultStream = device.api().getDefaultStream();
   while ((infNorm > settings.eps) and (currentIter <= settings.maxNumIters)) {
 
     computeStat.start();
     launch_multMatVec(*devLU, devX, devTemp, defaultStream);
     launch_manipVectors(range, devRhs, devTemp, devX, VectorManipOps::Subtraction, defaultStream);
     launch_manipVectors(range, devInvDiag, devX, devX, VectorManipOps::Multiply, defaultStream);
-    device.api->syncDevice();
+    device.api().syncDevice();
     computeStat.stop();
 
     commStat.start();
@@ -69,7 +69,7 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
       launch_multMatVec(*devLU, devX, devResidual, defaultStream);
       launch_manipVectors(range, devTemp, devResidual, devResidual, VectorManipOps::Addition, defaultStream);
       launch_manipVectors(range, devRhs, devResidual, devResidual, VectorManipOps::Subtraction, defaultStream);
-      device.api->copyFrom(const_cast<real *>(residual.data()), devResidual, residual.size() * sizeof(real));
+      device.api().copyFrom(const_cast<real *>(residual.data()), devResidual, residual.size() * sizeof(real));
 
       auto localInfNorm = infNorm = host::getInfNorm(range, residual);
 #ifdef USE_MPI
@@ -90,31 +90,31 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
     ++currentIter;
   }
 
-  device.api->syncDevice();
+  device.api().syncDevice();
   assembler.assemble<SystemType::OnDevice>(devX, devTempX);
-  device.api->copyFrom(const_cast<real *>(x.data()), devTempX, x.size() * sizeof(real));
+  device.api().copyFrom(const_cast<real *>(x.data()), devTempX, x.size() * sizeof(real));
 
   this->tearDown();
 }
 
 void gpu::Solver::setUp(const CpuMatrixDataT &lu, const VectorT &rhs, const VectorT &x, const VectorT &residual,
                         VectorT &invDiag) {
-  DeviceInstance &device = DeviceInstance::getInstance();
+  DeviceInstance &device = DeviceInstance::instance();
 
-  devRhs = static_cast<real *>(device.api->allocGlobMem(rhs.size() * sizeof(real)));
-  device.api->copyTo(devRhs, rhs.data(), rhs.size() * sizeof(real));
+  devRhs = static_cast<real *>(device.api().allocGlobMem(rhs.size() * sizeof(real)));
+  device.api().copyTo(devRhs, rhs.data(), rhs.size() * sizeof(real));
 
-  devX = static_cast<real *>(device.api->allocGlobMem(x.size() * sizeof(real)));
-  device.api->copyTo(devX, x.data(), x.size() * sizeof(real));
+  devX = static_cast<real *>(device.api().allocGlobMem(x.size() * sizeof(real)));
+  device.api().copyTo(devX, x.data(), x.size() * sizeof(real));
 
-  devTempX = static_cast<real *>(device.api->allocGlobMem(x.size() * sizeof(real)));
-  device.api->copyTo(devTempX, x.data(), x.size() * sizeof(real));
+  devTempX = static_cast<real *>(device.api().allocGlobMem(x.size() * sizeof(real)));
+  device.api().copyTo(devTempX, x.data(), x.size() * sizeof(real));
 
-  devTemp = static_cast<real *>(device.api->allocGlobMem(x.size() * sizeof(real)));
+  devTemp = static_cast<real *>(device.api().allocGlobMem(x.size() * sizeof(real)));
 
   // InvDiag still holds the diagonal elements at this point
-  devDiag = static_cast<real *>(device.api->allocGlobMem(invDiag.size() * sizeof(real)));
-  device.api->copyTo(devDiag, invDiag.data(), invDiag.size() * sizeof(real));
+  devDiag = static_cast<real *>(device.api().allocGlobMem(invDiag.size() * sizeof(real)));
+  device.api().copyTo(devDiag, invDiag.data(), invDiag.size() * sizeof(real));
 
   // compute inverse diagonal matrix
   std::transform(invDiag.begin(), invDiag.end(), invDiag.begin(), [](const real &diag) {
@@ -122,33 +122,33 @@ void gpu::Solver::setUp(const CpuMatrixDataT &lu, const VectorT &rhs, const Vect
     return 1.0 / diag;
   });
 
-  devInvDiag = static_cast<real *>(device.api->allocGlobMem(invDiag.size() * sizeof(real)));
-  device.api->copyTo(devInvDiag, invDiag.data(), invDiag.size() * sizeof(real));
+  devInvDiag = static_cast<real *>(device.api().allocGlobMem(invDiag.size() * sizeof(real)));
+  device.api().copyTo(devInvDiag, invDiag.data(), invDiag.size() * sizeof(real));
 
-  devResidual = static_cast<real *>(device.api->allocGlobMem(residual.size() * sizeof(real)));
-  device.api->copyTo(devResidual, residual.data(), residual.size() * sizeof(real));
+  devResidual = static_cast<real *>(device.api().allocGlobMem(residual.size() * sizeof(real)));
+  device.api().copyTo(devResidual, residual.data(), residual.size() * sizeof(real));
 
   devLU = std::make_unique<GpuMatrixDataT>(lu.info);
   // GpuMatrixDataT devLU(LU.Info);
-  devLU->data = static_cast<real *>(device.api->allocGlobMem(lu.info.volume * sizeof(real)));
-  device.api->copyTo(devLU->data, lu.data.data(), lu.info.volume * sizeof(real));
+  devLU->data = static_cast<real *>(device.api().allocGlobMem(lu.info.volume * sizeof(real)));
+  device.api().copyTo(devLU->data, lu.data.data(), lu.info.volume * sizeof(real));
 
-  devLU->indices = static_cast<int *>(device.api->allocGlobMem(lu.info.volume * sizeof(int)));
-  device.api->copyTo(devLU->indices, lu.indices.data(), lu.info.volume * sizeof(int));
+  devLU->indices = static_cast<int *>(device.api().allocGlobMem(lu.info.volume * sizeof(int)));
+  device.api().copyTo(devLU->indices, lu.indices.data(), lu.info.volume * sizeof(int));
 }
 
 void gpu::Solver::tearDown() {
-  DeviceInstance &device = DeviceInstance::getInstance();
-  device.api->freeGlobMem(devResidual);
-  device.api->freeGlobMem(devInvDiag);
-  device.api->freeGlobMem(devDiag);
-  device.api->freeGlobMem(devTemp);
-  device.api->freeGlobMem(devX);
-  device.api->freeGlobMem(devTempX);
-  device.api->freeGlobMem(devRhs);
+  DeviceInstance &device = DeviceInstance::instance();
+  device.api().freeGlobMem(devResidual);
+  device.api().freeGlobMem(devInvDiag);
+  device.api().freeGlobMem(devDiag);
+  device.api().freeGlobMem(devTemp);
+  device.api().freeGlobMem(devX);
+  device.api().freeGlobMem(devTempX);
+  device.api().freeGlobMem(devRhs);
 
-  device.api->freeGlobMem(devLU->data);
-  device.api->freeGlobMem(devLU->indices);
+  device.api().freeGlobMem(devLU->data);
+  device.api().freeGlobMem(devLU->indices);
   devLU.reset(nullptr);
 }
 

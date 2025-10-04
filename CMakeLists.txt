@@ -13,19 +13,18 @@ if (NOT DEFINED DEVICE_BACKEND)
     message(FATAL_ERROR "DEVICE_BACKEND variable has not been provided into the submodule")
 else()
     set(FOUND OFF)
-    foreach(VARIANT cuda hip oneapi hipsycl acpp)
+    foreach(VARIANT cuda hip oneapi hipsycl acpp none)
         if (${DEVICE_BACKEND} STREQUAL ${VARIANT})
             set(FOUND ON)
         endif()
     endforeach()
     if (NOT FOUND)
-        message(FATAL_ERROR "DEVICE_BACKEND must be either cuda, hip, opeapi, acpp, or hipsycl. Given: ${DEVICE_BACKEND}")
+        message(FATAL_ERROR "DEVICE_BACKEND must be either none, cuda, hip, opeapi, acpp, hipsycl. Given: ${DEVICE_BACKEND}")
     endif()
 endif()
 
-if (NOT DEFINED DEVICE_ARCH)
-    message(FATAL_ERROR "DEVICE_ARCH is not defined. "
-            "Supported for example: sm_60, sm_61, sm_70, sm_71, gfx906, gfx908, dg1, bdw, skl, Gen8, Gen9, Gen11, Gen12LP")
+if ((NOT (${DEVICE_BACKEND} STREQUAL "none")) AND (NOT DEFINED DEVICE_ARCH))
+    message(FATAL_ERROR "DEVICE_ARCH has not been defined")
 endif()
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
@@ -44,9 +43,9 @@ elseif(${DEVICE_BACKEND} STREQUAL "hip")
 elseif((${DEVICE_BACKEND} STREQUAL "oneapi") OR (${DEVICE_BACKEND} STREQUAL "hipsycl") OR (${DEVICE_BACKEND} STREQUAL "acpp"))
     set(BACKEND_FOLDER "sycl")
     include(sycl.cmake)
+else()
+    add_library(device OBJECT device.cpp algorithms/Dummy.cpp)
 endif()
-
-string(TOUPPER ${BACKEND_FOLDER} BACKEND_UPPER_CASE)
 
 # common options
 target_compile_features(device PRIVATE cxx_std_17)
@@ -58,15 +57,24 @@ if (ENABLE_PROFILING_MARKERS)
   target_compile_definitions(device PRIVATE PROFILING_ENABLED)
 endif()
 
-target_compile_definitions(device PRIVATE DEVICE_LANG_${BACKEND_UPPER_CASE})
+if (NOT (${DEVICE_BACKEND} STREQUAL "none"))
+    string(TOUPPER ${BACKEND_FOLDER} BACKEND_UPPER_CASE)
+    target_compile_definitions(device PRIVATE DEVICE_LANG_${BACKEND_UPPER_CASE})
+    
+    target_include_directories(device PRIVATE
+                                          interfaces/${BACKEND_FOLDER}
+                                          interfaces/common
+                                          algorithms/${BACKEND_FOLDER})
+endif()
 
 if (LOG_LEVEL_MASTER)
   target_compile_definitions(device PRIVATE LOG_LEVEL=${LOG_LEVEL_MASTER})
 endif()
 
-target_include_directories(device PRIVATE .
-                                          interfaces/${BACKEND_FOLDER}
-                                          interfaces/common
-                                          algorithms/${BACKEND_FOLDER}
-                                          submodules)
+if (DEFINED DEVICE_SUBMODULES)
+    target_include_directories(device PRIVATE ${DEVICE_SUBMODULES})
+else()
+    target_include_directories(device PRIVATE submodules)
+endif()
 
+target_include_directories(device PRIVATE .)
