@@ -51,7 +51,11 @@ if ((${DEVICE_BACKEND} STREQUAL "acpp") OR (${DEVICE_BACKEND} STREQUAL "hipsycl"
     find_package(AdaptiveCpp REQUIRED)
     find_package(OpenMP REQUIRED)
     target_compile_options(device PRIVATE -Wno-unknown-cuda-version)
-    target_link_libraries(device PUBLIC ${OpenMP_CXX_FLAGS})
+
+    # we need to link both to OpenMP_CXX and the OpenMP_CXX_FLAGS (otherwise some symbols won't be found)
+    target_link_libraries(device PRIVATE OpenMP::OpenMP_CXX)
+    target_link_libraries(device PRIVATE ${OpenMP_CXX_FLAGS})
+
     add_sycl_to_target(TARGET device SOURCES ${DEVICE_SOURCE_FILES})
 else()
     find_package(DpcppFlags REQUIRED)
