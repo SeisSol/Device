@@ -100,18 +100,22 @@ void *ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
   cudaMemLocation location{};
   if (hint == Destination::Host) {
     location.id = cudaCpuDeviceId;
+#if CUDART_VERSION >= 13000
     location.type = cudaMemLocationTypeHost;
+#endif
   }
   else if (allowedConcurrentManagedAccess) {
     location.id = currentDeviceId;
+#if CUDART_VERSION >= 13000
     location.type = cudaMemLocationTypeDevice;
+#endif
   }
 
   cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation,
 #if CUDART_VERSION >= 13000
                        location
 #else
-                       location.type
+                       location.id
 #endif
   );
   CHECK_ERR;
