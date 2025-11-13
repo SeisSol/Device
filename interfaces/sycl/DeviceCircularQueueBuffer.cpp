@@ -155,7 +155,15 @@ bool DeviceCircularQueueBuffer::exists(sycl::queue *queuePtr) {
     }
   }
 
-  return isDefaultQueue || isGenericQueue || isReservedQueue;
+  bool isExternalQueue = false;
+  for (auto& queue : externalQueues) {
+    if (queuePtr == queue) {
+      isExternalQueue = true;
+      break;
+    }
+  }
+
+  return isDefaultQueue || isGenericQueue || isReservedQueue || isExternalQueue;
 }
 
 } // namespace device
