@@ -5,13 +5,16 @@
 #include "SyclWrappedAPI.h"
 #include <iostream>
 
+#include "Internals.h"
+
 using namespace device;
+using namespace device::internals;
 
 void *ConcreteAPI::allocGlobMem(size_t size, bool compress) {
   auto *ptr = malloc_device(size, this->currentDefaultQueue());
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
-  this->currentDefaultQueue().wait();
+  waitCheck(this->currentDefaultQueue());
   return ptr;
 }
 
@@ -20,7 +23,7 @@ void *ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
   this->currentStatistics().allocatedUnifiedMemBytes += size;
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
-  this->currentDefaultQueue().wait();
+  waitCheck(this->currentDefaultQueue());
   return ptr;
 }
 
@@ -28,7 +31,7 @@ void *ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
   auto *ptr = malloc_host(size, this->currentDefaultQueue());
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
-  this->currentDefaultQueue().wait();
+  waitCheck(this->currentDefaultQueue());
   return ptr;
 }
 
@@ -45,7 +48,7 @@ void ConcreteAPI::freeMem(void *devPtr) {
     this->currentStatistics().deallocatedMemBytes += this->currentMemoryToSizeMap().at(devPtr);
     this->currentMemoryToSizeMap().erase(devPtr);
     free(devPtr, this->currentDefaultQueue().get_context());
-    this->currentDefaultQueue().wait();
+    waitCheck(currentDefaultQueue());
   }
 }
 

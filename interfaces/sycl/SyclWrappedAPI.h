@@ -174,16 +174,6 @@ private:
 
   void initDevices();
 
-  template<typename T>
-  void waitCheck(T&& result) {
-    try {
-      std::forward<T>(result).wait_and_throw();
-    }
-    catch (const std::exception& exc) {
-      logError() << "SYCL API error:" << std::string(exc.what());
-    }
-  }
-
   std::string getCurrentDeviceInfoAsText();
   std::string getDeviceInfoAsTextInternal(sycl::device& dev);
 

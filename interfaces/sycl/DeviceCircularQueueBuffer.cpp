@@ -7,7 +7,11 @@
 #include "SyclWrappedAPI.h"
 #include "utils/logger.h"
 
+#include "Internals.h"
+
 #include <sycl/sycl.hpp>
+
+using namespace device::internals;
 
 namespace device {
 
@@ -23,7 +27,7 @@ QueueWrapper::QueueWrapper(const sycl::device& dev, const std::function<void(syc
 }
 
 void QueueWrapper::synchronize() {
-  queue.wait_and_throw();
+  waitCheck(queue);
 }
 void QueueWrapper::dependency(QueueWrapper& other) {
   // improvising... Adding an empty event here, mimicking a CUDA-like event dependency
@@ -130,7 +134,7 @@ void DeviceCircularQueueBuffer::joinQueueDepencency() {
 }
 
 void DeviceCircularQueueBuffer::syncQueueWithHost(sycl::queue *queuePtr) {
-  queuePtr->wait_and_throw();
+  waitCheck(*queuePtr);
 }
 
 void DeviceCircularQueueBuffer::syncAllQueuesWithHost() {
@@ -139,7 +143,7 @@ void DeviceCircularQueueBuffer::syncAllQueuesWithHost() {
     q.synchronize();
   }
   for (auto* q : this->externalQueues) {
-    q->wait_and_throw();
+    waitCheck(*q);
   }
 }
 

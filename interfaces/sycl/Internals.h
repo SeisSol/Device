@@ -10,10 +10,24 @@
 #include <sycl/sycl.hpp>
 #include <string>
 
+#include "utils/logger.h"
 
 namespace device {
 namespace internals {
 constexpr static int DefaultBlockDim = 1024;
+
+template<typename T>
+void waitCheck(T&& result) {
+  try {
+    std::forward<T>(result).wait_and_throw();
+  }
+  catch (const sycl::exception& exc) {
+    logError() << "SYCL API error:" << std::string(exc.what());
+  }
+  catch (const std::exception& exc) {
+    logError() << "SYCL API/C++ error:" << std::string(exc.what());
+  }
+}
 
 /*
  * Computes the execution range for a 1D range kernel given a target work group size and a total size.

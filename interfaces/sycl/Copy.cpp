@@ -4,23 +4,26 @@
 
 #include "SyclWrappedAPI.h"
 
+#include "Internals.h"
+
 #include <algorithm>
 #include <math.h>
 
 using namespace device;
+using namespace device::internals;
 
 void ConcreteAPI::copyTo(void *dst, const void *src, size_t size) {
   this->currentStatistics().explicitlyTransferredDataToDeviceBytes += size;
-  this->currentDefaultQueue().submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  waitCheck(this->currentDefaultQueue().submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }));
 }
 
 void ConcreteAPI::copyFrom(void *dst, const void *src, size_t size) {
   this->currentStatistics().explicitlyTransferredDataToHostBytes += size;
-  this->currentDefaultQueue().submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  waitCheck(this->currentDefaultQueue().submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }));
 }
 
 void ConcreteAPI::copyBetween(void *dst, const void *src, size_t size) {
-  this->currentDefaultQueue().submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  waitCheck(this->currentDefaultQueue().submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }));
 }
 
 void ConcreteAPI::copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width, size_t height) {

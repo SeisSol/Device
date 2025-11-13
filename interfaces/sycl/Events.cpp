@@ -4,6 +4,8 @@
 
 #include "SyclWrappedAPI.h"
 
+#include "Internals.h"
+
 #include <algorithm>
 #include <cassert>
 #include <optional>
@@ -13,6 +15,7 @@
 #endif // ONEAPI_UNDERHOOD
 
 using namespace device;
+using namespace device::internals;
 
 namespace {
 struct Event {
@@ -32,7 +35,7 @@ void ConcreteAPI::destroyEvent(void* eventPtr) {
 void ConcreteAPI::syncEventWithHost(void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
   if (event->syclEvent) {
-    event->syclEvent.value().wait_and_throw();
+    waitCheck(event->syclEvent.value());
   }
 }
 
