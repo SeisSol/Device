@@ -81,7 +81,7 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void* devPtr, siz
   hipStream_t stream = (streamPtr == nullptr) ? 0 : (static_cast<hipStream_t>(streamPtr));
   hipMemPrefetchAsync(devPtr,
                        count,
-                       type == Destination::CurrentDevice ? currentDeviceId : hipCpuDeviceId,
+                       type == Destination::CurrentDevice ? getDeviceId() : hipCpuDeviceId,
                        stream);
 }
 

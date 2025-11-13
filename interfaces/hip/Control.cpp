@@ -6,8 +6,10 @@
 #include "utils/env.h"
 #include <iostream>
 #include <iomanip>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include "hip/hip_runtime.h"
 
 #ifdef PROFILING_ENABLED
@@ -26,8 +28,11 @@ ConcreteAPI::ConcreteAPI() {
 }
 
 void ConcreteAPI::setDevice(int deviceId) {
-  currentDeviceId = deviceId;
-  hipSetDevice(currentDeviceId);
+  {
+    std::lock_guard guard(this->apiMutex);
+    deviceMap[std::this_thread::get_id()] = deviceId;
+  }
+  hipSetDevice(deviceId);
   CHECK_ERR;
 
   // Note: the following sets the initial HIP context
@@ -35,7 +40,7 @@ void ConcreteAPI::setDevice(int deviceId) {
   CHECK_ERR;
 
   hipDeviceProp_t properties{};
-  hipGetDeviceProperties(&properties, currentDeviceId);
+  hipGetDeviceProperties(&properties, deviceId);
   CHECK_ERR;
 
   // NOTE: hipDeviceGetAttribute internally calls hipGetDeviceProperties; hence it doesn't make sense to use it here
@@ -102,7 +107,12 @@ int ConcreteAPI::getDeviceId() {
   if (!status[StatusID::DeviceSelected]) {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
-  return currentDeviceId;
+  const auto myId = std::this_thread::get_id();
+  auto findResult = deviceMap.find(myId);
+  if (findResult == deviceMap.end()) {
+    logError() << "Thread device context not initialized. Error.";
+  }
+  return findResult->second;;
 }
 
 unsigned ConcreteAPI::getGlobMemAlignment() {

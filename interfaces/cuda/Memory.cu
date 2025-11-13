@@ -76,7 +76,7 @@ void *ConcreteAPI::allocGlobMem(size_t size, bool compress) {
     std::memset(&prop, 0, sizeof(CUmemAllocationProp));
     prop.type = CU_MEM_ALLOCATION_TYPE_PINNED;
     prop.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
-    prop.location.id = currentDeviceId;
+    prop.location.id = getDeviceId();
     prop.allocFlags.compressionType = CU_MEM_ALLOCATION_COMP_GENERIC;
 
     devPtr = driverAllocate(size, prop);
@@ -105,7 +105,7 @@ void *ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
 #endif
   }
   else if (allowedConcurrentManagedAccess) {
-    location.id = currentDeviceId;
+    location.id = getDeviceId();
 #if CUDART_VERSION >= 13000
     location.type = cudaMemLocationTypeDevice;
 #endif
@@ -198,7 +198,7 @@ std::string ConcreteAPI::getMemLeaksReport() {
 size_t ConcreteAPI::getMaxAvailableMem() {
   isFlagSet<DeviceSelected>(status);
   cudaDeviceProp property;
-  cudaGetDeviceProperties(&property, currentDeviceId);
+  cudaGetDeviceProperties(&property, getDeviceId());
   CHECK_ERR;
   return property.totalGlobalMem;
 }

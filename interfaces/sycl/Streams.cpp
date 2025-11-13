@@ -17,27 +17,27 @@
 using namespace device;
 
 void *ConcreteAPI::getDefaultStream() {
-  return &(this->currentQueueBuffer->getDefaultQueue());
+  return &(this->currentQueueBuffer().getDefaultQueue());
 }
 
 void ConcreteAPI::syncDefaultStreamWithHost() {
-  auto& defaultQueue = this->currentQueueBuffer->getDefaultQueue();
-  this->currentQueueBuffer->syncQueueWithHost(&defaultQueue);
+  auto& defaultQueue = this->currentQueueBuffer().getDefaultQueue();
+  this->currentQueueBuffer().syncQueueWithHost(&defaultQueue);
 }
 
 void* ConcreteAPI::createStream(double priority) {
-  return this->currentQueueBuffer->newQueue(priority);
+  return this->currentQueueBuffer().newQueue(priority);
 }
 
 
 void ConcreteAPI::destroyGenericStream(void* queue) {
-  this->currentQueueBuffer->deleteQueue(queue);
+  this->currentQueueBuffer().deleteQueue(queue);
 }
 
 
 void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
   auto *queuePtr = static_cast<sycl::queue *>(streamPtr);
-  this->currentQueueBuffer->syncQueueWithHost(queuePtr);
+  this->currentQueueBuffer().syncQueueWithHost(queuePtr);
 }
 
 
@@ -51,7 +51,7 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
 #elif defined(HIPSYCL_EXT_QUEUE_WAIT_LIST) || defined(ACPP_EXT_QUEUE_WAIT_LIST)
   return queuePtr->get_wait_list().empty();
 #else
-  this->currentQueueBuffer->syncQueueWithHost(queuePtr);
+  this->currentQueueBuffer().syncQueueWithHost(queuePtr);
   return true;
 #endif
 }

@@ -33,7 +33,7 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
     CHECK_ERR;
   }
   else {
-    hipMemAdvise(devPtr, size, hipMemAdviseSetPreferredLocation, currentDeviceId);
+    hipMemAdvise(devPtr, size, hipMemAdviseSetPreferredLocation, getDeviceId());
     CHECK_ERR;
   }
   statistics.allocatedMemBytes += size;
@@ -105,7 +105,7 @@ std::string ConcreteAPI::getMemLeaksReport() {
 size_t ConcreteAPI::getMaxAvailableMem() {
   isFlagSet<DeviceSelected>(status);
   hipDeviceProp_t property;
-  hipGetDeviceProperties(&property, currentDeviceId); CHECK_ERR;
+  hipGetDeviceProperties(&property, getDeviceId()); CHECK_ERR;
   return property.totalGlobalMem;
 }
 

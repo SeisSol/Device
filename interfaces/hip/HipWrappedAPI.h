@@ -14,6 +14,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <thread>
 #include <unordered_set>
 #include <cassert>
 
@@ -103,7 +104,7 @@ public:
 
 private:
   device::StatusT status{false};
-  int currentDeviceId{-1};
+  std::unordered_map<std::thread::id, int> deviceMap;
 
   bool usmDefault{false};
 

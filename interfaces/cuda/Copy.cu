@@ -80,7 +80,7 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void *devPtr, siz
 #endif
   }
   else if (allowedConcurrentManagedAccess) {
-    location.id = currentDeviceId;
+    location.id = getDeviceId();
 #if CUDART_VERSION >= 13000
     location.type = cudaMemLocationTypeDevice;
 #endif

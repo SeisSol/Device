@@ -9,6 +9,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <thread>
 #include <unordered_set>
 #include <cassert>
 #include <cstdint>
@@ -105,7 +106,7 @@ private:
   void createCircularStreamAndEvents();
 
   device::StatusT status{false};
-  int currentDeviceId{-1};
+  std::unordered_map<std::thread::id, int> deviceMap;
   bool allowedConcurrentManagedAccess{false};
   
   bool usmDefault{false};

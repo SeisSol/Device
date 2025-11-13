@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <string>
+#include <thread>
 
 using namespace device;
 
@@ -42,24 +43,25 @@ void ConcreteAPI::initDevices() {
     return compare(c1->queueBuffer.getDefaultQueue().get_device(), c2->queueBuffer.getDefaultQueue().get_device());
   });
 
-  this->setDevice(this->currentDeviceId);
+  this->setDevice(0);
   this->deviceInitialized = true;
 }
 
 void ConcreteAPI::setDevice(int id) {
+  {
+    std::lock_guard guard(this->apiMutex);
 
-  if (id < 0 || id >= this->getNumDevices()) {
-    throw std::out_of_range{"Device index out of range"};
+    if (id < 0 || id >= this->getNumDevices()) {
+      throw std::out_of_range{"Device index out of range"};
+    }
+
+    if (deviceMap.empty()) {
+      // only print the first time
+      printer.printInfo() << "Switched to device: " << this->getDeviceName(id) << " by index " << id;
+    }
+
+    deviceMap[std::this_thread::get_id()] = id;
   }
-
-  this->currentDeviceId = id;
-  auto *next = this->availableDevices[id];
-  this->currentStatistics = &next->statistics;
-  this->currentQueueBuffer = &next->queueBuffer;
-  this->currentDefaultQueue = &this->currentQueueBuffer->getDefaultQueue();
-  this->currentMemoryToSizeMap = &next->memoryToSizeMap;
-
-  printer.printInfo() << "Switched to device: " << this->getDeviceName(id) << " by index " << id;
 }
 
 void ConcreteAPI::initialize() {}
@@ -77,10 +79,7 @@ void ConcreteAPI::finalize() {
 
   this->graphs.clear();
 
-  this->currentStatistics = nullptr;
-  this->currentQueueBuffer = nullptr;
-  this->currentDefaultQueue = nullptr;
-  this->currentMemoryToSizeMap = nullptr;
+  this->deviceMap.clear();
 
   this->m_isFinalized = true;
   this->deviceInitialized = false;
@@ -92,15 +91,20 @@ int ConcreteAPI::getDeviceId() {
   if (!deviceInitialized) {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
-  return currentDeviceId;
+  const auto myId = std::this_thread::get_id();
+  auto findResult = deviceMap.find(myId);
+  if (findResult == deviceMap.end()) {
+    logError() << "Thread device context not initialized. Error.";
+  }
+  return findResult->second;;
 }
 
 unsigned int ConcreteAPI::getGlobMemAlignment() {
-  auto device = this->currentDefaultQueue->get_device();
+  auto device = this->currentDefaultQueue().get_device();
   return 128; //ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
 }
 
-void ConcreteAPI::syncDevice() { this->currentQueueBuffer->syncAllQueuesWithHost(); }
+void ConcreteAPI::syncDevice() { this->currentQueueBuffer().syncAllQueuesWithHost(); }
 
 std::string ConcreteAPI::getDeviceInfoAsText(int id) {
   if (id < 0 || id >= this->getNumDevices())
@@ -109,7 +113,7 @@ std::string ConcreteAPI::getDeviceInfoAsText(int id) {
   auto device = this->availableDevices[id]->queueBuffer.getDefaultQueue().get_device();
   return this->getDeviceInfoAsTextInternal(device);
 }
-std::string ConcreteAPI::getCurrentDeviceInfoAsText() { return this->getDeviceInfoAsText(this->currentDeviceId); }
+std::string ConcreteAPI::getCurrentDeviceInfoAsText() { return this->getDeviceInfoAsText(getDeviceId()); }
 
 std::string ConcreteAPI::getDeviceInfoAsTextInternal(sycl::device& dev) {
   std::ostringstream info{};
@@ -126,7 +130,7 @@ std::string ConcreteAPI::getDeviceInfoAsTextInternal(sycl::device& dev) {
 
 bool ConcreteAPI::isUnifiedMemoryDefault() {
   // suboptimal (i.e. we'd need to query if USM needs to be migrated or not), but there's probably nothing better for now
-  auto device = this->availableDevices[this->currentDeviceId]->queueBuffer.getDefaultQueue().get_device();
+  auto device = this->availableDevices[getDeviceId()]->queueBuffer.getDefaultQueue().get_device();
   return device.has(sycl::aspect::usm_system_allocations);
 }
 

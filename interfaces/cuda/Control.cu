@@ -7,8 +7,10 @@
 #include <cuda.h>
 #include <iostream>
 #include <iomanip>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 
 #ifdef PROFILING_ENABLED
 #include <nvToolsExt.h>
@@ -26,8 +28,11 @@ ConcreteAPI::ConcreteAPI() {
 }
 
 void ConcreteAPI::setDevice(int deviceId) {
-  currentDeviceId = deviceId;
-  cudaSetDevice(currentDeviceId);
+  {
+    std::lock_guard guard(this->apiMutex);
+    deviceMap[std::this_thread::get_id()] = deviceId;
+  }
+  cudaSetDevice(deviceId);
   CHECK_ERR;
 
   // Note: the following sets the initial CUDA context
@@ -35,7 +40,7 @@ void ConcreteAPI::setDevice(int deviceId) {
   CHECK_ERR;
 
   int result;
-  cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, currentDeviceId);
+  cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, getDeviceId());
   usmDefault = result != 0;
 
   status[StatusID::DeviceSelected] = true;
@@ -55,7 +60,7 @@ void ConcreteAPI::initialize() {
     cudaEventCreate(&defaultStreamEvent); CHECK_ERR;
 
     int result{0};
-    cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, currentDeviceId);
+    cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, getDeviceId());
     CHECK_ERR;
     allowedConcurrentManagedAccess = result != 0;
 
@@ -63,7 +68,7 @@ void ConcreteAPI::initialize() {
     CHECK_ERR;
 
     int canCompressProto = 0;
-    cuDeviceGetAttribute(&canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, currentDeviceId);
+    cuDeviceGetAttribute(&canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, getDeviceId());
     canCompress = canCompressProto != 0;
   }
   else {
@@ -97,7 +102,12 @@ int ConcreteAPI::getDeviceId() {
   if (!status[StatusID::DeviceSelected]) {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
-  return currentDeviceId;
+  const auto myId = std::this_thread::get_id();
+  auto findResult = deviceMap.find(myId);
+  if (findResult == deviceMap.end()) {
+    logError() << "Thread device context not initialized. Error.";
+  }
+  return findResult->second;;
 }
 
 unsigned ConcreteAPI::getGlobMemAlignment() {
