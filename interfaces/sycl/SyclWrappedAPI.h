@@ -137,7 +137,7 @@ public:
   void setupPrinting(int rank) override;
 
 private:
-  std::unordered_map<std::thread::id, int> deviceMap;
+  static thread_local int currentDevice;
   std::vector<DeviceContext*> availableDevices;
 
   DeviceContext* currentContext() {

@@ -106,7 +106,7 @@ private:
   void createCircularStreamAndEvents();
 
   device::StatusT status{false};
-  std::unordered_map<std::thread::id, int> deviceMap;
+  static thread_local int currentDevice;
   bool allowedConcurrentManagedAccess{false};
   
   bool usmDefault{false};

@@ -104,7 +104,7 @@ public:
 
 private:
   device::StatusT status{false};
-  std::unordered_map<std::thread::id, int> deviceMap;
+  static thread_local int currentDevice;
 
   bool usmDefault{false};
 

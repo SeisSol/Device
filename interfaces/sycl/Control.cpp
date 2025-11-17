@@ -13,6 +13,8 @@
 
 using namespace device;
 
+thread_local int ConcreteAPI::currentDevice = 0;
+
 void ConcreteAPI::initDevices() {
 
   if (this->deviceInitialized) {
@@ -48,20 +50,11 @@ void ConcreteAPI::initDevices() {
 }
 
 void ConcreteAPI::setDevice(int id) {
-  {
-    std::lock_guard guard(this->apiMutex);
-
-    if (id < 0 || id >= this->getNumDevices()) {
-      throw std::out_of_range{"Device index out of range"};
-    }
-
-    if (deviceMap.empty()) {
-      // only print the first time
-      printer.printInfo() << "Switched to device: " << this->getDeviceName(id) << " by index " << id;
-    }
-
-    deviceMap[std::this_thread::get_id()] = id;
+  if (id < 0 || id >= this->getNumDevices()) {
+    throw std::out_of_range{"Device index out of range"};
   }
+
+  currentDevice = id;
 }
 
 void ConcreteAPI::initialize() {}
@@ -79,8 +72,6 @@ void ConcreteAPI::finalize() {
 
   this->graphs.clear();
 
-  this->deviceMap.clear();
-
   this->m_isFinalized = true;
   this->deviceInitialized = false;
 }
@@ -91,12 +82,7 @@ int ConcreteAPI::getDeviceId() {
   if (!deviceInitialized) {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
-  const auto myId = std::this_thread::get_id();
-  auto findResult = deviceMap.find(myId);
-  if (findResult == deviceMap.end()) {
-    logError() << "Thread device context not initialized. Error.";
-  }
-  return findResult->second;;
+  return currentDevice;
 }
 
 unsigned int ConcreteAPI::getGlobMemAlignment() {
