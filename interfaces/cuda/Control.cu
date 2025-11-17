@@ -40,10 +40,6 @@ void ConcreteAPI::setDevice(int deviceId) {
   cudaFree(nullptr);
   CHECK_ERR;
 
-  int result;
-  cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, getDeviceId());
-  usmDefault = result != 0;
-
   status[StatusID::DeviceSelected] = true;
 }
 
@@ -63,6 +59,9 @@ void ConcreteAPI::initialize() {
     cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, getDeviceId());
     CHECK_ERR;
     allowedConcurrentManagedAccess = result != 0;
+
+    cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, getDeviceId());
+    usmDefault = result != 0;
 
     cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
     CHECK_ERR;
