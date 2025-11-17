@@ -58,7 +58,6 @@ void ConcreteAPI::initialize() {
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
     cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking); CHECK_ERR;
-    cudaEventCreate(&defaultStreamEvent); CHECK_ERR;
 
     int result{0};
     cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, getDeviceId());
@@ -80,7 +79,6 @@ void ConcreteAPI::initialize() {
 void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
     cudaStreamDestroy(defaultStream); CHECK_ERR;
-    cudaEventDestroy(defaultStreamEvent); CHECK_ERR;
     if (!genericStreams.empty()) {
       printer.printInfo() << "DEVICE::WARNING:" << genericStreams.size()
                                << "device generic stream(s) were not deleted.";

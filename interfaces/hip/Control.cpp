@@ -74,7 +74,6 @@ void ConcreteAPI::initialize() {
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
     hipStreamCreateWithFlags(&defaultStream, hipStreamNonBlocking); CHECK_ERR;
-    hipEventCreate(&defaultStreamEvent); CHECK_ERR;
   }
   else {
     logWarning() << "Device Interface has already been initialized";
@@ -84,7 +83,6 @@ void ConcreteAPI::initialize() {
 void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
     hipStreamDestroy(defaultStream); CHECK_ERR;
-    hipEventDestroy(defaultStreamEvent); CHECK_ERR;
     if (!genericStreams.empty()) {
       printer.printInfo() << "DEVICE::WARNING:" << genericStreams.size()
                                << "device generic stream(s) were not deleted.";

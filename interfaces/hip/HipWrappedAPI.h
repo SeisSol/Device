@@ -109,7 +109,6 @@ private:
   bool usmDefault{false};
 
   hipStream_t defaultStream{nullptr};
-  hipEvent_t defaultStreamEvent{};
 
   std::unordered_set<hipStream_t> genericStreams{};
 

@@ -106,14 +106,18 @@ private:
   void createCircularStreamAndEvents();
 
   device::StatusT status{false};
+
+  // `static` is a bit out of place here; but we treat the whole class as an effective singleton anyways
   static thread_local int currentDevice;
+
+  std::vector<cudaDeviceProp> properties;
+
   bool allowedConcurrentManagedAccess{false};
   
   bool usmDefault{false};
   bool canCompress{false};
 
   cudaStream_t defaultStream{nullptr};
-  cudaEvent_t defaultStreamEvent{};
 
   std::unordered_set<cudaStream_t> genericStreams{};
 
