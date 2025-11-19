@@ -177,7 +177,6 @@ private:
   std::string getDeviceInfoAsTextInternal(sycl::device& dev);
 
   bool deviceInitialized{false};
-  InfoPrinter printer;
 };
 } // namespace device
 

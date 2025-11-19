@@ -130,7 +130,6 @@ private:
   std::unordered_map<void *, size_t> memToSizeMap{{nullptr, 0}};
 
   int priorityMin, priorityMax;
-  InfoPrinter printer;
 
   std::unordered_map<void *, void *> allocationProperties;
 };

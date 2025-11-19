@@ -63,7 +63,7 @@ void ConcreteAPI::initialize() {}
 
 void ConcreteAPI::finalize() {
   if (m_isFinalized) {
-    printer.printInfo() << "SYCL API is already finalized.";
+    logInfo() << "SYCL API is already finalized.";
     return;
   }
   for (auto *device : this->availableDevices) {
@@ -154,6 +154,6 @@ void ConcreteAPI::popLastProfilingMark() {
 }
 
 void ConcreteAPI::setupPrinting(int rank) {
-  printer.setRank(rank);
+
 }
 

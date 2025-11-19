@@ -87,7 +87,7 @@ void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
     cudaStreamDestroy(defaultStream); CHECK_ERR;
     if (!genericStreams.empty()) {
-      printer.printInfo() << "DEVICE::WARNING:" << genericStreams.size()
+      logInfo() << "DEVICE::WARNING:" << genericStreams.size()
                                << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
         cudaStreamDestroy(stream); CHECK_ERR;
@@ -197,6 +197,6 @@ void ConcreteAPI::popLastProfilingMark() {
 }
 
 void ConcreteAPI::setupPrinting(int rank) {
-  printer.setRank(rank);
+
 }
 
