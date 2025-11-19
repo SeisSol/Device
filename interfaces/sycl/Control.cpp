@@ -12,7 +12,11 @@
 #include <thread>
 
 namespace {
+#ifdef DEVICE_CONTEXT_GLOBAL
+int currentDeviceId = 0;
+#else
 thread_local int currentDeviceId = 0;
+#endif
 }
 
 using namespace device;

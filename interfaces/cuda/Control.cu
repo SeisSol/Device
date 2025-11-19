@@ -22,7 +22,11 @@
 namespace {
 // `static` is a bit out of place here; but we treat the whole class as an effective singleton anyways
 
+#ifdef DEVICE_CONTEXT_GLOBAL
+int currentDeviceId = 0;
+#else
 thread_local int currentDeviceId = 0;
+#endif
 }
 
 using namespace device;
