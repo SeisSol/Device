@@ -104,7 +104,6 @@ public:
 
 private:
   device::StatusT status{false};
-  static thread_local int currentDevice;
 
   bool usmDefault{false};
 

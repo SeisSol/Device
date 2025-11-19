@@ -11,9 +11,11 @@
 #include <string>
 #include <thread>
 
-using namespace device;
+namespace {
+thread_local int currentDeviceId;
+}
 
-thread_local int ConcreteAPI::currentDevice = 0;
+using namespace device;
 
 void ConcreteAPI::initDevices() {
 
@@ -50,11 +52,7 @@ void ConcreteAPI::initDevices() {
 }
 
 void ConcreteAPI::setDevice(int id) {
-  if (id < 0 || id >= this->getNumDevices()) {
-    throw std::out_of_range{"Device index out of range"};
-  }
-
-  currentDevice = id;
+  currentDeviceId = id;
 }
 
 void ConcreteAPI::initialize() {}
@@ -82,7 +80,7 @@ int ConcreteAPI::getDeviceId() {
   if (!deviceInitialized) {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
-  return currentDevice;
+  return currentDeviceId;
 }
 
 unsigned int ConcreteAPI::getGlobMemAlignment() {

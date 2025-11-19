@@ -137,7 +137,6 @@ public:
   void setupPrinting(int rank) override;
 
 private:
-  static thread_local int currentDevice;
   std::vector<DeviceContext*> availableDevices;
 
   DeviceContext* currentContext() {

@@ -19,6 +19,12 @@
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
 
+namespace {
+// `static` is a bit out of place here; but we treat the whole class as an effective singleton anyways
+
+thread_local int currentDeviceId;
+}
+
 using namespace device;
 
 ConcreteAPI::ConcreteAPI() {
@@ -27,11 +33,9 @@ ConcreteAPI::ConcreteAPI() {
   status[StatusID::DriverApiInitialized] = true;
 }
 
-thread_local int ConcreteAPI::currentDevice = 0;
-
 void ConcreteAPI::setDevice(int deviceId) {
   
-  currentDevice = deviceId;
+  currentDeviceId = deviceId;
 
   cudaSetDevice(deviceId);
   CHECK_ERR;
@@ -100,7 +104,7 @@ int ConcreteAPI::getDeviceId() {
   if (!status[StatusID::DeviceSelected]) {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
-  return currentDevice;
+  return currentDeviceId;
 }
 
 unsigned ConcreteAPI::getGlobMemAlignment() {

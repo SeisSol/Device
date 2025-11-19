@@ -107,9 +107,6 @@ private:
 
   device::StatusT status{false};
 
-  // `static` is a bit out of place here; but we treat the whole class as an effective singleton anyways
-  static thread_local int currentDevice;
-
   std::vector<cudaDeviceProp> properties;
 
   bool allowedConcurrentManagedAccess{false};

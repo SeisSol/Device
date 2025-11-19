@@ -21,17 +21,19 @@
 
 using namespace device;
 
+namespace {
+thread_local int currentDeviceId;
+}
+
 ConcreteAPI::ConcreteAPI() {
   hipInit(0);
   CHECK_ERR;
   status[StatusID::DriverApiInitialized] = true;
 }
 
-thread_local int ConcreteAPI::currentDevice = 0;
-
 void ConcreteAPI::setDevice(int deviceId) {
   
-  currentDevice = deviceId;
+  currentDeviceId = deviceId;
 
   hipSetDevice(deviceId);
   CHECK_ERR;
@@ -106,7 +108,7 @@ int ConcreteAPI::getDeviceId() {
   if (!status[StatusID::DeviceSelected]) {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
-  return currentDevice;
+  return currentDeviceId;
 }
 
 unsigned ConcreteAPI::getGlobMemAlignment() {
