@@ -14,6 +14,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <thread>
 #include <unordered_set>
 #include <cassert>
 
@@ -103,12 +104,10 @@ public:
 
 private:
   device::StatusT status{false};
-  int currentDeviceId{-1};
 
   bool usmDefault{false};
 
   hipStream_t defaultStream{nullptr};
-  hipEvent_t defaultStreamEvent{};
 
   std::unordered_set<hipStream_t> genericStreams{};
 
@@ -124,7 +123,6 @@ private:
   std::unordered_map<void *, size_t> memToSizeMap{{nullptr, 0}};
 
   int priorityMin, priorityMax;
-  InfoPrinter printer;
 };
 } // namespace device
 

@@ -50,49 +50,5 @@ constexpr auto mapPercentage(int minval, int maxval, double value) {
   return std::max(std::min(static_cast<int>(std::floor(transformed)), maxval), minval);
 }
 
-class InfoPrinter {
-public:
-  struct InfoPrinterLine {
-    std::shared_ptr<std::ostringstream> stream;
-    InfoPrinter& printer;
-
-    InfoPrinterLine(InfoPrinter& printer) : stream(std::make_shared<std::ostringstream>()), printer(printer) {}
-
-    template<typename T>
-    InfoPrinterLine& operator <<(const T& data) {
-      *stream << data;
-      return *this;
-    }
-
-    ~InfoPrinterLine() {
-      if (printer.rank < 0) {
-        printer.stringCache.emplace_back(stream->str());
-      }
-      else {
-        logInfo() << stream->str().c_str();
-      }
-      stream = nullptr;
-    }
-  };
-
-  InfoPrinterLine printInfo() {
-    return InfoPrinterLine(*this);
-  }
-
-  void setRank(int rank) {
-    this->rank = rank;
-
-    for (const auto& string : stringCache) {
-      logInfo() << string;
-    }
-
-    stringCache.resize(0);
-  }
-
-private:
-  int rank{-1};
-  std::vector<std::string> stringCache;
-};
-
 
 #endif // SEISSOLDEVICE_INTERFACES_COMMON_COMMON_H_

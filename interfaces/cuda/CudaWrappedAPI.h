@@ -9,6 +9,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <thread>
 #include <unordered_set>
 #include <cassert>
 #include <cstdint>
@@ -105,14 +106,15 @@ private:
   void createCircularStreamAndEvents();
 
   device::StatusT status{false};
-  int currentDeviceId{-1};
+
+  std::vector<cudaDeviceProp> properties;
+
   bool allowedConcurrentManagedAccess{false};
   
   bool usmDefault{false};
   bool canCompress{false};
 
   cudaStream_t defaultStream{nullptr};
-  cudaEvent_t defaultStreamEvent{};
 
   std::unordered_set<cudaStream_t> genericStreams{};
 
@@ -128,7 +130,6 @@ private:
   std::unordered_map<void *, size_t> memToSizeMap{{nullptr, 0}};
 
   int priorityMin, priorityMax;
-  InfoPrinter printer;
 
   std::unordered_map<void *, void *> allocationProperties;
 };

@@ -7,8 +7,10 @@
 #include <cuda.h>
 #include <iostream>
 #include <iomanip>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 
 #ifdef PROFILING_ENABLED
 #include <nvToolsExt.h>
@@ -16,6 +18,16 @@
 
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
+
+namespace {
+// `static` is a bit out of place here; but we treat the whole class as an effective singleton anyways
+
+#ifdef DEVICE_CONTEXT_GLOBAL
+int currentDeviceId = 0;
+#else
+thread_local int currentDeviceId = 0;
+#endif
+}
 
 using namespace device;
 
@@ -26,17 +38,15 @@ ConcreteAPI::ConcreteAPI() {
 }
 
 void ConcreteAPI::setDevice(int deviceId) {
+  
   currentDeviceId = deviceId;
-  cudaSetDevice(currentDeviceId);
+
+  cudaSetDevice(deviceId);
   CHECK_ERR;
 
   // Note: the following sets the initial CUDA context
   cudaFree(nullptr);
   CHECK_ERR;
-
-  int result;
-  cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, currentDeviceId);
-  usmDefault = result != 0;
 
   status[StatusID::DeviceSelected] = true;
 }
@@ -52,18 +62,20 @@ void ConcreteAPI::initialize() {
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
     cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking); CHECK_ERR;
-    cudaEventCreate(&defaultStreamEvent); CHECK_ERR;
 
     int result{0};
-    cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, currentDeviceId);
+    cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, getDeviceId());
     CHECK_ERR;
     allowedConcurrentManagedAccess = result != 0;
+
+    cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, getDeviceId());
+    usmDefault = result != 0;
 
     cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
     CHECK_ERR;
 
     int canCompressProto = 0;
-    cuDeviceGetAttribute(&canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, currentDeviceId);
+    cuDeviceGetAttribute(&canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, getDeviceId());
     canCompress = canCompressProto != 0;
   }
   else {
@@ -74,9 +86,8 @@ void ConcreteAPI::initialize() {
 void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
     cudaStreamDestroy(defaultStream); CHECK_ERR;
-    cudaEventDestroy(defaultStreamEvent); CHECK_ERR;
     if (!genericStreams.empty()) {
-      printer.printInfo() << "DEVICE::WARNING:" << genericStreams.size()
+      logInfo() << "DEVICE::WARNING:" << genericStreams.size()
                                << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
         cudaStreamDestroy(stream); CHECK_ERR;
@@ -186,6 +197,6 @@ void ConcreteAPI::popLastProfilingMark() {
 }
 
 void ConcreteAPI::setupPrinting(int rank) {
-  printer.setRank(rank);
+
 }
 

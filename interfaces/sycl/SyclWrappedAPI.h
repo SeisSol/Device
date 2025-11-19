@@ -13,6 +13,7 @@
 #include <sycl/sycl.hpp>
 #include <stack>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 #include <optional>
@@ -55,10 +56,7 @@ namespace device {
 class ConcreteAPI : public AbstractAPI {
 
 public:
-  ConcreteAPI()
-      : availableDevices{std::vector<DeviceContext *>{}}, currentDefaultQueue{nullptr},
-        currentQueueBuffer{nullptr}, currentStatistics{nullptr}, currentMemoryToSizeMap{nullptr}, deviceInitialized{false},
-        currentDeviceId{0}{
+  ConcreteAPI() {
     this->initDevices();
   }
 
@@ -141,12 +139,21 @@ public:
 private:
   std::vector<DeviceContext*> availableDevices;
 
-  sycl::queue *currentDefaultQueue;
-  bool isCircularStreamsForked{false};
-
-  DeviceCircularQueueBuffer *currentQueueBuffer;
-  Statistics *currentStatistics;
-  std::unordered_map<void *, size_t> *currentMemoryToSizeMap;
+  DeviceContext* currentContext() {
+    return this->availableDevices[getDeviceId()];
+  }
+  sycl::queue& currentDefaultQueue() {
+    return this->currentQueueBuffer().getDefaultQueue();
+  }
+  DeviceCircularQueueBuffer& currentQueueBuffer() {
+    return this->currentContext()->queueBuffer;
+  }
+  Statistics& currentStatistics() {
+    return this->currentContext()->statistics;
+  }
+  std::unordered_map<void *, size_t>& currentMemoryToSizeMap() {
+    return this->currentContext()->memoryToSizeMap;
+  }
 
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   struct GraphDetails {
@@ -169,9 +176,7 @@ private:
   std::string getCurrentDeviceInfoAsText();
   std::string getDeviceInfoAsTextInternal(sycl::device& dev);
 
-  bool deviceInitialized;
-  int currentDeviceId;
-  InfoPrinter printer;
+  bool deviceInitialized{false};
 };
 } // namespace device
 

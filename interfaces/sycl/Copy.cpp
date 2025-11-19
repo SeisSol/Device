@@ -4,23 +4,26 @@
 
 #include "SyclWrappedAPI.h"
 
+#include "Internals.h"
+
 #include <algorithm>
 #include <math.h>
 
 using namespace device;
+using namespace device::internals;
 
 void ConcreteAPI::copyTo(void *dst, const void *src, size_t size) {
-  this->currentStatistics->explicitlyTransferredDataToDeviceBytes += size;
-  this->currentDefaultQueue->submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  this->currentStatistics().explicitlyTransferredDataToDeviceBytes += size;
+  waitCheck(this->currentDefaultQueue().submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }));
 }
 
 void ConcreteAPI::copyFrom(void *dst, const void *src, size_t size) {
-  this->currentStatistics->explicitlyTransferredDataToHostBytes += size;
-  this->currentDefaultQueue->submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  this->currentStatistics().explicitlyTransferredDataToHostBytes += size;
+  waitCheck(this->currentDefaultQueue().submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }));
 }
 
 void ConcreteAPI::copyBetween(void *dst, const void *src, size_t size) {
-  this->currentDefaultQueue->submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }).wait_and_throw();
+  waitCheck(this->currentDefaultQueue().submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, size); }));
 }
 
 void ConcreteAPI::copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width, size_t height) {
@@ -45,9 +48,9 @@ void ConcreteAPI::copy2dArrayFrom(void *dst, size_t dpitch, const void *src, siz
 }
 
 void ConcreteAPI::copyToAsync(void *dst, const void *src, size_t count, void *streamPtr) {
-  auto *targetQueue = (streamPtr != nullptr) ? static_cast<sycl::queue *>(streamPtr) : this->currentDefaultQueue;
-  if (!this->currentQueueBuffer->exists(targetQueue))
-    throw std::invalid_argument(getDeviceInfoAsText(currentDeviceId)
+  auto *targetQueue = (streamPtr != nullptr) ? static_cast<sycl::queue *>(streamPtr) : &this->currentDefaultQueue();
+  if (!this->currentQueueBuffer().exists(targetQueue))
+    throw std::invalid_argument(getDeviceInfoAsText(getDeviceId())
                                     .append("tried to prefetch usm on a queue that is not known to this device"));
 
   targetQueue->submit([&](sycl::handler &cgh) { cgh.memcpy(dst, src, count); });
@@ -62,9 +65,9 @@ void ConcreteAPI::copyBetweenAsync(void *dst, const void *src, size_t count, voi
 }
 
 void ConcreteAPI::prefetchUnifiedMemTo(Destination type, const void *devPtr, size_t count, void *streamPtr) {
-  auto *asQueue = (streamPtr != nullptr) ? static_cast<sycl::queue *>(streamPtr) : this->currentDefaultQueue;
-  if (!this->currentQueueBuffer->exists(asQueue))
-    throw std::invalid_argument(getDeviceInfoAsText(currentDeviceId)
+  auto *asQueue = (streamPtr != nullptr) ? static_cast<sycl::queue *>(streamPtr) : &this->currentDefaultQueue();
+  if (!this->currentQueueBuffer().exists(asQueue))
+    throw std::invalid_argument(getDeviceInfoAsText(getDeviceId())
                                     .append("tried to prefetch usm on a queue that is not known to this device"));
 
   asQueue->submit([&](sycl::handler &cgh) { cgh.prefetch(devPtr, count); });
