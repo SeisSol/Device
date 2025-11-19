@@ -12,7 +12,7 @@
 #include <thread>
 
 namespace {
-thread_local int currentDeviceId;
+thread_local int currentDeviceId = 0;
 }
 
 using namespace device;

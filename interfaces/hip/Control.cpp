@@ -22,7 +22,7 @@
 using namespace device;
 
 namespace {
-thread_local int currentDeviceId;
+thread_local int currentDeviceId = 0;
 }
 
 ConcreteAPI::ConcreteAPI() {
