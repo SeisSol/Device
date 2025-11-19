@@ -76,18 +76,34 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
 }
 
 namespace {
-static void streamCallback(void* data) {
+void streamCallbackEpheremal(void* data) {
   auto* function = reinterpret_cast<std::function<void()>*>(data);
   (*function)();
   delete function;
+}
+
+void streamCallbackPermanent(void* data) {
+  auto* function = reinterpret_cast<std::function<void()>*>(data);
+  (*function)();
 }
 } // namespace
 
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
-  auto* functionData = new std::function<void()>(function);
-  hipLaunchHostFunc(stream, streamCallback, functionData);
-  CHECK_ERR;
+
+  hipStreamCaptureStatus status{};
+  hipStreamIsCapturing(stream, &status);
+
+  if (status != hipStreamCaptureStatusInvalidated) {
+    auto* functionData = new std::function<void()>(function);
+    if (status == hipStreamCaptureStatusActive) {
+      hipLaunchHostFunc(stream, &streamCallbackPermanent, functionData);
+    }
+    else {
+      hipLaunchHostFunc(stream, &streamCallbackEpheremal, functionData);
+    }
+    CHECK_ERR;
+  }
 }
 
 namespace {

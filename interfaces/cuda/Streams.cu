@@ -76,18 +76,34 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
 }
 
 namespace {
-static void streamCallback(void* data) {
+void streamCallbackEpheremal(void* data) {
   auto* function = reinterpret_cast<std::function<void()>*>(data);
   (*function)();
   delete function;
+}
+
+void streamCallbackPermanent(void* data) {
+  auto* function = reinterpret_cast<std::function<void()>*>(data);
+  (*function)();
 }
 } // namespace
 
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
-  auto* functionData = new std::function<void()>(function);
-  cudaLaunchHostFunc(stream, &streamCallback, functionData);
-  CHECK_ERR;
+
+  cudaStreamCaptureStatus status{};
+  cudaStreamIsCapturing(stream, &status);
+
+  if (status != cudaStreamCaptureStatusInvalidated) {
+    auto* functionData = new std::function<void()>(function);
+    if (status == cudaStreamCaptureStatusActive) {
+      cudaLaunchHostFunc(stream, &streamCallbackPermanent, functionData);
+    }
+    else {
+      cudaLaunchHostFunc(stream, &streamCallbackEpheremal, functionData);
+    }
+    CHECK_ERR;
+  }
 }
 
 namespace {
