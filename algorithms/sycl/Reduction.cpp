@@ -33,7 +33,7 @@ namespace {
   void atomicUpdate(AtomicRef& atomic, AccT value){
 
     constexpr auto MO = sycl::memory_order::relaxed;
-    AccT expected = value;
+    AccT expected = neutral<Type, AccT>();
 
     if constexpr(Type == ReductionType::Add) {
       // Explicity pass MO to fetch_add
