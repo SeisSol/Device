@@ -85,7 +85,7 @@ namespace {
           auto reducedValue = sycl::reduce_over_group(idx.get_group(), threadAcc, operation);
 
           if(localId == 0){
-            auto atomic = sycl::atomic_ref<AccT, sycl::memory_order::relaxed,
+            sycl::atomic_ref<AccT, sycl::memory_order::relaxed,
                                       sycl::memory_scope::device,
                                       sycl::access::address_space::global_space> atomicRes(*result);
             atomicUpdate<Type>(atomicRes, reducedValue);
