@@ -62,8 +62,6 @@ namespace {
       size_t numWorkGroups = (size + (workGroupSize * itemsPerWorkItem) - 1)
       / (workGroupSize * itemsPerWorkItem);
 
-      auto lastAcc = DefaultValue;
-
       cgh.parallel_for(sycl::nd_range<1> { numWorkGroups*itemsPerWorkItem, workGroupSize },
         [=](sycl::nd_item<1> idx) {
 
@@ -77,20 +75,20 @@ namespace {
           #pragma unroll
           for (std::size_t i = 0; i < itemsPerWorkItem*workGroupSize; i += workGroupSize) {
             const auto id = baseIdx + i;
-            if(idx < size){
+            if(id < size){
               threadAcc = operation(threadAcc, static_cast<AccT>(ntload(&buffer[id])));
             }
           }
 
           idx.barrier(sycl::access::fence_space::local_space);
 
-          auto reducedValue = reduced_over_group(idx.get_group(), threadAcc, operation);
+          auto reducedValue = sycl::educed_over_group(idx.get_group(), threadAcc, operation);
 
           if(localId == 0){
-            auto atomic = atomic_ref<AccT, memory_order::relaxed,
-                                      memory_scope::device,
-                                      access::address_space::global_space>atomicRes(*result);
-            atomic_update<Type>(atomicRes, reducedValue);
+            auto atomic = atomic_ref<AccT, sycl::memory_order::relaxed,
+                                      sycl::memory_scope::device,
+                                      sycl::access::address_space::global_space> atomicRes(*result);
+            atomicUpdate<Type>(atomicRes, reducedValue);
           }
         });
     });
