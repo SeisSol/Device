@@ -33,6 +33,7 @@ namespace {
   void atomicUpdate(AtomicRef& atomic, AccT value){
 
     constexpr auto MO = sycl::memory_order::relaxed;
+    AccT expected = value;
 
     if constexpr(Type == ReductionType::Add) {
       // Explicity pass MO to fetch_add
@@ -42,8 +43,11 @@ namespace {
       // sm 60 does not have a fetch max instruction. 
       // Using our own CAS loop
       // Explicity pass MO to load
-      AccT expected = atomic.load(MO);
-      while(value > expected){
+      // AccT expected = atomic.load(MO);
+      
+      while(true){
+        if(expected>=value) break;
+
         if(atomic.compare_exchange_weak(expected, value, MO, MO)){
           break;
         }
@@ -53,8 +57,11 @@ namespace {
     if constexpr(Type == ReductionType::Min) {
       //sm 60 does not have a fetch min instruction
       // Using our own CAS loop
-      AccT expected = atomic.load(MO);
-      while(value < expected){
+      // AccT expected = atomic.load(MO);
+
+      while(true){
+        if(expected<=value) break;
+
         if(atomic.compare_exchange_weak(expected, value, MO, MO)){
           break;
         }
