@@ -35,10 +35,26 @@ namespace {
       atomic.fetch_add(value);
     }
     if constexpr(Type == ReductionType::Max) {
-      atomic.fetch_max(value);
+      // sm 60 does not have a fetch max instruction. 
+      // Using our own CAS loop
+      AccT expected = atomic.load();
+      while(value > expected){
+        if(atomic.compare_exchange_weak(expected, value)){
+          break;
+        }
+      }
+      // atomic.fetch_max(value);
     }
     if constexpr(Type == ReductionType::Min) {
-      atomic.fetch_min(value);
+      //sm 60 does not have a fetch min instruction
+      // Using our own CAS loop
+      AccT expected = atomic.load();
+      while(value < expected){
+        if(atomic.compare_exchange_weak(expected, value)){
+          break;
+        }
+      }
+      // atomic.fetch_min(value);
     }
   }
 
