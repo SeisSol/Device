@@ -82,10 +82,10 @@ namespace {
 
           idx.barrier(sycl::access::fence_space::local_space);
 
-          auto reducedValue = sycl::educed_over_group(idx.get_group(), threadAcc, operation);
+          auto reducedValue = sycl::reduce_over_group(idx.get_group(), threadAcc, operation);
 
           if(localId == 0){
-            auto atomic = atomic_ref<AccT, sycl::memory_order::relaxed,
+            auto atomic = sycl::atomic_ref<AccT, sycl::memory_order::relaxed,
                                       sycl::memory_scope::device,
                                       sycl::access::address_space::global_space> atomicRes(*result);
             atomicUpdate<Type>(atomicRes, reducedValue);
