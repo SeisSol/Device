@@ -31,15 +31,20 @@ namespace {
 
   template<ReductionType Type, typename AtomicRef, typename AccT>
   void atomicUpdate(AtomicRef& atomic, AccT value){
+
+    constexpr auto MO = sycl::memory_order::relaxed;
+
     if constexpr(Type == ReductionType::Add) {
-      atomic.fetch_add(value);
+      // Explicity pass MO to fetch_add
+      atomic.fetch_add(value, MO);
     }
     if constexpr(Type == ReductionType::Max) {
       // sm 60 does not have a fetch max instruction. 
       // Using our own CAS loop
-      AccT expected = atomic.load();
+      // Explicity pass MO to load
+      AccT expected = atomic.load(MO);
       while(value > expected){
-        if(atomic.compare_exchange_weak(expected, value)){
+        if(atomic.compare_exchange_weak(expected, value, MO, MO)){
           break;
         }
       }
@@ -48,9 +53,9 @@ namespace {
     if constexpr(Type == ReductionType::Min) {
       //sm 60 does not have a fetch min instruction
       // Using our own CAS loop
-      AccT expected = atomic.load();
+      AccT expected = atomic.load(MO);
       while(value < expected){
-        if(atomic.compare_exchange_weak(expected, value)){
+        if(atomic.compare_exchange_weak(expected, value, MO, MO)){
           break;
         }
       }
