@@ -44,24 +44,21 @@ namespace {
       // Using our own CAS loop
       // Explicity pass MO to load
       // AccT expected = atomic.load(MO);
-      
-      while(true){
-        if(expected>=value) break;
 
+      while(expected < value){
         if(atomic.compare_exchange_weak(expected, value, MO, MO)){
           break;
         }
       }
       // atomic.fetch_max(value);
     }
+
     if constexpr(Type == ReductionType::Min) {
       //sm 60 does not have a fetch min instruction
       // Using our own CAS loop
       // AccT expected = atomic.load(MO);
 
-      while(true){
-        if(expected<=value) break;
-
+      while(expected > value){
         if(atomic.compare_exchange_weak(expected, value, MO, MO)){
           break;
         }
@@ -87,7 +84,7 @@ namespace {
 
     ((sycl::queue *) streamPtr)->submit([&](sycl::handler &cgh) {
 
-      size_t numWorkGroups = (size + (workGroupSize * itemsPerWorkItem) - 1)
+      const size_t numWorkGroups = (size + (workGroupSize * itemsPerWorkItem) - 1)
       / (workGroupSize * itemsPerWorkItem);
 
       cgh.parallel_for(sycl::nd_range<1> { numWorkGroups*itemsPerWorkItem, workGroupSize },
@@ -104,13 +101,13 @@ namespace {
           for (std::size_t i = 0; i < itemsPerWorkItem*workGroupSize; i += workGroupSize) {
             const auto id = baseIdx + i;
             if(id < size){
-              threadAcc = operation(threadAcc, static_cast<AccT>(ntload(&buffer[id])));
+              threadAcc = operation(threadAcc, static_cast<AccT>(&buffer[id]));
             }
           }
 
           idx.barrier(sycl::access::fence_space::local_space);
 
-          auto reducedValue = sycl::reduce_over_group(idx.get_group(), threadAcc, operation);
+          const auto reducedValue = sycl::reduce_over_group(idx.get_group(), threadAcc, operation);
 
           if(localId == 0){
             sycl::atomic_ref<AccT, sycl::memory_order::relaxed,
