@@ -101,7 +101,7 @@ namespace {
           for (std::size_t i = 0; i < itemsPerWorkItem*workGroupSize; i += workGroupSize) {
             const auto id = baseIdx + i;
             if(id < size){
-              threadAcc = operation(threadAcc, static_cast<AccT>(ntload(&buffer[id])));
+              threadAcc = operation(threadAcc, static_cast<AccT>((buffer[id])));
             }
           }
 
