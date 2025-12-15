@@ -29,61 +29,89 @@ namespace {
     return T(0);
   }
 
+  template<ReductionType Type, typename AtomicRef, typename AccT>
+  void atomicUpdate(AtomicRef& atomic, AccT value){
+
+    constexpr auto MO = sycl::memory_order::relaxed;
+    AccT expected = neutral<Type, AccT>();
+
+    if constexpr(Type == ReductionType::Add) {
+      // Explicity pass MO to fetch_add
+      atomic.fetch_add(value, MO);
+    }
+    if constexpr(Type == ReductionType::Max) {
+      // sm 60 does not have a fetch max instruction. 
+      // Using our own CAS loop
+      // Explicity pass MO to load
+      // AccT expected = atomic.load(MO);
+
+      while(expected < value){
+        if(atomic.compare_exchange_weak(expected, value, MO, MO)){
+          break;
+        }
+      }
+      // atomic.fetch_max(value);
+    }
+
+    if constexpr(Type == ReductionType::Min) {
+      //sm 60 does not have a fetch min instruction
+      // Using our own CAS loop
+      // AccT expected = atomic.load(MO);
+
+      while(expected > value){
+        if(atomic.compare_exchange_weak(expected, value, MO, MO)){
+          break;
+        }
+      }
+      // atomic.fetch_min(value);
+    }
+  }
+
   template <ReductionType Type, typename AccT, typename VecT, typename OpT> void launchReduction(AccT* result, const VecT *buffer, size_t size, OpT operation, bool overrideResult, void* streamPtr) {
 
     constexpr auto DefaultValue = neutral<Type, AccT>();
+    constexpr size_t workGroupSize = 256;
+    constexpr size_t itemsPerWorkItem = 8;
+
+    if(overrideResult){
+    ((sycl::queue *) streamPtr)->submit([&](sycl::handler &cgh) {
+        cgh.single_task([=](){
+          // Initialize the global result to identity value.
+          *result = DefaultValue;
+        });
+      });
+    }
 
     ((sycl::queue *) streamPtr)->submit([&](sycl::handler &cgh) {
-      sycl::local_accessor<AccT, 1> shmem(256, cgh);
-      cgh.parallel_for(sycl::nd_range<1> { 1024, 1024 },
+
+      const size_t numWorkGroups = (size + (workGroupSize * itemsPerWorkItem) - 1)
+      / (workGroupSize * itemsPerWorkItem);
+
+      cgh.parallel_for(sycl::nd_range<1> { numWorkGroups*itemsPerWorkItem, workGroupSize },
         [=](sycl::nd_item<1> idx) {
-          const auto subgroup = idx.get_sub_group();
-          const auto sgSize = subgroup.get_local_range().size();
 
-          const auto warpCount = subgroup.get_group_range().size();
-          const int currentWarp = subgroup.get_group_id();
-          const int threadInWarp = subgroup.get_local_id();
-          const auto warpsNeeded = (size + sgSize - 1) / sgSize;
+          const auto localId = idx.get_local_id(0);
+          const auto groupId = idx.get_group(0);
 
-          auto acc = DefaultValue;
+          //Thread-local reduction
+          AccT threadAcc = DefaultValue;
+          size_t baseIdx = groupId*(workGroupSize*itemsPerWorkItem) + localId;
           
-          #pragma unroll 4
-          for (std::size_t i = currentWarp; i < warpsNeeded; i += warpCount) {
-            const auto id = threadInWarp + i * sgSize;
-            auto value = (id < size) ? static_cast<AccT>(ntload(&buffer[id])) : DefaultValue;
-
-            value = sycl::reduce_over_group(subgroup, value, operation);
-
-            acc = operation(acc, value);
+          #pragma unroll
+          for (std::size_t i = 0; i < itemsPerWorkItem*workGroupSize; i += workGroupSize) {
+            const auto id = baseIdx + i;
+            if(id < size){
+              threadAcc = operation(threadAcc, static_cast<AccT>((buffer[id])));
+            }
           }
 
-          if (threadInWarp == 0) {
-            shmem[currentWarp] = acc;
-          }
+          const auto reducedValue = sycl::reduce_over_group(idx.get_group(), threadAcc, operation);
 
-          idx.barrier();
-
-          if (currentWarp == 0) {
-            const auto lastWarpsNeeded = (warpCount + sgSize - 1) / sgSize;
-            auto lastAcc = DefaultValue;
-            #pragma unroll 2
-            for (int i = 0; i < lastWarpsNeeded; ++i) {
-              const auto id = threadInWarp + i * sgSize;
-              auto value = (id < warpCount) ? shmem[id] : DefaultValue;
-
-              value = sycl::reduce_over_group(subgroup, value, operation);
-
-              lastAcc = operation(lastAcc, value);
-            }
-
-            if (threadInWarp == 0) {
-              if (overrideResult) {
-                ntstore(result, lastAcc);
-              }
-              else {
-                ntstore(result, operation(ntload(result), lastAcc));
-              }
-            }
+          if(localId == 0){
+            sycl::atomic_ref<AccT, sycl::memory_order::relaxed,
+                                      sycl::memory_scope::device,
+                                      sycl::access::address_space::global_space> atomicRes(*result);
+            atomicUpdate<Type>(atomicRes, reducedValue);
           }
         });
     });
