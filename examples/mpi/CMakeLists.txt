@@ -18,8 +18,7 @@ endif()
 
 
 add_executable(mpi src/main.cpp)
-add_subdirectory(root)
-target_include_directories(mpi PUBLIC root ${MPI_CXX_INCLUDE_DIRS})
+add_subdirectory(../.. root)
 target_link_libraries(mpi PUBLIC device ${MPI_CXX_LIBRARIES})
 
 

@@ -70,3 +70,4 @@ target_include_directories(device PRIVATE .
                                           algorithms/${BACKEND_FOLDER}
                                           submodules)
 
+target_include_directories(device INTERFACE .)
