@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020Sol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
