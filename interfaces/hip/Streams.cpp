@@ -19,8 +19,10 @@ void* ConcreteAPI::getDefaultStream() {
 
 void ConcreteAPI::syncDefaultStreamWithHost() {
   isFlagSet<InterfaceInitialized>(status);
-  APIWRAP(hipStreamSynchronize(defaultStream));
+
   CHECK_ERR;
+
+  APIWRAP(hipStreamSynchronize(defaultStream));
 }
 
 void* ConcreteAPI::createStream(double priority) {
@@ -28,7 +30,6 @@ void* ConcreteAPI::createStream(double priority) {
   hipStream_t stream;
   const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
   APIWRAP(hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, priority));
-  CHECK_ERR;
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }
@@ -41,21 +42,18 @@ void ConcreteAPI::destroyGenericStream(void* streamPtr) {
     genericStreams.erase(it);
   }
   APIWRAP(hipStreamDestroy(stream));
-  CHECK_ERR;
 }
 
 void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   APIWRAP(hipStreamSynchronize(stream));
-  CHECK_ERR;
 }
 
 bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   auto streamStatus = APIWRAPX(hipStreamQuery(stream), {hipErrorNotReady});
-  CHECK_ERR;
 
   return streamStatus == hipSuccess;
 }
@@ -65,7 +63,6 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   APIWRAP(hipStreamWaitEvent(stream, event, 0));
-  CHECK_ERR;
 }
 
 namespace {
@@ -94,7 +91,6 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
     } else {
       APIWRAP(hipLaunchHostFunc(stream, &streamCallbackEpheremal, functionData));
     }
-    CHECK_ERR;
   }
 }
 
@@ -120,5 +116,4 @@ void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t
   if (result == hipErrorNotSupported) {
     spinloop<<<1, 1, 0, stream>>>(deviceLocation, value);
   }
-  CHECK_ERR;
 }

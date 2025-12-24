@@ -35,7 +35,9 @@ using namespace device;
 
 ConcreteAPI::ConcreteAPI() {
   DRVWRAP(cuInit(0));
+
   CHECK_ERR;
+
   status[StatusID::DriverApiInitialized] = true;
 }
 
@@ -44,11 +46,9 @@ void ConcreteAPI::setDevice(int deviceId) {
   currentDeviceId = deviceId;
 
   APIWRAP(cudaSetDevice(deviceId));
-  CHECK_ERR;
 
   // Note: the following sets the initial CUDA context
   APIWRAP(cudaFree(nullptr));
-  CHECK_ERR;
 
   status[StatusID::DeviceSelected] = true;
 }
@@ -62,7 +62,6 @@ void ConcreteAPI::initialize() {
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
     APIWRAP(cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking));
-    CHECK_ERR;
 
     int numDevices{};
     APIWRAP(cudaGetDeviceCount(&numDevices));
@@ -77,7 +76,6 @@ void ConcreteAPI::initialize() {
     usmDefault = properties[getDeviceId()].directManagedMemAccessFromHost != 0;
 
     APIWRAP(cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax));
-    CHECK_ERR;
 
     int canCompressProto = 0;
     DRVWRAP(cuDeviceGetAttribute(
@@ -90,14 +88,14 @@ void ConcreteAPI::initialize() {
 
 void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
-    APIWRAP(cudaStreamDestroy(defaultStream));
     CHECK_ERR;
+
+    APIWRAP(cudaStreamDestroy(defaultStream));
     if (!genericStreams.empty()) {
       logInfo() << "DEVICE::WARNING:" << genericStreams.size()
                 << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
         APIWRAP(cudaStreamDestroy(stream));
-        CHECK_ERR;
       }
     }
     status[StatusID::InterfaceInitialized] = false;
@@ -120,8 +118,10 @@ unsigned ConcreteAPI::getGlobMemAlignment() {
 
 void ConcreteAPI::syncDevice() {
   isFlagSet<DeviceSelected>(status);
-  APIWRAP(cudaDeviceSynchronize());
+
   CHECK_ERR;
+
+  APIWRAP(cudaDeviceSynchronize());
 }
 
 std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {

@@ -17,7 +17,6 @@ void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
   isFlagSet<DeviceSelected>(status);
   void* devPtr;
   APIWRAP(hipMalloc(&devPtr, size));
-  CHECK_ERR;
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
   return devPtr;
@@ -32,7 +31,6 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
   } else {
     APIWRAP(hipMemAdvise(devPtr, size, hipMemAdviseSetPreferredLocation, getDeviceId()));
   }
-  CHECK_ERR;
   statistics.allocatedMemBytes += size;
   statistics.allocatedUnifiedMemBytes += size;
   memToSizeMap[devPtr] = size;
@@ -44,7 +42,6 @@ void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
   void* devPtr;
   const auto flag = hint == Destination::Host ? hipHostMallocDefault : hipHostMallocMapped;
   APIWRAP(hipHostMalloc(&devPtr, size, flag));
-  CHECK_ERR;
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
   return devPtr;
@@ -56,7 +53,6 @@ void ConcreteAPI::freeGlobMem(void* devPtr) {
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
   APIWRAP(hipFree(devPtr));
-  CHECK_ERR;
 }
 
 void ConcreteAPI::freeUnifiedMem(void* devPtr) {
@@ -65,7 +61,6 @@ void ConcreteAPI::freeUnifiedMem(void* devPtr) {
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
   APIWRAP(hipFree(devPtr));
-  CHECK_ERR;
 }
 
 void ConcreteAPI::freePinnedMem(void* devPtr) {
@@ -74,7 +69,6 @@ void ConcreteAPI::freePinnedMem(void* devPtr) {
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
   APIWRAP(hipHostFree(devPtr));
-  CHECK_ERR;
 }
 
 void* ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
@@ -83,14 +77,12 @@ void* ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
   } else {
     void* ptr;
     APIWRAP(hipMallocAsync(&ptr, size, static_cast<hipStream_t>(streamPtr)));
-    CHECK_ERR;
     return ptr;
   }
 }
 void ConcreteAPI::freeMemAsync(void* devPtr, void* streamPtr) {
   if (devPtr != nullptr) {
     APIWRAP(hipFreeAsync(devPtr, static_cast<hipStream_t>(streamPtr)));
-    CHECK_ERR;
   }
 }
 
@@ -102,13 +94,7 @@ std::string ConcreteAPI::getMemLeaksReport() {
   return report.str();
 }
 
-size_t ConcreteAPI::getMaxAvailableMem() {
-  isFlagSet<DeviceSelected>(status);
-  hipDeviceProp_t property;
-  APIWRAP(hipGetDeviceProperties(&property, getDeviceId()));
-  CHECK_ERR;
-  return property.totalGlobalMem;
-}
+size_t ConcreteAPI::getMaxAvailableMem() { return properties[getDeviceId()].totalGlobalMem; }
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
   isFlagSet<DeviceSelected>(status);
@@ -123,19 +109,16 @@ size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
 void ConcreteAPI::pinMemory(void* ptr, size_t size) {
   isFlagSet<DeviceSelected>(status);
   APIWRAP(hipHostRegister(ptr, size, hipHostRegisterDefault));
-  CHECK_ERR;
 }
 
 void ConcreteAPI::unpinMemory(void* ptr) {
   isFlagSet<DeviceSelected>(status);
   APIWRAP(hipHostUnregister(ptr));
-  CHECK_ERR;
 }
 
 void* ConcreteAPI::devicePointer(void* ptr) {
   isFlagSet<DeviceSelected>(status);
   void* result;
   APIWRAP(hipHostGetDevicePointer(&result, ptr, 0));
-  CHECK_ERR;
   return result;
 }

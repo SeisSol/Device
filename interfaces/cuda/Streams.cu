@@ -20,8 +20,10 @@ void* ConcreteAPI::getDefaultStream() {
 
 void ConcreteAPI::syncDefaultStreamWithHost() {
   isFlagSet<InterfaceInitialized>(status);
-  APIWRAP(cudaStreamSynchronize(defaultStream));
+
   CHECK_ERR;
+
+  APIWRAP(cudaStreamSynchronize(defaultStream));
 }
 
 void* ConcreteAPI::createStream(double priority) {
@@ -29,7 +31,6 @@ void* ConcreteAPI::createStream(double priority) {
   cudaStream_t stream;
   const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
   APIWRAP(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking, truePriority));
-  CHECK_ERR;
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }
@@ -42,19 +43,23 @@ void ConcreteAPI::destroyGenericStream(void* streamPtr) {
     genericStreams.erase(it);
   }
   APIWRAP(cudaStreamDestroy(stream));
-  CHECK_ERR;
 }
 
 void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
-  APIWRAP(cudaStreamSynchronize(stream));
+
   CHECK_ERR;
+
+  APIWRAP(cudaStreamSynchronize(stream));
 }
 
 bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
+
+  CHECK_ERR;
+
   const auto streamStatus = APIWRAPX(cudaStreamQuery(stream), {cudaErrorNotReady});
 
   return streamStatus == cudaSuccess;
@@ -64,7 +69,6 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
   cudaEvent_t event = static_cast<cudaEvent_t>(eventPtr);
   APIWRAP(cudaStreamWaitEvent(stream, event));
-  CHECK_ERR;
 }
 
 namespace {
@@ -93,7 +97,6 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
     } else {
       APIWRAP(cudaLaunchHostFunc(stream, &streamCallbackEpheremal, functionData));
     }
-    CHECK_ERR;
   }
 }
 
@@ -114,11 +117,9 @@ void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
   uint32_t* deviceLocation = nullptr;
   APIWRAP(cudaHostGetDevicePointer(&deviceLocation, location, 0));
-  CHECK_ERR;
   const auto result = cuStreamWaitValue32(
       stream, reinterpret_cast<uintptr_t>(deviceLocation), value, CU_STREAM_WAIT_VALUE_GEQ);
   if (result == CUDA_ERROR_NOT_SUPPORTED) {
     spinloop<<<1, 1, 0, stream>>>(deviceLocation, value);
   }
-  CHECK_ERR;
 }

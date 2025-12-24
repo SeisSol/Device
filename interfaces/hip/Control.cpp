@@ -32,7 +32,9 @@ thread_local int currentDeviceId = 0;
 
 ConcreteAPI::ConcreteAPI() {
   APIWRAP(hipInit(0));
+
   CHECK_ERR;
+
   status[StatusID::DriverApiInitialized] = true;
 }
 
@@ -44,7 +46,6 @@ void ConcreteAPI::setDevice(int deviceId) {
 
   // Note: the following sets the initial HIP context
   APIWRAP(hipFree(nullptr));
-  CHECK_ERR;
 
   status[StatusID::DeviceSelected] = true;
 }
@@ -84,7 +85,6 @@ void ConcreteAPI::initialize() {
     }
 
     APIWRAP(hipDeviceGetStreamPriorityRange(&priorityMin, &priorityMax));
-    CHECK_ERR;
   } else {
     logWarning() << "Device Interface has already been initialized";
   }
@@ -92,6 +92,9 @@ void ConcreteAPI::initialize() {
 
 void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
+
+    CHECK_ERR;
+
     APIWRAP(hipStreamDestroy(defaultStream));
     if (!genericStreams.empty()) {
       logInfo() << "DEVICE::WARNING:" << genericStreams.size()

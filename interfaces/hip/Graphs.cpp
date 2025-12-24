@@ -82,6 +82,5 @@ void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
     graphInstance = graphs[graphHandle.getGraphId()];
   }
   APIWRAP(hipGraphLaunch(graphInstance.instance, reinterpret_cast<hipStream_t>(streamPtr)));
-  CHECK_ERR;
 #endif
 }

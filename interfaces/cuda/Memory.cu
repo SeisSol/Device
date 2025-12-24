@@ -56,7 +56,7 @@ void* driverAllocate(std::size_t size, const CUmemAllocationProp& prop) {
 void driverFree(void* ptr, std::size_t size, const CUmemAllocationProp& prop) {
   size = alignSize(size, prop);
 
-  CUdeviceptr cptr = reinterpret_cast<CUdeviceptr>(ptr);
+  auto cptr = reinterpret_cast<CUdeviceptr>(ptr);
 
   DRVWRAP(cuMemUnmap(cptr, size));
   DRVWRAP(cuMemAddressFree(cptr, size));
@@ -66,7 +66,7 @@ void driverFree(void* ptr, std::size_t size, const CUmemAllocationProp& prop) {
 
 void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
   isFlagSet<DeviceSelected>(status);
-  void* devPtr;
+  void* devPtr = nullptr;
   if (compress && canCompress) {
     CUmemAllocationProp prop = {};
     std::memset(&prop, 0, sizeof(CUmemAllocationProp));
@@ -88,7 +88,7 @@ void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
 
 void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint) {
   isFlagSet<DeviceSelected>(status);
-  void* devPtr;
+  void* devPtr = nullptr;
   APIWRAP(cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal));
   CHECK_ERR;
 
@@ -124,7 +124,7 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
 
 void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) {
   isFlagSet<DeviceSelected>(status);
-  void* devPtr;
+  void* devPtr = nullptr;
   const auto flag = hint == Destination::Host ? cudaHostAllocDefault : cudaHostAllocMapped;
   APIWRAP(cudaHostAlloc(&devPtr, size, flag));
   CHECK_ERR;
@@ -144,7 +144,6 @@ void ConcreteAPI::freeGlobMem(void* devPtr) {
                *reinterpret_cast<CUmemAllocationProp*>(allocationProperties.at(devPtr)));
   } else {
     cudaFree(devPtr);
-    CHECK_ERR;
   }
 }
 
@@ -154,7 +153,6 @@ void ConcreteAPI::freeUnifiedMem(void* devPtr) {
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
   APIWRAP(cudaFree(devPtr));
-  CHECK_ERR;
 }
 
 void ConcreteAPI::freePinnedMem(void* devPtr) {
@@ -163,7 +161,6 @@ void ConcreteAPI::freePinnedMem(void* devPtr) {
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
   APIWRAP(cudaFreeHost(devPtr));
-  CHECK_ERR;
 }
 
 void* ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
@@ -172,14 +169,12 @@ void* ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
   } else {
     void* ptr;
     APIWRAP(cudaMallocAsync(&ptr, size, static_cast<cudaStream_t>(streamPtr)));
-    CHECK_ERR;
     return ptr;
   }
 }
 void ConcreteAPI::freeMemAsync(void* devPtr, void* streamPtr) {
   if (devPtr != nullptr) {
     APIWRAP(cudaFreeAsync(devPtr, static_cast<cudaStream_t>(streamPtr)));
-    CHECK_ERR;
   }
 }
 
@@ -191,13 +186,7 @@ std::string ConcreteAPI::getMemLeaksReport() {
   return report.str();
 }
 
-size_t ConcreteAPI::getMaxAvailableMem() {
-  isFlagSet<DeviceSelected>(status);
-  cudaDeviceProp property;
-  APIWRAP(cudaGetDeviceProperties(&property, getDeviceId()));
-  CHECK_ERR;
-  return property.totalGlobalMem;
-}
+size_t ConcreteAPI::getMaxAvailableMem() { return properties[getDeviceId()].totalGlobalMem; }
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
   isFlagSet<DeviceSelected>(status);
@@ -212,19 +201,16 @@ size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
 void ConcreteAPI::pinMemory(void* ptr, size_t size) {
   isFlagSet<DeviceSelected>(status);
   APIWRAP(cudaHostRegister(ptr, size, 0));
-  CHECK_ERR;
 }
 
 void ConcreteAPI::unpinMemory(void* ptr) {
   isFlagSet<DeviceSelected>(status);
   APIWRAP(cudaHostUnregister(ptr));
-  CHECK_ERR;
 }
 
 void* ConcreteAPI::devicePointer(void* ptr) {
   isFlagSet<DeviceSelected>(status);
-  void* result;
+  void* result = nullptr;
   APIWRAP(cudaHostGetDevicePointer(&result, ptr, 0));
-  CHECK_ERR;
   return result;
 }

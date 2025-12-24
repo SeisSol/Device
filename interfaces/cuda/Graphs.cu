@@ -51,7 +51,6 @@ DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs
 
   APIWRAP(cudaStreamBeginCapture(static_cast<cudaStream_t>(streamPtrs[0]),
                                  cudaStreamCaptureModeThreadLocal));
-  CHECK_ERR;
 #endif
   return handle;
 }
@@ -87,6 +86,5 @@ void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
     graphInstance = graphs[graphHandle.getGraphId()];
   }
   APIWRAP(cudaGraphLaunch(graphInstance.instance, reinterpret_cast<cudaStream_t>(streamPtr)));
-  CHECK_ERR;
 #endif
 }
