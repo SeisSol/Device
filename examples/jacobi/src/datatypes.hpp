@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -12,10 +12,10 @@
 #include <mpi.h>
 #endif
 
+#include "simpleDatatypes.hpp"
+
 #include <stdio.h>
 #include <vector>
-
-#include "simpleDatatypes.hpp"
 
 #ifdef USE_MPI
 #if REAL_SIZE == 8
@@ -46,7 +46,7 @@ struct WorkSpaceT {
     isLast = true;
 #endif
   }
-  WorkSpaceT(const WorkSpaceT &other) = default;
+  WorkSpaceT(const WorkSpaceT& other) = default;
 
   int rank{std::numeric_limits<int>::infinity()};
   int size{std::numeric_limits<int>::infinity()};
@@ -56,7 +56,8 @@ struct WorkSpaceT {
 };
 
 struct MatrixInfoT {
-  MatrixInfoT(WorkSpaceT ws, int rows, int nonZerosPerRow) : numRows{rows}, maxNonZerosPerRow{nonZerosPerRow}, ws(ws) {
+  MatrixInfoT(WorkSpaceT ws, int rows, int nonZerosPerRow)
+      : numRows{rows}, maxNonZerosPerRow{nonZerosPerRow}, ws(ws) {
 
     // distribute data
     int chunk = numRows / ws.size;
@@ -69,7 +70,7 @@ struct MatrixInfoT {
     volume = numRows * maxNonZerosPerRow;
     localVolume = localNumRows * maxNonZerosPerRow;
   }
-  MatrixInfoT(const MatrixInfoT &other) = default;
+  MatrixInfoT(const MatrixInfoT& other) = default;
 
   int numRows{};
   int localNumRows{};
@@ -81,12 +82,12 @@ struct MatrixInfoT {
 };
 
 struct CpuMatrixDataT {
-  explicit CpuMatrixDataT(const MatrixInfoT &info) : info(info) {
+  explicit CpuMatrixDataT(const MatrixInfoT& info) : info(info) {
     data.resize(info.volume, 0.0);
     indices.resize(info.volume, 0.0);
   }
 
-  CpuMatrixDataT(const CpuMatrixDataT &other) = default;
+  CpuMatrixDataT(const CpuMatrixDataT& other) = default;
   ~CpuMatrixDataT() = default;
 
   std::vector<real> data{};
@@ -95,13 +96,11 @@ struct CpuMatrixDataT {
 };
 
 struct GpuMatrixDataT {
-  explicit GpuMatrixDataT(const MatrixInfoT &info) : info(info) {}
+  explicit GpuMatrixDataT(const MatrixInfoT& info) : info(info) {}
 
-  real *data{};
-  int *indices{};
+  real* data{};
+  int* indices{};
   MatrixInfoT info;
 };
 
-
 #endif // SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_DATATYPES_HPP_
-

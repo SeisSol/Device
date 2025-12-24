@@ -5,11 +5,11 @@
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
+
 #include <algorithm>
 #include <cassert>
 #include <functional>
 #include <sstream>
-
 
 using namespace device;
 
@@ -17,8 +17,7 @@ void* ConcreteAPI::createEvent(bool withTiming) {
   cudaEvent_t event{};
   if (withTiming) {
     APIWRAP(cudaEventCreate(&event));
-  }
-  else {
+  } else {
     APIWRAP(cudaEventCreateWithFlags(&event, cudaEventDisableTiming));
   }
   CHECK_ERR;
@@ -64,4 +63,3 @@ void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   APIWRAP(cudaEventRecord(event, stream));
   CHECK_ERR;
 }
-

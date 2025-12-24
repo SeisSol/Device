@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2019 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
@@ -34,4 +34,3 @@ endif()
 
 target_compile_options(mpi PRIVATE ${MPI_CXX_COMPILE_OPTIONS})
 target_compile_definitions(mpi PRIVATE DEVICE_${DEVICE_BACKEND}_LANG REAL_SIZE=${REAL_SIZE_IN_BYTES})
-

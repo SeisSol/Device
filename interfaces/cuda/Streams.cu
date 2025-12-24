@@ -1,10 +1,11 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020Sol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "CudaWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
+
 #include <algorithm>
 #include <cassert>
 #include <functional>
@@ -14,7 +15,7 @@ using namespace device;
 
 void* ConcreteAPI::getDefaultStream() {
   isFlagSet<InterfaceInitialized>(status);
-  return static_cast<void *>(defaultStream);
+  return static_cast<void*>(defaultStream);
 }
 
 void ConcreteAPI::syncDefaultStreamWithHost() {
@@ -27,11 +28,11 @@ void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream;
   const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
-  APIWRAP(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking, truePriority)); CHECK_ERR;
+  APIWRAP(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking, truePriority));
+  CHECK_ERR;
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }
-
 
 void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
@@ -44,14 +45,12 @@ void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   CHECK_ERR;
 }
 
-
 void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
   APIWRAP(cudaStreamSynchronize(stream));
   CHECK_ERR;
 }
-
 
 bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
@@ -91,8 +90,7 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
     auto* functionData = new std::function<void()>(function);
     if (status == cudaStreamCaptureStatusActive) {
       APIWRAP(cudaLaunchHostFunc(stream, &streamCallbackPermanent, functionData));
-    }
-    else {
+    } else {
       APIWRAP(cudaLaunchHostFunc(stream, &streamCallbackEpheremal, functionData));
     }
     CHECK_ERR;
@@ -117,10 +115,10 @@ void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t
   uint32_t* deviceLocation = nullptr;
   APIWRAP(cudaHostGetDevicePointer(&deviceLocation, location, 0));
   CHECK_ERR;
-  const auto result = cuStreamWaitValue32(stream, reinterpret_cast<uintptr_t>(deviceLocation), value, CU_STREAM_WAIT_VALUE_GEQ);
+  const auto result = cuStreamWaitValue32(
+      stream, reinterpret_cast<uintptr_t>(deviceLocation), value, CU_STREAM_WAIT_VALUE_GEQ);
   if (result == CUDA_ERROR_NOT_SUPPORTED) {
-    spinloop<<<1,1,0,stream>>>(deviceLocation, value);
+    spinloop<<<1, 1, 0, stream>>>(deviceLocation, value);
   }
   CHECK_ERR;
 }
-

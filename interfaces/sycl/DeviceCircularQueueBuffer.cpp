@@ -1,13 +1,12 @@
-// SPDX-FileCopyrightText: 2022-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2022 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "DeviceCircularQueueBuffer.h"
 
+#include "Internals.h"
 #include "SyclWrappedAPI.h"
 #include "utils/logger.h"
-
-#include "Internals.h"
 
 #include <sycl/sycl.hpp>
 
@@ -17,21 +16,21 @@ namespace device {
 
 // very inconvenient, but AdaptiveCpp doesn't allow much freedom when constructing a property_list
 #if defined(DEVICE_USE_GRAPH_CAPTURING) && defined(SYCL_EXT_INTEL_QUEUE_IMMEDIATE_COMMAND_LIST)
-#define BASE_QUEUE_PROPERTIES sycl::property::queue::in_order{}, sycl::ext::intel::property::queue::no_immediate_command_list{}
+#define BASE_QUEUE_PROPERTIES                                                                      \
+  sycl::property::queue::in_order{}, sycl::ext::intel::property::queue::no_immediate_command_list {}
 #else
 #define BASE_QUEUE_PROPERTIES sycl::property::queue::in_order()
 #endif
 
-QueueWrapper::QueueWrapper(const sycl::device& dev, const std::function<void(sycl::exception_list l)>& handler)
-: queue{dev, handler, sycl::property_list{BASE_QUEUE_PROPERTIES}} {
-}
+QueueWrapper::QueueWrapper(const sycl::device& dev,
+                           const std::function<void(sycl::exception_list l)>& handler)
+    : queue{dev, handler, sycl::property_list{BASE_QUEUE_PROPERTIES}} {}
 
-void QueueWrapper::synchronize() {
-  waitCheck(queue);
-}
+void QueueWrapper::synchronize() { waitCheck(queue); }
 void QueueWrapper::dependency(QueueWrapper& other) {
   // improvising... Adding an empty event here, mimicking a CUDA-like event dependency
-#if defined(HIPSYCL_EXT_QUEUE_WAIT_LIST) || defined(ACPP_EXT_QUEUE_WAIT_LIST) || defined(SYCL_EXT_ACPP_QUEUE_WAIT_LIST)
+#if defined(HIPSYCL_EXT_QUEUE_WAIT_LIST) || defined(ACPP_EXT_QUEUE_WAIT_LIST) ||                   \
+    defined(SYCL_EXT_ACPP_QUEUE_WAIT_LIST)
   auto waitList1 = other.queue.get_wait_list();
   auto waitList2 = queue.get_wait_list();
   queue.submit([&](sycl::handler& h) {
@@ -40,12 +39,8 @@ void QueueWrapper::dependency(QueueWrapper& other) {
     DEVICE_SYCL_EMPTY_OPERATION(h);
   });
 #else
-  auto queueEvent = other.queue.submit([&](sycl::handler& h) {
-    DEVICE_SYCL_EMPTY_OPERATION(h);
-  });
-  queue.submit([&](sycl::handler& h) {
-    DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(h, queueEvent);
-  });
+  auto queueEvent = other.queue.submit([&](sycl::handler& h) { DEVICE_SYCL_EMPTY_OPERATION(h); });
+  queue.submit([&](sycl::handler& h) { DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(h, queueEvent); });
 #endif
 }
 
@@ -64,13 +59,9 @@ DeviceCircularQueueBuffer::DeviceCircularQueueBuffer(
   }
 }
 
-sycl::queue& DeviceCircularQueueBuffer::getDefaultQueue() {
-  return defaultQueue.queue;
-}
+sycl::queue& DeviceCircularQueueBuffer::getDefaultQueue() { return defaultQueue.queue; }
 
-sycl::queue& DeviceCircularQueueBuffer::getGenericQueue() {
-  return genericQueue.queue;
-}
+sycl::queue& DeviceCircularQueueBuffer::getGenericQueue() { return genericQueue.queue; }
 
 sycl::queue& DeviceCircularQueueBuffer::getNextQueue() {
   (++this->counter) %= getCapacity();
@@ -81,7 +72,7 @@ std::vector<sycl::queue> DeviceCircularQueueBuffer::allQueues() {
   std::vector<sycl::queue> queueCopy(queues.size() + 1);
   queueCopy[0] = defaultQueue.queue;
   for (size_t i = 0; i < queues.size(); ++i) {
-    queueCopy[i+1] = queues[i].queue;
+    queueCopy[i + 1] = queues[i].queue;
   }
   return queueCopy;
 }
@@ -109,17 +100,13 @@ sycl::queue* DeviceCircularQueueBuffer::newQueue(double priority) {
 }
 
 void DeviceCircularQueueBuffer::deleteQueue(void* queue) {
-  auto *queuePtr = static_cast<sycl::queue *>(queue);
+  auto* queuePtr = static_cast<sycl::queue*>(queue);
   delete queuePtr;
 }
 
-void DeviceCircularQueueBuffer::resetIndex() {
-  this->counter = 0;
-}
+void DeviceCircularQueueBuffer::resetIndex() { this->counter = 0; }
 
-size_t DeviceCircularQueueBuffer::getCapacity() {
-  return queues.size();
-}
+size_t DeviceCircularQueueBuffer::getCapacity() { return queues.size(); }
 
 void DeviceCircularQueueBuffer::forkQueueDepencency() {
   for (auto& queue : this->queues) {
@@ -133,13 +120,11 @@ void DeviceCircularQueueBuffer::joinQueueDepencency() {
   }
 }
 
-void DeviceCircularQueueBuffer::syncQueueWithHost(sycl::queue *queuePtr) {
-  waitCheck(*queuePtr);
-}
+void DeviceCircularQueueBuffer::syncQueueWithHost(sycl::queue* queuePtr) { waitCheck(*queuePtr); }
 
 void DeviceCircularQueueBuffer::syncAllQueuesWithHost() {
   defaultQueue.synchronize();
-  for (auto &q : this->queues) {
+  for (auto& q : this->queues) {
     q.synchronize();
   }
   for (auto* q : this->externalQueues) {
@@ -147,7 +132,7 @@ void DeviceCircularQueueBuffer::syncAllQueuesWithHost() {
   }
 }
 
-bool DeviceCircularQueueBuffer::exists(sycl::queue *queuePtr) {
+bool DeviceCircularQueueBuffer::exists(sycl::queue* queuePtr) {
   bool isDefaultQueue = queuePtr == (&defaultQueue.queue);
   bool isGenericQueue = queuePtr == (&genericQueue.queue);
 
@@ -171,4 +156,3 @@ bool DeviceCircularQueueBuffer::exists(sycl::queue *queuePtr) {
 }
 
 } // namespace device
-

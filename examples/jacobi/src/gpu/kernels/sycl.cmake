@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2021 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
@@ -29,4 +29,3 @@ else()
     find_package(DpcppFlags REQUIRED)
     target_link_libraries(${TARGET_NAME} PRIVATE dpcpp::device_flags)
 endif()
-

@@ -1,12 +1,13 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "utils/logger.h"
 #include "utils/env.h"
+#include "utils/logger.h"
+
 #include <cuda.h>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -20,14 +21,15 @@
 #include "Internals.h"
 
 namespace {
-// `static` is a bit out of place here; but we treat the whole class as an effective singleton anyways
+// `static` is a bit out of place here; but we treat the whole class as an effective singleton
+// anyways
 
 #ifdef DEVICE_CONTEXT_GLOBAL
 int currentDeviceId = 0;
 #else
 thread_local int currentDeviceId = 0;
 #endif
-}
+} // namespace
 
 using namespace device;
 
@@ -38,7 +40,7 @@ ConcreteAPI::ConcreteAPI() {
 }
 
 void ConcreteAPI::setDevice(int deviceId) {
-  
+
   currentDeviceId = deviceId;
 
   APIWRAP(cudaSetDevice(deviceId));
@@ -51,9 +53,7 @@ void ConcreteAPI::setDevice(int deviceId) {
   status[StatusID::DeviceSelected] = true;
 }
 
-bool ConcreteAPI::isUnifiedMemoryDefault() {
-  return usmDefault;
-}
+bool ConcreteAPI::isUnifiedMemoryDefault() { return usmDefault; }
 
 void ConcreteAPI::initialize() {
   if (!status[StatusID::DeviceSelected]) {
@@ -61,7 +61,8 @@ void ConcreteAPI::initialize() {
   }
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
-    APIWRAP(cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking)); CHECK_ERR;
+    APIWRAP(cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking));
+    CHECK_ERR;
 
     int numDevices{};
     APIWRAP(cudaGetDeviceCount(&numDevices));
@@ -79,31 +80,31 @@ void ConcreteAPI::initialize() {
     CHECK_ERR;
 
     int canCompressProto = 0;
-    DRVWRAP(cuDeviceGetAttribute(&canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, getDeviceId()));
+    DRVWRAP(cuDeviceGetAttribute(
+        &canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, getDeviceId()));
     canCompress = canCompressProto != 0;
-  }
-  else {
+  } else {
     logWarning() << "Device Interface has already been initialized";
   }
 }
 
 void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
-    APIWRAP(cudaStreamDestroy(defaultStream)); CHECK_ERR;
+    APIWRAP(cudaStreamDestroy(defaultStream));
+    CHECK_ERR;
     if (!genericStreams.empty()) {
       logInfo() << "DEVICE::WARNING:" << genericStreams.size()
-                               << "device generic stream(s) were not deleted.";
+                << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
-        APIWRAP(cudaStreamDestroy(stream)); CHECK_ERR;
+        APIWRAP(cudaStreamDestroy(stream));
+        CHECK_ERR;
       }
     }
     status[StatusID::InterfaceInitialized] = false;
   }
 }
 
-int ConcreteAPI::getNumDevices() {
-  return properties.size();
-}
+int ConcreteAPI::getNumDevices() { return properties.size(); }
 
 int ConcreteAPI::getDeviceId() {
   if (!status[StatusID::DeviceSelected]) {
@@ -145,19 +146,16 @@ std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
   return info.str();
 }
 
-std::string ConcreteAPI::getApiName() {
-  return "CUDA";
-}
+std::string ConcreteAPI::getApiName() { return "CUDA"; }
 
-std::string ConcreteAPI::getDeviceName(int deviceId) {
-  return properties[deviceId].name;
-}
+std::string ConcreteAPI::getDeviceName(int deviceId) { return properties[deviceId].name; }
 
 std::string ConcreteAPI::getPciAddress(int deviceId) {
   const auto& property = properties[deviceId];
 
   std::ostringstream str;
-  str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":" << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
+  str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":"
+      << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
   return str.str();
 }
 
@@ -168,7 +166,7 @@ void ConcreteAPI::profilingMessage(const std::string& message) {
 #endif
 }
 
-void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
+void ConcreteAPI::putProfilingMark(const std::string& name, ProfilingColors color) {
 #ifdef PROFILING_ENABLED
   isFlagSet<DeviceSelected>(status);
   nvtxEventAttributes_t eventAttrib = {0};
@@ -189,7 +187,4 @@ void ConcreteAPI::popLastProfilingMark() {
 #endif
 }
 
-void ConcreteAPI::setupPrinting(int rank) {
-
-}
-
+void ConcreteAPI::setupPrinting(int rank) {}

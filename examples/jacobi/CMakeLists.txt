@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2019 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
@@ -104,4 +104,3 @@ if (WITH_TESTS)
     target_compile_options(tests PRIVATE -std=c++17 ${__MPI_COMPILE_FLAGS})
 
 endif()
-

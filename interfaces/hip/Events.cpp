@@ -2,15 +2,15 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "hip/hip_runtime.h"
 #include "HipWrappedAPI.h"
 #include "Internals.h"
+#include "hip/hip_runtime.h"
 #include "utils/logger.h"
+
 #include <algorithm>
 #include <cassert>
 #include <functional>
 #include <sstream>
-
 
 using namespace device;
 
@@ -18,8 +18,7 @@ void* ConcreteAPI::createEvent(bool withTiming) {
   hipEvent_t event;
   if (withTiming) {
     APIWRAP(hipEventCreate(&event));
-  }
-  else {
+  } else {
     APIWRAP(hipEventCreateWithFlags(&event, hipEventDisableTiming));
   }
   return static_cast<void*>(event);
@@ -59,4 +58,3 @@ void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   APIWRAP(hipEventRecord(event, stream));
 }
-

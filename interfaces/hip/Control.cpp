@@ -1,16 +1,17 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "utils/logger.h"
+#include "hip/hip_runtime.h"
 #include "utils/env.h"
-#include <iostream>
+#include "utils/logger.h"
+
 #include <iomanip>
+#include <iostream>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <thread>
-#include "hip/hip_runtime.h"
 
 #ifdef PROFILING_ENABLED
 #include <roctracer/roctx.h>
@@ -27,7 +28,7 @@ int currentDeviceId = 0;
 #else
 thread_local int currentDeviceId = 0;
 #endif
-}
+} // namespace
 
 ConcreteAPI::ConcreteAPI() {
   APIWRAP(hipInit(0));
@@ -36,7 +37,7 @@ ConcreteAPI::ConcreteAPI() {
 }
 
 void ConcreteAPI::setDevice(int deviceId) {
-  
+
   currentDeviceId = deviceId;
 
   APIWRAP(hipSetDevice(deviceId));
@@ -48,9 +49,7 @@ void ConcreteAPI::setDevice(int deviceId) {
   status[StatusID::DeviceSelected] = true;
 }
 
-bool ConcreteAPI::isUnifiedMemoryDefault() {
-  return usmDefault;
-}
+bool ConcreteAPI::isUnifiedMemoryDefault() { return usmDefault; }
 
 void ConcreteAPI::initialize() {
   if (!status[StatusID::DeviceSelected]) {
@@ -69,22 +68,24 @@ void ConcreteAPI::initialize() {
       APIWRAP(hipGetDeviceProperties(&properties[i], i));
     }
 
-    // NOTE: hipDeviceGetAttribute internally calls hipGetDeviceProperties; hence it doesn't make sense to use it here
+    // NOTE: hipDeviceGetAttribute internally calls hipGetDeviceProperties; hence it doesn't make
+    // sense to use it here
 
     if constexpr (HIP_VERSION >= 60200000) {
       // cf. https://rocm.docs.amd.com/en/docs-6.2.0/about/release-notes.html
-      // (before 6.2.0, the flag hipDeviceAttributePageableMemoryAccessUsesHostPageTables had effectively the same effect)
-      // (cf. https://github.com/ROCm/clr/commit/7d5b4a8f7a7d34f008d65277f8aae4c98a6da375#diff-596cd550f7fdef76b39f1b7b179b20128313dd9cc9ec662b2eae562efa2b7f33L405 )
+      // (before 6.2.0, the flag hipDeviceAttributePageableMemoryAccessUsesHostPageTables had
+      // effectively the same effect) (cf.
+      // https://github.com/ROCm/clr/commit/7d5b4a8f7a7d34f008d65277f8aae4c98a6da375#diff-596cd550f7fdef76b39f1b7b179b20128313dd9cc9ec662b2eae562efa2b7f33L405
+      // )
       usmDefault = properties[getDeviceId()].integrated != 0;
-    }
-    else {
-      usmDefault = properties[getDeviceId()].directManagedMemAccessFromHost != 0 && properties[getDeviceId()].pageableMemoryAccessUsesHostPageTables != 0;
+    } else {
+      usmDefault = properties[getDeviceId()].directManagedMemAccessFromHost != 0 &&
+                   properties[getDeviceId()].pageableMemoryAccessUsesHostPageTables != 0;
     }
 
     APIWRAP(hipDeviceGetStreamPriorityRange(&priorityMin, &priorityMax));
     CHECK_ERR;
-  }
-  else {
+  } else {
     logWarning() << "Device Interface has already been initialized";
   }
 }
@@ -94,7 +95,7 @@ void ConcreteAPI::finalize() {
     APIWRAP(hipStreamDestroy(defaultStream));
     if (!genericStreams.empty()) {
       logInfo() << "DEVICE::WARNING:" << genericStreams.size()
-                               << "device generic stream(s) were not deleted.";
+                << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
         APIWRAP(hipStreamDestroy(stream));
       }
@@ -103,10 +104,7 @@ void ConcreteAPI::finalize() {
   }
 }
 
-
-int ConcreteAPI::getNumDevices() {
-  return properties.size();
-}
+int ConcreteAPI::getNumDevices() { return properties.size(); }
 
 int ConcreteAPI::getDeviceId() {
   if (!status[StatusID::DeviceSelected]) {
@@ -152,19 +150,16 @@ std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
   return info.str();
 }
 
-std::string ConcreteAPI::getApiName() {
-  return "HIP";
-}
+std::string ConcreteAPI::getApiName() { return "HIP"; }
 
-std::string ConcreteAPI::getDeviceName(int deviceId) {
-  return properties[deviceId].name;
-}
+std::string ConcreteAPI::getDeviceName(int deviceId) { return properties[deviceId].name; }
 
 std::string ConcreteAPI::getPciAddress(int deviceId) {
   const auto& property = properties[deviceId];
 
   std::ostringstream str;
-  str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":" << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
+  str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":"
+      << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
   return str.str();
 }
 
@@ -175,7 +170,7 @@ void ConcreteAPI::profilingMessage(const std::string& message) {
 #endif
 }
 
-void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
+void ConcreteAPI::putProfilingMark(const std::string& name, ProfilingColors color) {
   // colors are not yet supported here
 #ifdef PROFILING_ENABLED
   isFlagSet<DeviceSelected>(status);
@@ -190,7 +185,4 @@ void ConcreteAPI::popLastProfilingMark() {
 #endif
 }
 
-void ConcreteAPI::setupPrinting(int rank) {
-
-}
-
+void ConcreteAPI::setupPrinting(int rank) {}

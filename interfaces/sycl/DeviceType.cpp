@@ -1,9 +1,11 @@
-// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2021 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "DeviceType.h"
+
 #include "utils/env.h"
+
 #include <iostream>
 
 namespace device {
@@ -38,9 +40,9 @@ bool compare(sycl::device devA, sycl::device devB) {
     return false;
   }
 
-  //devices of same type are sorted by their cl::deviceid
+  // devices of same type are sorted by their cl::deviceid
   if (typeA == typeB) {
-    //return devA.get() < devB.get();
+    // return devA.get() < devB.get();
   }
 
   return fromSyclType(typeA) < fromSyclType(typeB);
@@ -61,4 +63,3 @@ std::string convertToString(sycl::info::device_type type) {
   }
 }
 } // namespace device
-

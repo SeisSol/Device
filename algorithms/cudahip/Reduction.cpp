@@ -1,29 +1,32 @@
-// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2021 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "Internals.h"
 #include "algorithms/Common.h"
+
 #include <cassert>
 #include <device.h>
 #include <math.h>
 
 namespace device {
-template <typename T> struct Sum {
+template <typename T>
+struct Sum {
   T defaultValue{0};
   __device__ __forceinline__ T operator()(T op1, T op2) { return op1 + op2; }
 };
 
-template <typename T> struct Max {
+template <typename T>
+struct Max {
   T defaultValue{std::numeric_limits<T>::min()};
   __device__ __forceinline__ T operator()(T op1, T op2) { return op1 > op2 ? op1 : op2; }
 };
 
-template <typename T> struct Min {
+template <typename T>
+struct Min {
   T defaultValue{std::numeric_limits<T>::max()};
   __device__ __forceinline__ T operator()(T op1, T op2) { return op1 > op2 ? op2 : op1; }
 };
-
 
 #if defined(__CUDACC__) || defined(__HIP_PLATFORM_NVIDIA__) && defined(__HIP__)
 template <typename T>
@@ -45,8 +48,8 @@ __forceinline__ __device__ T shuffledown(T value, int offset) {
 // (not intended for intensive use; there's the thrust libraries instead)
 
 template <typename AccT, typename VecT, typename OperationT>
-__launch_bounds__(1024)
-void __global__ kernel_reduce(AccT* result, const VecT* vector, size_t size, bool overrideResult, OperationT operation) {
+__launch_bounds__(1024) void __global__ kernel_reduce(
+    AccT* result, const VecT* vector, size_t size, bool overrideResult, OperationT operation) {
   __shared__ AccT shmem[256];
   const auto warpCount = blockDim.x / warpSize;
   const auto currentWarp = threadIdx.x / warpSize;
@@ -54,8 +57,8 @@ void __global__ kernel_reduce(AccT* result, const VecT* vector, size_t size, boo
   const auto warpsNeeded = (size + warpSize - 1) / warpSize;
 
   auto acc = operation.defaultValue;
-  
-  #pragma unroll 4
+
+#pragma unroll 4
   for (std::size_t i = currentWarp; i < warpsNeeded; i += warpCount) {
     const auto id = threadInWarp + i * warpSize;
     auto value = (id < size) ? static_cast<AccT>(ntload(&vector[id])) : operation.defaultValue;
@@ -76,7 +79,7 @@ void __global__ kernel_reduce(AccT* result, const VecT* vector, size_t size, boo
   if (currentWarp == 0) {
     const auto lastWarpsNeeded = (warpCount + warpSize - 1) / warpSize;
     auto lastAcc = operation.defaultValue;
-    #pragma unroll 2
+#pragma unroll 2
     for (int i = 0; i < lastWarpsNeeded; ++i) {
       const auto id = threadInWarp + i * warpSize;
       auto value = (id < warpCount) ? shmem[id] : operation.defaultValue;
@@ -91,15 +94,20 @@ void __global__ kernel_reduce(AccT* result, const VecT* vector, size_t size, boo
     if (threadIdx.x == 0) {
       if (overrideResult) {
         ntstore(result, lastAcc);
-      }
-      else {
+      } else {
         ntstore(result, operation(ntload(result), lastAcc));
       }
     }
   }
 }
 
-template <typename AccT, typename VecT> void Algorithms::reduceVector(AccT* result, const VecT *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr) {
+template <typename AccT, typename VecT>
+void Algorithms::reduceVector(AccT* result,
+                              const VecT* buffer,
+                              bool overrideResult,
+                              size_t size,
+                              ReductionType type,
+                              void* streamPtr) {
   auto* stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
 
   dim3 grid(1, 1, 1);
@@ -107,39 +115,116 @@ template <typename AccT, typename VecT> void Algorithms::reduceVector(AccT* resu
 
   switch (type) {
   case ReductionType::Add: {
-    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Sum<AccT>());
+    kernel_reduce<<<grid, block, 0, stream>>>(
+        result, buffer, size, overrideResult, device::Sum<AccT>());
     break;
   }
   case ReductionType::Max: {
-    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Max<AccT>());
+    kernel_reduce<<<grid, block, 0, stream>>>(
+        result, buffer, size, overrideResult, device::Max<AccT>());
     break;
   }
   case ReductionType::Min: {
-    kernel_reduce<<<grid, block, 0, stream>>>(result, buffer, size, overrideResult, device::Min<AccT>());
+    kernel_reduce<<<grid, block, 0, stream>>>(
+        result, buffer, size, overrideResult, device::Min<AccT>());
     break;
   }
   default: {
     assert(false && "reduction type is not implemented");
-    }
+  }
   }
   CHECK_ERR;
 }
 
-template void Algorithms::reduceVector(int* result, const int *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(unsigned* result, const unsigned *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(long* result, const int *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(unsigned long* result, const unsigned *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(long* result, const long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(unsigned long* result, const unsigned long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(long long* result, const int *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(unsigned long long* result, const unsigned *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(long long* result, const long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(unsigned long long* result, const unsigned long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(long long* result, const long long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(unsigned long long* result, const unsigned long long *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(float* result, const float *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(double* result, const float *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
-template void Algorithms::reduceVector(double* result, const double *buffer, bool overrideResult, size_t size, ReductionType type, void* streamPtr);
+template void Algorithms::reduceVector(int* result,
+                                       const int* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(unsigned* result,
+                                       const unsigned* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(long* result,
+                                       const int* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(unsigned long* result,
+                                       const unsigned* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(long* result,
+                                       const long* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(unsigned long* result,
+                                       const unsigned long* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(long long* result,
+                                       const int* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(unsigned long long* result,
+                                       const unsigned* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(long long* result,
+                                       const long* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(unsigned long long* result,
+                                       const unsigned long* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(long long* result,
+                                       const long long* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(unsigned long long* result,
+                                       const unsigned long long* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(float* result,
+                                       const float* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(double* result,
+                                       const float* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
+template void Algorithms::reduceVector(double* result,
+                                       const double* buffer,
+                                       bool overrideResult,
+                                       size_t size,
+                                       ReductionType type,
+                                       void* streamPtr);
 
 } // namespace device
-

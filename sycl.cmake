@@ -1,9 +1,8 @@
-# SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2021 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 set(DEVICE_SOURCE_FILES device.cpp
-        interfaces/sycl/Aux.cpp
         interfaces/sycl/Control.cpp
         interfaces/sycl/Copy.cpp
         interfaces/sycl/Events.cpp

@@ -1,10 +1,11 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
+
 #include <algorithm>
 #include <cassert>
 #include <sstream>
@@ -13,7 +14,7 @@ using namespace device;
 
 void* ConcreteAPI::getDefaultStream() {
   isFlagSet<InterfaceInitialized>(status);
-  return static_cast<void *>(defaultStream);
+  return static_cast<void*>(defaultStream);
 }
 
 void ConcreteAPI::syncDefaultStreamWithHost() {
@@ -26,11 +27,11 @@ void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream;
   const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
-  APIWRAP(hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, priority)); CHECK_ERR;
+  APIWRAP(hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, priority));
+  CHECK_ERR;
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }
-
 
 void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
@@ -43,14 +44,12 @@ void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   CHECK_ERR;
 }
 
-
 void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   APIWRAP(hipStreamSynchronize(stream));
   CHECK_ERR;
 }
-
 
 bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
@@ -92,8 +91,7 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
     auto* functionData = new std::function<void()>(function);
     if (status == hipStreamCaptureStatusActive) {
       APIWRAP(hipLaunchHostFunc(stream, &streamCallbackPermanent, functionData));
-    }
-    else {
+    } else {
       APIWRAP(hipLaunchHostFunc(stream, &streamCallbackEpheremal, functionData));
     }
     CHECK_ERR;
@@ -110,16 +108,17 @@ __global__ void spinloop(uint32_t* location, uint32_t value) {
     __threadfence_system();
   }
 }
-}
+} // namespace
 
 void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   uint32_t* deviceLocation = nullptr;
   APIWRAP(hipHostGetDevicePointer(reinterpret_cast<void**>(&deviceLocation), location, 0));
-  const auto result = APIWRAPX(hipStreamWaitValue32(stream, deviceLocation, value, hipStreamWaitValueGte, 0xffffffff), {hipErrorNotSupported});
+  const auto result = APIWRAPX(
+      hipStreamWaitValue32(stream, deviceLocation, value, hipStreamWaitValueGte, 0xffffffff),
+      {hipErrorNotSupported});
   if (result == hipErrorNotSupported) {
-    spinloop<<<1,1,0,stream>>>(deviceLocation, value);
+    spinloop<<<1, 1, 0, stream>>>(deviceLocation, value);
   }
   CHECK_ERR;
 }
-

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -6,6 +6,7 @@
 #define SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_HELPER_HPP_
 
 #include "datatypes.hpp"
+
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -26,11 +27,11 @@ using namespace std::chrono;
 #define NOT_A_RANK -1
 
 class Logger {
-public:
-  explicit Logger(const WorkSpaceT &ws, int rank = NOT_A_RANK) : ws{ws} {
+  public:
+  explicit Logger(const WorkSpaceT& ws, int rank = NOT_A_RANK) : ws{ws} {
     this->rank = (rank == NOT_A_RANK) ? ws.rank : rank;
   }
-  void operator<<(const std::ostream &stream) {
+  void operator<<(const std::ostream& stream) {
     waitPrevious();
     if (ws.rank == rank) {
       std::cout << std::string(90, '=') << std::endl;
@@ -43,7 +44,7 @@ public:
 #endif
   }
 
-private:
+  private:
   void waitPrevious() {
 #ifdef USE_MPI
     if (!ws.isFirst) {
@@ -60,7 +61,7 @@ private:
 #endif
   }
   int rank{NOT_A_RANK};
-  const WorkSpaceT &ws{};
+  const WorkSpaceT& ws{};
   int dummyData{};
 #ifdef USE_MPI
   MPI_Status status;
@@ -68,7 +69,7 @@ private:
 };
 
 class VectorAssembler {
-public:
+  public:
   VectorAssembler(WorkSpaceT ws, RangeT range) : ws(ws) {
 
     recvCounts.resize(ws.size, 0);
@@ -85,31 +86,40 @@ public:
 #endif
   }
 
-  template <SystemType Type = SystemType::OnHost> void assemble(real *src, real *dest) {
+  template <SystemType Type = SystemType::OnHost>
+  void assemble(real* src, real* dest) {
     assert(src != dest && "src and dest buffer cannot be the same");
 #ifdef USE_MPI
-    MPI_Allgatherv(&src[displs[ws.rank]], recvCounts[ws.rank], MPI_CUSTOM_REAL, (void *)dest, recvCounts.data(),
-                   displs.data(), MPI_CUSTOM_REAL, ws.comm);
+    MPI_Allgatherv(&src[displs[ws.rank]],
+                   recvCounts[ws.rank],
+                   MPI_CUSTOM_REAL,
+                   (void*)dest,
+                   recvCounts.data(),
+                   displs.data(),
+                   MPI_CUSTOM_REAL,
+                   ws.comm);
 #else
     if constexpr (Type == SystemType::OnHost) {
       if (src != dest) {
-        std::memcpy(reinterpret_cast<char *>(dest), reinterpret_cast<char *>(src), recvCounts[0] * sizeof(real));
+        std::memcpy(reinterpret_cast<char*>(dest),
+                    reinterpret_cast<char*>(src),
+                    recvCounts[0] * sizeof(real));
       }
     } else {
-      device::DeviceInstance &device = device::DeviceInstance::getInstance();
+      device::DeviceInstance& device = device::DeviceInstance::getInstance();
       device.api->copyBetween(dest, src, recvCounts[0] * sizeof(real));
     }
 #endif
   }
 
-private:
+  private:
   WorkSpaceT ws;
   std::vector<int> recvCounts;
   std::vector<int> displs;
 };
 
 class Statistics {
-public:
+  public:
   Statistics(WorkSpaceT ws, RangeT range) : ws(ws) {
     int localSize = range.end - range.start;
     loads.resize(ws.size, 0);
@@ -127,7 +137,9 @@ public:
   void stop() {
     isStopped = true;
     endTime = std::chrono::high_resolution_clock::now();
-    localTime += std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(endTime - startTime).count();
+    localTime +=
+        std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(endTime - startTime)
+            .count();
     ++updateCounter;
   }
 
@@ -157,10 +169,10 @@ public:
 
   static std::string getUnits() { return "ME/s"; }
 
-private:
-  Data compute(const std::vector<double> &performance) {
+  private:
+  Data compute(const std::vector<double>& performance) {
     Data data{};
-    for (auto &item : performance) {
+    for (auto& item : performance) {
       data.mean += item;
       if (item > data.max) {
         data.max = item;
@@ -171,7 +183,7 @@ private:
     }
     data.mean /= performance.size();
 
-    for (auto &item : performance) {
+    for (auto& item : performance) {
       double diff = item - data.mean;
       data.standardDeviation += (diff * diff);
     }
@@ -192,6 +204,4 @@ private:
   bool isStopped{false};
 };
 
-
 #endif // SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_HELPER_HPP_
-

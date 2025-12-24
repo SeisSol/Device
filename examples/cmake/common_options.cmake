@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2021 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
@@ -20,4 +20,3 @@ set(DEVICE_ARCH_OPTIONS "sm_50" "sm_60" "sm_70" "sm_71" "sm_75" "sm_80" "sm_86"
     "gfx906" "gfx908 "
     "dg1" "bdw" "skl" "Gen8" "Gen9" "Gen11" "Gen12LP")
 set_property(CACHE DEVICE_ARCH PROPERTY STRINGS ${DEVICE_ARCH_OPTIONS})
-

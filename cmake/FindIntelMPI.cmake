@@ -12,4 +12,3 @@ find_package_handle_standard_args(IntelMPI DEFAULT_MSG
         MPI_CXX_COMPILER
         MPI_CXX_LINK_FLAGS
         MPI_CXX_COMPILE_OPTIONS)
-

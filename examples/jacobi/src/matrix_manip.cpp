@@ -1,8 +1,9 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "matrix_manip.hpp"
+
 #include <algorithm>
 #include <cassert>
 
@@ -26,8 +27,8 @@ CpuMatrixDataT init2DStencilMatrix(WorkSpaceT ws, int numRows) {
   return matrix;
 }
 
-std::pair<VectorT, CpuMatrixDataT> getDLU(const CpuMatrixDataT &matrix) {
-  const auto &info = matrix.info;
+std::pair<VectorT, CpuMatrixDataT> getDLU(const CpuMatrixDataT& matrix) {
+  const auto& info = matrix.info;
   VectorT diagonal(info.numRows, std::numeric_limits<real>::infinity());
   CpuMatrixDataT lu(MatrixInfoT(info.ws, info.numRows, info.maxNonZerosPerRow - 1));
 
@@ -47,4 +48,3 @@ std::pair<VectorT, CpuMatrixDataT> getDLU(const CpuMatrixDataT &matrix) {
   }
   return std::make_pair(diagonal, lu);
 }
-

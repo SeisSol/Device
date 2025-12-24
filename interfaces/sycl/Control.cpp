@@ -1,11 +1,11 @@
-// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2021 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "DeviceType.h"
+#include "Internals.h"
 #include "SyclWrappedAPI.h"
 #include "utils/logger.h"
-#include "Internals.h"
 
 #include <iostream>
 #include <string>
@@ -17,7 +17,7 @@ int currentDeviceId = 0;
 #else
 thread_local int currentDeviceId = 0;
 #endif
-}
+} // namespace
 
 using namespace device;
 
@@ -27,8 +27,8 @@ void ConcreteAPI::initDevices() {
     throw new std::invalid_argument("Cannot initialize the devices twice!");
   }
 
-  for (auto const &platform : sycl::platform::get_platforms()) {
-    for (auto const &device : platform.get_devices()) {
+  for (const auto& platform : sycl::platform::get_platforms()) {
+    for (const auto& device : platform.get_devices()) {
 
       auto platName = device.get_platform().get_info<sycl::info::platform::name>();
       auto devName = device.get_info<sycl::info::device::name>();
@@ -42,22 +42,23 @@ void ConcreteAPI::initDevices() {
         }
       }
 
-      DeviceContext *context = new DeviceContext{device, 1};
+      DeviceContext* context = new DeviceContext{device, 1};
       this->availableDevices.push_back(context);
     }
   }
 
-  sort(this->availableDevices.begin(), this->availableDevices.end(), [&](DeviceContext *c1, DeviceContext *c2) {
-    return compare(c1->queueBuffer.getDefaultQueue().get_device(), c2->queueBuffer.getDefaultQueue().get_device());
-  });
+  sort(this->availableDevices.begin(),
+       this->availableDevices.end(),
+       [&](DeviceContext* c1, DeviceContext* c2) {
+         return compare(c1->queueBuffer.getDefaultQueue().get_device(),
+                        c2->queueBuffer.getDefaultQueue().get_device());
+       });
 
   this->setDevice(0);
   this->deviceInitialized = true;
 }
 
-void ConcreteAPI::setDevice(int id) {
-  currentDeviceId = id;
-}
+void ConcreteAPI::setDevice(int id) { currentDeviceId = id; }
 
 void ConcreteAPI::initialize() {}
 
@@ -66,7 +67,7 @@ void ConcreteAPI::finalize() {
     logInfo() << "SYCL API is already finalized.";
     return;
   }
-  for (auto *device : this->availableDevices) {
+  for (auto* device : this->availableDevices) {
     delete device;
   }
   this->availableDevices.clear();
@@ -89,7 +90,7 @@ int ConcreteAPI::getDeviceId() {
 
 unsigned int ConcreteAPI::getGlobMemAlignment() {
   auto device = this->currentDefaultQueue().get_device();
-  return 128; //ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
+  return 128; // ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
 }
 
 void ConcreteAPI::syncDevice() { this->currentQueueBuffer().syncAllQueuesWithHost(); }
@@ -101,7 +102,9 @@ std::string ConcreteAPI::getDeviceInfoAsText(int id) {
   auto device = this->availableDevices[id]->queueBuffer.getDefaultQueue().get_device();
   return this->getDeviceInfoAsTextInternal(device);
 }
-std::string ConcreteAPI::getCurrentDeviceInfoAsText() { return this->getDeviceInfoAsText(getDeviceId()); }
+std::string ConcreteAPI::getCurrentDeviceInfoAsText() {
+  return this->getDeviceInfoAsText(getDeviceId());
+}
 
 std::string ConcreteAPI::getDeviceInfoAsTextInternal(sycl::device& dev) {
   std::ostringstream info{};
@@ -117,14 +120,13 @@ std::string ConcreteAPI::getDeviceInfoAsTextInternal(sycl::device& dev) {
 }
 
 bool ConcreteAPI::isUnifiedMemoryDefault() {
-  // suboptimal (i.e. we'd need to query if USM needs to be migrated or not), but there's probably nothing better for now
+  // suboptimal (i.e. we'd need to query if USM needs to be migrated or not), but there's probably
+  // nothing better for now
   auto device = this->availableDevices[getDeviceId()]->queueBuffer.getDefaultQueue().get_device();
   return device.has(sycl::aspect::usm_system_allocations);
 }
 
-std::string ConcreteAPI::getApiName() {
-  return "SYCL";
-}
+std::string ConcreteAPI::getApiName() { return "SYCL"; }
 
 std::string ConcreteAPI::getDeviceName(int deviceId) {
   auto device = this->availableDevices[deviceId]->queueBuffer.getDefaultQueue().get_device();
@@ -142,10 +144,9 @@ std::string ConcreteAPI::getPciAddress(int deviceId) {
 #endif
 }
 
-void ConcreteAPI::profilingMessage(const std::string& message) {
-}
+void ConcreteAPI::profilingMessage(const std::string& message) {}
 
-void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
+void ConcreteAPI::putProfilingMark(const std::string& name, ProfilingColors color) {
   // ToDo: check if there is some similar functionality in VTUNE
 }
 
@@ -153,7 +154,4 @@ void ConcreteAPI::popLastProfilingMark() {
   // ToDo: check if there is some similar functionality in VTUNE
 }
 
-void ConcreteAPI::setupPrinting(int rank) {
-
-}
-
+void ConcreteAPI::setupPrinting(int rank) {}

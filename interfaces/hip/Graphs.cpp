@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2023 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -6,6 +6,7 @@
 #include "HipWrappedAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
+
 #include <cassert>
 
 using namespace device;
@@ -24,7 +25,6 @@ using namespace device;
  *    syncGraph(graph)                   // 2
  * */
 
-
 bool ConcreteAPI::isCapableOfGraphCapturing() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   return true;
@@ -32,7 +32,6 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
   return false;
 #endif
 }
-
 
 DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
   auto handle = DeviceGraphHandle();
@@ -42,16 +41,16 @@ DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs
     graphs.push_back(GraphDetails{});
     handle = DeviceGraphHandle(graphs.size() - 1);
 
-    GraphDetails &graphInstance = graphs[handle.getGraphId()];  
+    GraphDetails& graphInstance = graphs[handle.getGraphId()];
     graphInstance.ready = false;
     graphInstance.streamPtrs = streamPtrs;
   }
 
-  APIWRAP(hipStreamBeginCapture(static_cast<hipStream_t>(streamPtrs[0]), hipStreamCaptureModeThreadLocal));
+  APIWRAP(hipStreamBeginCapture(static_cast<hipStream_t>(streamPtrs[0]),
+                                hipStreamCaptureModeThreadLocal));
 #endif
   return handle;
 }
-
 
 void ConcreteAPI::streamEndCapture(DeviceGraphHandle handle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
@@ -60,7 +59,8 @@ void ConcreteAPI::streamEndCapture(DeviceGraphHandle handle) {
     std::lock_guard guard(apiMutex);
     graphInstance = graphs[handle.getGraphId()];
   }
-  APIWRAP(hipStreamEndCapture(static_cast<hipStream_t>(graphInstance.streamPtrs[0]), &(graphInstance.graph)));
+  APIWRAP(hipStreamEndCapture(static_cast<hipStream_t>(graphInstance.streamPtrs[0]),
+                              &(graphInstance.graph)));
 
   APIWRAP(hipGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0));
 
@@ -72,7 +72,6 @@ void ConcreteAPI::streamEndCapture(DeviceGraphHandle handle) {
   }
 #endif
 }
-
 
 void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
@@ -86,4 +85,3 @@ void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
   CHECK_ERR;
 #endif
 }
-

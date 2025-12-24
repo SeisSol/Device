@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2020 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
@@ -57,4 +57,3 @@ target_link_libraries(device PUBLIC CUDA::cudart CUDA::cuda_driver)
 if (ENABLE_PROFILING_MARKERS)
     target_link_libraries(device PUBLIC CUDA::nvtx3)
 endif()
-

@@ -1,26 +1,28 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "helper.hpp"
 #include "host/subroutines.hpp"
+#include "kernels/subroutinesGPU.h"
 #include "matrix_manip.hpp"
 #include "solvers.hpp"
+
 #include <algorithm>
 #include <cassert>
+#include <device.h>
 #include <functional>
 #include <iostream>
 #include <limits>
-
-#include "kernels/subroutinesGPU.h"
-#include <device.h>
 using namespace device;
 
-void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &matrix, const VectorT &inputRhs,
-                      VectorT &x) {
+void gpu::Solver::run(const SolverSettingsT& settings,
+                      const CpuMatrixDataT& matrix,
+                      const VectorT& inputRhs,
+                      VectorT& x) {
 
   // allocate all necessary data structs
-  const WorkSpaceT &ws = matrix.info.ws;
+  const WorkSpaceT& ws = matrix.info.ws;
   const RangeT range = matrix.info.range;
   VectorAssembler assembler(ws, range);
 
@@ -31,7 +33,7 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
 
   // assume that RHS is distributed. Thus, let's assemble it
   VectorT rhs(inputRhs.size(), 0.0);
-  assembler.assemble(const_cast<real *>(inputRhs.data()), const_cast<real *>(rhs.data()));
+  assembler.assemble(const_cast<real*>(inputRhs.data()), const_cast<real*>(rhs.data()));
 
   // compute diag and LU matrices
   VectorT invDiag;
@@ -39,7 +41,7 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
   std::tie(invDiag, lu) = getDLU(matrix);
 
   // allocate gpu data structures
-  DeviceInstance &device = DeviceInstance::getInstance();
+  DeviceInstance& device = DeviceInstance::getInstance();
   device.api->setDevice(ws.rank);
   device.api->initialize();
   this->setUp(lu, rhs, x, residual, invDiag);
@@ -67,9 +69,12 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
 
       launch_manipVectors(range, devDiag, devX, devTemp, VectorManipOps::Multiply, defaultStream);
       launch_multMatVec(*devLU, devX, devResidual, defaultStream);
-      launch_manipVectors(range, devTemp, devResidual, devResidual, VectorManipOps::Addition, defaultStream);
-      launch_manipVectors(range, devRhs, devResidual, devResidual, VectorManipOps::Subtraction, defaultStream);
-      device.api->copyFrom(const_cast<real *>(residual.data()), devResidual, residual.size() * sizeof(real));
+      launch_manipVectors(
+          range, devTemp, devResidual, devResidual, VectorManipOps::Addition, defaultStream);
+      launch_manipVectors(
+          range, devRhs, devResidual, devResidual, VectorManipOps::Subtraction, defaultStream);
+      device.api->copyFrom(
+          const_cast<real*>(residual.data()), devResidual, residual.size() * sizeof(real));
 
       auto localInfNorm = infNorm = host::getInfNorm(range, residual);
 #ifdef USE_MPI
@@ -80,7 +85,8 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
       std::stringstream stream;
       stream << "Current iter: " << currentIter << "; Residual: " << infNorm;
       if (currentIter != 0) {
-        stream << "; compute: " << computeStat.getStatistics().mean << ' ' << Statistics::getUnits();
+        stream << "; compute: " << computeStat.getStatistics().mean << ' '
+               << Statistics::getUnits();
 #ifdef USE_MPI
         stream << "; comm: " << commStat.getStatistics().mean << ' ' << Statistics::getUnits();
 #endif
@@ -92,53 +98,56 @@ void gpu::Solver::run(const SolverSettingsT &settings, const CpuMatrixDataT &mat
 
   device.api->syncDevice();
   assembler.assemble<SystemType::OnDevice>(devX, devTempX);
-  device.api->copyFrom(const_cast<real *>(x.data()), devTempX, x.size() * sizeof(real));
+  device.api->copyFrom(const_cast<real*>(x.data()), devTempX, x.size() * sizeof(real));
 
   this->tearDown();
 }
 
-void gpu::Solver::setUp(const CpuMatrixDataT &lu, const VectorT &rhs, const VectorT &x, const VectorT &residual,
-                        VectorT &invDiag) {
-  DeviceInstance &device = DeviceInstance::getInstance();
+void gpu::Solver::setUp(const CpuMatrixDataT& lu,
+                        const VectorT& rhs,
+                        const VectorT& x,
+                        const VectorT& residual,
+                        VectorT& invDiag) {
+  DeviceInstance& device = DeviceInstance::getInstance();
 
-  devRhs = static_cast<real *>(device.api->allocGlobMem(rhs.size() * sizeof(real)));
+  devRhs = static_cast<real*>(device.api->allocGlobMem(rhs.size() * sizeof(real)));
   device.api->copyTo(devRhs, rhs.data(), rhs.size() * sizeof(real));
 
-  devX = static_cast<real *>(device.api->allocGlobMem(x.size() * sizeof(real)));
+  devX = static_cast<real*>(device.api->allocGlobMem(x.size() * sizeof(real)));
   device.api->copyTo(devX, x.data(), x.size() * sizeof(real));
 
-  devTempX = static_cast<real *>(device.api->allocGlobMem(x.size() * sizeof(real)));
+  devTempX = static_cast<real*>(device.api->allocGlobMem(x.size() * sizeof(real)));
   device.api->copyTo(devTempX, x.data(), x.size() * sizeof(real));
 
-  devTemp = static_cast<real *>(device.api->allocGlobMem(x.size() * sizeof(real)));
+  devTemp = static_cast<real*>(device.api->allocGlobMem(x.size() * sizeof(real)));
 
   // InvDiag still holds the diagonal elements at this point
-  devDiag = static_cast<real *>(device.api->allocGlobMem(invDiag.size() * sizeof(real)));
+  devDiag = static_cast<real*>(device.api->allocGlobMem(invDiag.size() * sizeof(real)));
   device.api->copyTo(devDiag, invDiag.data(), invDiag.size() * sizeof(real));
 
   // compute inverse diagonal matrix
-  std::transform(invDiag.begin(), invDiag.end(), invDiag.begin(), [](const real &diag) {
+  std::transform(invDiag.begin(), invDiag.end(), invDiag.begin(), [](const real& diag) {
     assert(diag != 0.0 && "diag element cannot be equal to zero");
     return 1.0 / diag;
   });
 
-  devInvDiag = static_cast<real *>(device.api->allocGlobMem(invDiag.size() * sizeof(real)));
+  devInvDiag = static_cast<real*>(device.api->allocGlobMem(invDiag.size() * sizeof(real)));
   device.api->copyTo(devInvDiag, invDiag.data(), invDiag.size() * sizeof(real));
 
-  devResidual = static_cast<real *>(device.api->allocGlobMem(residual.size() * sizeof(real)));
+  devResidual = static_cast<real*>(device.api->allocGlobMem(residual.size() * sizeof(real)));
   device.api->copyTo(devResidual, residual.data(), residual.size() * sizeof(real));
 
   devLU = std::make_unique<GpuMatrixDataT>(lu.info);
   // GpuMatrixDataT devLU(LU.Info);
-  devLU->data = static_cast<real *>(device.api->allocGlobMem(lu.info.volume * sizeof(real)));
+  devLU->data = static_cast<real*>(device.api->allocGlobMem(lu.info.volume * sizeof(real)));
   device.api->copyTo(devLU->data, lu.data.data(), lu.info.volume * sizeof(real));
 
-  devLU->indices = static_cast<int *>(device.api->allocGlobMem(lu.info.volume * sizeof(int)));
+  devLU->indices = static_cast<int*>(device.api->allocGlobMem(lu.info.volume * sizeof(int)));
   device.api->copyTo(devLU->indices, lu.indices.data(), lu.info.volume * sizeof(int));
 }
 
 void gpu::Solver::tearDown() {
-  DeviceInstance &device = DeviceInstance::getInstance();
+  DeviceInstance& device = DeviceInstance::getInstance();
   device.api->freeGlobMem(devResidual);
   device.api->freeGlobMem(devInvDiag);
   device.api->freeGlobMem(devDiag);
@@ -151,4 +160,3 @@ void gpu::Solver::tearDown() {
   device.api->freeGlobMem(devLU->indices);
   devLU.reset(nullptr);
 }
-

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -12,23 +12,22 @@ namespace device {
 
 // DeviceInstance -> Singleton
 class DeviceInstance {
-public:
-  DeviceInstance(const DeviceInstance &) = delete;
-  DeviceInstance &operator=(const DeviceInstance &) = delete;
-  static DeviceInstance &getInstance() {
+  public:
+  DeviceInstance(const DeviceInstance&) = delete;
+  DeviceInstance& operator=(const DeviceInstance&) = delete;
+  static DeviceInstance& getInstance() {
     static DeviceInstance instance;
     return instance;
   }
   ~DeviceInstance();
   void finalize();
 
-  AbstractAPI *api{nullptr};
+  AbstractAPI* api{nullptr};
   Algorithms algorithms{};
 
-private:
+  private:
   DeviceInstance();
 };
 } // namespace device
 
 #endif // SEISSOLDEVICE_DEVICE_H_
-

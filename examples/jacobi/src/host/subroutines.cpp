@@ -1,8 +1,9 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "subroutines.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <iostream>
@@ -12,11 +13,12 @@
 #endif
 
 namespace host {
-void multMatVec(const CpuMatrixDataT &matrix, const VectorT &v, VectorT &res) {
-  const auto &info = matrix.info;
-  const RangeT &range = info.range;
+void multMatVec(const CpuMatrixDataT& matrix, const VectorT& v, VectorT& res) {
+  const auto& info = matrix.info;
+  const RangeT& range = info.range;
 
-  assert(static_cast<size_t>(info.numRows) == v.size() && "matrix and vec. must have the same size");
+  assert(static_cast<size_t>(info.numRows) == v.size() &&
+         "matrix and vec. must have the same size");
 
   std::fill(&res[range.start], &res[range.end], 0.0);
 
@@ -30,8 +32,11 @@ void multMatVec(const CpuMatrixDataT &matrix, const VectorT &v, VectorT &res) {
   }
 }
 
-void manipVectors(const RangeT &range, const VectorT &a, const VectorT &b, VectorT &res,
-                  std::function<real(real, real)> &&ops) {
+void manipVectors(const RangeT& range,
+                  const VectorT& a,
+                  const VectorT& b,
+                  VectorT& res,
+                  std::function<real(real, real)>&& ops) {
   assert(a.size() == b.size() && "Vectors A and B must have the same size");
   assert(a.size() == res.size() && "Vectors A, B and Res must have the same size");
 
@@ -40,13 +45,14 @@ void manipVectors(const RangeT &range, const VectorT &a, const VectorT &b, Vecto
   }
 }
 
-real getInfNorm(const RangeT &range, const VectorT &vector) {
+real getInfNorm(const RangeT& range, const VectorT& vector) {
   using TypeT = VectorT::iterator::value_type;
 
-  const auto *maxElemItr = std::max_element(&vector[range.start], &vector[range.end],
-                                            [](const TypeT &a, const TypeT &b) { return std::abs(a) < std::abs(b); });
+  const auto* maxElemItr =
+      std::max_element(&vector[range.start],
+                       &vector[range.end],
+                       [](const TypeT& a, const TypeT& b) { return std::abs(a) < std::abs(b); });
 
   return std::abs(*maxElemItr);
 }
 } // namespace host
-
