@@ -35,6 +35,14 @@ ConcreteAPI::ConcreteAPI() {
 
   CHECK_ERR;
 
+  int numDevices{};
+  APIWRAP(hipGetDeviceCount(&numDevices));
+
+  properties.resize(numDevices);
+  for (int i = 0; i < numDevices; ++i) {
+    APIWRAP(hipGetDeviceProperties(&properties[i], i));
+  }
+
   status[StatusID::DriverApiInitialized] = true;
 }
 
@@ -60,14 +68,6 @@ void ConcreteAPI::initialize() {
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
     APIWRAP(hipStreamCreateWithFlags(&defaultStream, hipStreamNonBlocking));
-
-    int numDevices{};
-    APIWRAP(hipGetDeviceCount(&numDevices));
-
-    properties.resize(numDevices);
-    for (int i = 0; i < numDevices; ++i) {
-      APIWRAP(hipGetDeviceProperties(&properties[i], i));
-    }
 
     // NOTE: hipDeviceGetAttribute internally calls hipGetDeviceProperties; hence it doesn't make
     // sense to use it here

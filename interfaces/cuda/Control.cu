@@ -38,6 +38,14 @@ ConcreteAPI::ConcreteAPI() {
 
   CHECK_ERR;
 
+  int numDevices{};
+  APIWRAP(cudaGetDeviceCount(&numDevices));
+
+  properties.resize(numDevices);
+  for (int i = 0; i < numDevices; ++i) {
+    APIWRAP(cudaGetDeviceProperties(&properties[i], i));
+  }
+
   status[StatusID::DriverApiInitialized] = true;
 }
 
@@ -62,14 +70,6 @@ void ConcreteAPI::initialize() {
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
     APIWRAP(cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking));
-
-    int numDevices{};
-    APIWRAP(cudaGetDeviceCount(&numDevices));
-
-    properties.resize(numDevices);
-    for (int i = 0; i < numDevices; ++i) {
-      APIWRAP(cudaGetDeviceProperties(&properties[i], i));
-    }
 
     allowedConcurrentManagedAccess = properties[getDeviceId()].concurrentManagedAccess != 0;
 
