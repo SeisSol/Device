@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2019 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
@@ -18,8 +18,7 @@ endif()
 
 
 add_executable(mpi src/main.cpp)
-add_subdirectory(root)
-target_include_directories(mpi PUBLIC root ${MPI_CXX_INCLUDE_DIRS})
+add_subdirectory(../.. root)
 target_link_libraries(mpi PUBLIC device ${MPI_CXX_LIBRARIES})
 
 
@@ -35,4 +34,3 @@ endif()
 
 target_compile_options(mpi PRIVATE ${MPI_CXX_COMPILE_OPTIONS})
 target_compile_definitions(mpi PRIVATE DEVICE_${DEVICE_BACKEND}_LANG REAL_SIZE=${REAL_SIZE_IN_BYTES})
-

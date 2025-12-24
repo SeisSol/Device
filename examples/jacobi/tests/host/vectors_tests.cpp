@@ -1,18 +1,18 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
-
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
 
 #include "datatypes.hpp"
 #include "helper.hpp"
 #include "host/subroutines.hpp"
 
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
 using ::testing::ElementsAreArray;
 
 class VectorTests : public ::testing::Test {
-protected:
+  protected:
   void SetUp() override {
     v1.resize(VSIZE, 0);
     v2.resize(VSIZE, 0);
@@ -43,13 +43,12 @@ TEST_F(VectorTests, AssemblerTest) {
     ref[i] = i;
   }
 
-  //VectorAssembler(WorkSpaceT ws, int start, int end)
+  // VectorAssembler(WorkSpaceT ws, int start, int end)
   VectorAssembler assembler(ws, range);
 
   assembler.assemble(v1.data(), v2.data());
   ASSERT_THAT(v2, ElementsAreArray(ref));
 }
-
 
 #ifdef USE_MPI
 TEST_F(VectorTests, InfNorm) {
@@ -57,7 +56,6 @@ TEST_F(VectorTests, InfNorm) {
   v1[0] = extremes[0];
   v1[5] = extremes[1];
   v1[9] = extremes[2];
-
 
   real localNorm = host::getInfNorm(range, v1);
 
@@ -67,11 +65,10 @@ TEST_F(VectorTests, InfNorm) {
 }
 #endif
 
-
 TEST_F(VectorTests, AddAndSubtract) {
   {
     VectorT test(VSIZE, 0);
-    VectorT tmp (VSIZE, 0);
+    VectorT tmp(VSIZE, 0);
 
     // init
     for (int i = range.start; i != range.end; ++i) {
@@ -79,7 +76,7 @@ TEST_F(VectorTests, AddAndSubtract) {
       v2[i] = -1.0 * real(i);
     }
 
-    host::manipVectors(range, v1, v2, test, [](real a, real b){return a + b;});
+    host::manipVectors(range, v1, v2, test, [](real a, real b) { return a + b; });
 
     VectorAssembler assembler(ws, range);
     assembler.assemble(test.data(), tmp.data());
@@ -89,7 +86,7 @@ TEST_F(VectorTests, AddAndSubtract) {
   }
   {
     VectorT test(VSIZE, 0);
-    VectorT tmp (VSIZE, 0);
+    VectorT tmp(VSIZE, 0);
 
     // init
     for (int i = range.start; i != range.end; ++i) {
@@ -97,16 +94,15 @@ TEST_F(VectorTests, AddAndSubtract) {
       v2[i] = -1.0 * real(i);
     }
 
-    host::manipVectors(range, v1, v2, test, [](real a, real b){return a * b;});
+    host::manipVectors(range, v1, v2, test, [](real a, real b) { return a * b; });
 
     VectorAssembler assembler(ws, range);
     assembler.assemble(test.data(), tmp.data());
 
     VectorT ref(VSIZE, 0);
     for (int i = 0; i != VSIZE; ++i) {
-      ref[i] = - real(i * i);
+      ref[i] = -real(i * i);
     }
     ASSERT_THAT(tmp, ElementsAreArray(ref));
   }
 }
-

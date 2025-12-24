@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -10,11 +10,12 @@
 #endif
 
 #include "datatypes.hpp"
+
 #include <stdexcept>
 
 using namespace device;
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
 #ifdef USE_MPI
   MPI_Init(&argc, &argv);
   WorkSpaceT ws{MPI_COMM_WORLD};
@@ -24,7 +25,7 @@ int main(int argc, char **argv) {
   WorkSpaceT ws{MPI_COMM_WORLD};
 #endif
 
-  DeviceInstance &device = DeviceInstance::getInstance();
+  DeviceInstance& device = DeviceInstance::getInstance();
   device.api->setDevice(ws.rank);
   device.api->initialize();
 
@@ -35,4 +36,3 @@ int main(int argc, char **argv) {
 #endif
   return result;
 }
-

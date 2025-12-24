@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2021 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "BaseTestSuite.h"
 #include "device.h"
+
 #include "gtest/gtest.h"
 #include <functional>
 #include <numeric>
@@ -28,7 +29,7 @@ TEST_F(Memories, copy2DMemory) {
     }
   }
 
-  int *arr = (int *)device->api->allocGlobMem(M * N * sizeof(int));
+  int* arr = (int*)device->api->allocGlobMem(M * N * sizeof(int));
 
   int spitch = N * sizeof(int);
   int dpitch = N * sizeof(int);
@@ -123,4 +124,3 @@ TEST_F(Memories, copy2DMemoryWithDstPitch) {
   device->api->freeGlobMem(arr);
 }
 */
-

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -6,6 +6,7 @@
 #define SEISSOLDEVICE_ABSTRACTAPI_H_
 
 #include "DataTypes.h"
+
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -44,40 +45,43 @@ struct AbstractAPI {
   virtual std::string getDeviceName(int deviceId) = 0;
   virtual std::string getPciAddress(int deviceId) = 0;
 
-  virtual void *allocGlobMem(size_t size, bool compress = false) = 0;
-  virtual void *allocUnifiedMem(size_t size, bool compress = false, Destination hint = Destination::CurrentDevice) = 0;
-  virtual void *allocPinnedMem(size_t size, bool compress = false, Destination hint = Destination::Host) = 0;
-  virtual void freeGlobMem(void *devPtr) = 0;
-  virtual void freeUnifiedMem(void *devPtr) = 0;
-  virtual void freePinnedMem(void *devPtr) = 0;
+  virtual void* allocGlobMem(size_t size, bool compress = false) = 0;
+  virtual void* allocUnifiedMem(size_t size,
+                                bool compress = false,
+                                Destination hint = Destination::CurrentDevice) = 0;
+  virtual void*
+      allocPinnedMem(size_t size, bool compress = false, Destination hint = Destination::Host) = 0;
+  virtual void freeGlobMem(void* devPtr) = 0;
+  virtual void freeUnifiedMem(void* devPtr) = 0;
+  virtual void freePinnedMem(void* devPtr) = 0;
   virtual std::string getMemLeaksReport() = 0;
 
-  virtual void *allocMemAsync(size_t size, void* streamPtr) = 0;
-  virtual void freeMemAsync(void *devPtr, void* streamPtr) = 0;
+  virtual void* allocMemAsync(size_t size, void* streamPtr) = 0;
+  virtual void freeMemAsync(void* devPtr, void* streamPtr) = 0;
 
   virtual void pinMemory(void* ptr, size_t size) = 0;
   virtual void unpinMemory(void* ptr) = 0;
   virtual void* devicePointer(void* ptr) = 0;
 
-  virtual void copyTo(void *dst, const void *src, size_t count) = 0;
-  virtual void copyFrom(void *dst, const void *src, size_t count) = 0;
-  virtual void copyBetween(void *dst, const void *src, size_t count) = 0;
-  virtual void copyToAsync(void *dst, const void *src, size_t count, void* streamPtr) = 0;
-  virtual void copyFromAsync(void *dst, const void *src, size_t count, void* streamPtr) = 0;
-  virtual void copyBetweenAsync(void *dst, const void *src, size_t count, void* streamPtr) = 0;
+  virtual void copyTo(void* dst, const void* src, size_t count) = 0;
+  virtual void copyFrom(void* dst, const void* src, size_t count) = 0;
+  virtual void copyBetween(void* dst, const void* src, size_t count) = 0;
+  virtual void copyToAsync(void* dst, const void* src, size_t count, void* streamPtr) = 0;
+  virtual void copyFromAsync(void* dst, const void* src, size_t count, void* streamPtr) = 0;
+  virtual void copyBetweenAsync(void* dst, const void* src, size_t count, void* streamPtr) = 0;
 
-  virtual void copy2dArrayTo(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width,
-                             size_t height) = 0;
-  virtual void copy2dArrayFrom(void *dst, size_t dpitch, const void *src, size_t spitch,
-                               size_t width, size_t height) = 0;
-  virtual void prefetchUnifiedMemTo(Destination type, const void *devPtr, size_t count,
-                                    void *streamPtr) = 0;
+  virtual void copy2dArrayTo(
+      void* dst, size_t dpitch, const void* src, size_t spitch, size_t width, size_t height) = 0;
+  virtual void copy2dArrayFrom(
+      void* dst, size_t dpitch, const void* src, size_t spitch, size_t width, size_t height) = 0;
+  virtual void
+      prefetchUnifiedMemTo(Destination type, const void* devPtr, size_t count, void* streamPtr) = 0;
 
   virtual size_t getMaxAvailableMem() = 0;
   virtual size_t getCurrentlyOccupiedMem() = 0;
   virtual size_t getCurrentlyOccupiedUnifiedMem() = 0;
 
-  virtual void *getDefaultStream() = 0;
+  virtual void* getDefaultStream() = 0;
   virtual void syncDefaultStreamWithHost() = 0;
 
   virtual bool isCapableOfGraphCapturing() = 0;
@@ -94,31 +98,30 @@ struct AbstractAPI {
 
   virtual void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) = 0;
 
-  virtual void* createEvent() = 0;
+  virtual void* createEvent(bool withTiming = false) = 0;
   virtual void destroyEvent(void* eventPtr) = 0;
   virtual void syncEventWithHost(void* eventPtr) = 0;
   virtual bool isEventCompleted(void* eventPtr) = 0;
   virtual void recordEventOnHost(void* eventPtr) = 0;
   virtual void recordEventOnStream(void* eventPtr, void* streamPtr) = 0;
+  virtual double timespanEvents(void* eventPtrStart, void* eventPtrEnd) = 0;
 
   virtual bool isUnifiedMemoryDefault() = 0;
 
   virtual void initialize() = 0;
   virtual void finalize() = 0;
   virtual void profilingMessage(const std::string& message) = 0;
-  virtual void putProfilingMark(const std::string &name, ProfilingColors color) = 0;
+  virtual void putProfilingMark(const std::string& name, ProfilingColors color) = 0;
   virtual void popLastProfilingMark() = 0;
 
   virtual void setupPrinting(int rank) = 0;
 
   bool hasFinalized() { return m_isFinalized; }
 
-protected:
+  protected:
   bool m_isFinalized = false;
   std::mutex apiMutex;
 };
 } // namespace device
 
-
 #endif // SEISSOLDEVICE_ABSTRACTAPI_H_
-

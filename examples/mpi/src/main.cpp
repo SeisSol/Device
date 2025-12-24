@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2021 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -10,11 +10,11 @@ using namespace device;
 
 void forkOther(int otherRank) {
 
-  DeviceInstance &device = DeviceInstance::getInstance();
-  auto *api = device.api;
+  DeviceInstance& device = DeviceInstance::getInstance();
+  auto* api = device.api;
   api->setDevice(otherRank);
 
-  auto *devPtr = (int *)api->allocGlobMem(sizeof(int));
+  auto* devPtr = (int*)api->allocGlobMem(sizeof(int));
   const int value = 42;
   api->copyTo(devPtr, &value, sizeof(int));
 
@@ -24,11 +24,11 @@ void forkOther(int otherRank) {
 }
 
 void forkRoot(int rootRank) {
-  DeviceInstance &device = DeviceInstance::getInstance();
-  auto *api = device.api;
+  DeviceInstance& device = DeviceInstance::getInstance();
+  auto* api = device.api;
   api->setDevice(rootRank);
 
-  auto *devPtr = (int *)api->allocGlobMem(sizeof(int));
+  auto* devPtr = (int*)api->allocGlobMem(sizeof(int));
   int value = -1;
   api->copyTo(devPtr, &value, sizeof(int));
 
@@ -38,7 +38,7 @@ void forkRoot(int rootRank) {
   std::cout << "value from GPU received: " << value << '\n';
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   MPI_Init(&argc, &argv);
 
   int worldRank{}, mpiSize{};
@@ -51,8 +51,7 @@ int main(int argc, char *argv[]) {
     } else if (worldRank == 1) {
       forkOther(worldRank);
     }
-  }
-  else {
+  } else {
     if (worldRank == 0) {
       std::cerr << "error: ran with more or less than 2 MPI processes\n";
     }
@@ -60,4 +59,3 @@ int main(int argc, char *argv[]) {
 
   MPI_Finalize();
 }
-

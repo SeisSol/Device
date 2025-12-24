@@ -1,23 +1,26 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "AbstractAPI.h"
 #include "Internals.h"
 #include "utils/logger.h"
+
 #include <cassert>
 #include <device.h>
 
 namespace device {
 
-template<typename T>
-void Algorithms::compareDataWithHost(const T *hostPtr, const T *devPtr, const size_t numElements,
-                                     const std::string &dataName) {
+template <typename T>
+void Algorithms::compareDataWithHost(const T* hostPtr,
+                                     const T* devPtr,
+                                     const size_t numElements,
+                                     const std::string& dataName) {
 
   std::stringstream stream;
   stream << "DEVICE:: comparing array: " << dataName << '\n';
 
-  T *temp = new T[numElements];
+  T* temp = new T[numElements];
   api->copyFrom(temp, devPtr, numElements * sizeof(T));
   CHECK_ERR;
   constexpr T EPS = 1e-12;
@@ -43,10 +46,13 @@ void Algorithms::compareDataWithHost(const T *hostPtr, const T *devPtr, const si
   delete[] temp;
 };
 
-template void Algorithms::compareDataWithHost(const float *hostPtr, const float *devPtr, const size_t numElements,
-  const std::string &dataName);
-template void Algorithms::compareDataWithHost(const double *hostPtr, const double *devPtr, const size_t numElements,
-  const std::string &dataName);
+template void Algorithms::compareDataWithHost(const float* hostPtr,
+                                              const float* devPtr,
+                                              const size_t numElements,
+                                              const std::string& dataName);
+template void Algorithms::compareDataWithHost(const double* hostPtr,
+                                              const double* devPtr,
+                                              const size_t numElements,
+                                              const std::string& dataName);
 
 } // namespace device
-

@@ -6,6 +6,7 @@
 #define SEISSOLDEVICE_TESTS_BASETESTSUITE_H_
 
 #include "device.h"
+
 #include "gtest/gtest.h"
 #include <iostream>
 #include <random>
@@ -15,25 +16,20 @@ using namespace ::testing;
 
 static bool setUp = false;
 
-
-class BaseTestSuite : public ::testing::Test
-{
-public:
-  DeviceInstance *device;
+class BaseTestSuite : public ::testing::Test {
+  public:
+  DeviceInstance* device;
 
   BaseTestSuite() { randomEngine.seed(randomDevice()); }
 
-void SetUp() {
-  device = &DeviceInstance::getInstance();
-  setUp = true;
-}
+  void SetUp() {
+    device = &DeviceInstance::getInstance();
+    setUp = true;
+  }
 
-protected:
-std::random_device randomDevice;
-std::mt19937 randomEngine;
+  protected:
+  std::random_device randomDevice;
+  std::mt19937 randomEngine;
 };
 
-
-
 #endif // SEISSOLDEVICE_TESTS_BASETESTSUITE_H_
-

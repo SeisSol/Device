@@ -21,13 +21,12 @@ struct Statistics {
     report << "Allocated Memory (bytes): " << allocatedMemBytes << "\n";
     report << "of it Unified Memory (bytes): " << allocatedUnifiedMemBytes << "\n";
     report << "Deallocated Memory (bytes): " << deallocatedMemBytes << "\n";
-    report << "Bytes transferred to device memory: " << explicitlyTransferredDataToDeviceBytes << "\n";
+    report << "Bytes transferred to device memory: " << explicitlyTransferredDataToDeviceBytes
+           << "\n";
     report << "Bytes transferred to host memory: " << explicitlyTransferredDataToHostBytes << "\n";
     return report.str();
   }
 };
 } // namespace device
 
-
 #endif // SEISSOLDEVICE_INTERFACES_SYCL_STATISTICS_H_
-

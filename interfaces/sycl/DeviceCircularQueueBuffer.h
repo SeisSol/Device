@@ -1,16 +1,15 @@
-// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2021 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #ifndef SEISSOLDEVICE_INTERFACES_SYCL_DEVICECIRCULARQUEUEBUFFER_H_
 #define SEISSOLDEVICE_INTERFACES_SYCL_DEVICECIRCULARQUEUEBUFFER_H_
 
-#include <sycl/sycl.hpp>
 #include <functional>
 #include <stack>
 #include <string.h>
+#include <sycl/sycl.hpp>
 #include <vector>
-
 
 namespace device {
 struct QueueWrapper {
@@ -23,8 +22,7 @@ struct QueueWrapper {
 };
 
 class DeviceCircularQueueBuffer {
-public:
-
+  public:
   /*
    * Creates a new circular buffer containing sycl queues. The buffer needs
    * an async exception handler and a capacity that is currently per default 8.
@@ -36,19 +34,19 @@ public:
   /*
    * Returns the default queue created by a device.
    */
-  sycl::queue &getDefaultQueue();
+  sycl::queue& getDefaultQueue();
 
   /*
    * Returns the generic queue created by a device.
    * Note, this queue can be used for asynchronous
    * memory copies
    */
-  sycl::queue &getGenericQueue();
+  sycl::queue& getGenericQueue();
 
   /*
    * Returns the next queue within the capacity of this buffer.
    */
-  sycl::queue &getNextQueue();
+  sycl::queue& getNextQueue();
 
   sycl::queue* newQueue(double priority);
 
@@ -69,7 +67,7 @@ public:
   /*
    * Synchronizes a queue from the buffer with the host device.
    */
-  void syncQueueWithHost(sycl::queue *queuePtr);
+  void syncQueueWithHost(sycl::queue* queuePtr);
 
   /*
    * Synchronizes all queues from the buffer with the host device.
@@ -79,13 +77,13 @@ public:
   /*
    *Returns true if the queue pointer is available on the buffer.
    */
-  bool exists(sycl::queue *queuePtr);
+  bool exists(sycl::queue* queuePtr);
 
   void forkQueueDepencency();
 
   void joinQueueDepencency();
 
-private:
+  private:
   QueueWrapper defaultQueue;
   QueueWrapper genericQueue;
   std::vector<QueueWrapper> queues;
@@ -97,6 +95,4 @@ private:
 
 } // namespace device
 
-
 #endif // SEISSOLDEVICE_INTERFACES_SYCL_DEVICECIRCULARQUEUEBUFFER_H_
-

@@ -1,20 +1,21 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "DataTypes.h"
 #include "device.h"
+
 #include <iostream>
 #include <stdlib.h>
 
 using namespace device;
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   const size_t size = 1024;
-  real *inputArray = new real[size];
-  real *outputArray = new real[size];
+  real* inputArray = new real[size];
+  real* outputArray = new real[size];
 
-  DeviceInstance &device = DeviceInstance::getInstance();
+  DeviceInstance& device = DeviceInstance::getInstance();
 
   // set up the first device
   const int numDevices = device.api->getNumDevices();
@@ -33,10 +34,9 @@ int main(int argc, char *argv[]) {
   std::cout << "max shared mem: " << device.api->getMaxSharedMemSize() << std::endl;
   std::cout << "max thread block size: " << device.api->getMaxThreadBlockSize() << std::endl;
 
-
   // allocate mem. on a device
-  real *dInputArray = static_cast<real *>(device.api->allocGlobMem(sizeof(real) * size));
-  real *dOutputArray = static_cast<real *>(device.api->allocGlobMem(sizeof(real) * size));
+  real* dInputArray = static_cast<real*>(device.api->allocGlobMem(sizeof(real) * size));
+  real* dOutputArray = static_cast<real*>(device.api->allocGlobMem(sizeof(real) * size));
 
   // copy data into a device
   device.api->copyTo(dInputArray, inputArray, sizeof(real) * size);
@@ -59,4 +59,3 @@ int main(int argc, char *argv[]) {
   delete[] outputArray;
   delete[] inputArray;
 }
-

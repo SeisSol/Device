@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: 2019-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2019 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.14)
 project(examples)
 
 #set(CMAKE_CXX_CLANG_TIDY clang-tidy)
@@ -18,13 +18,13 @@ set(DEVICE_ARCH ${SM})
 set(DEVICE_BACKEND "cuda" CACHE STRING "type of an interface")
 set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "cuda" "hip" "oneapi" "hipsycl")
 
-add_subdirectory(root)
+add_subdirectory(.. root)
 
 find_package(GTest REQUIRED)
 
 add_executable(tests main.cpp reductions.cpp array_manip.cpp memory.cpp batch_manip.cpp)
 target_link_libraries(tests PRIVATE device ${GTEST_BOTH_LIBRARIES})
-target_include_directories(tests PRIVATE root ${GTEST_INCLUDE_DIR})
+target_include_directories(tests PRIVATE ${GTEST_INCLUDE_DIR})
 
 if (DEVICE_BACKEND STREQUAL "hipsycl")
   find_package(OpenMP REQUIRED)

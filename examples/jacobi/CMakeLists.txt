@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2019 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
@@ -10,7 +10,7 @@ option(WITH_TESTS "build with unit test" OFF)
 option(WITH_MPI "build with MPI support" ON)
 
 find_package(yaml-cpp REQUIRED 0.7.0)
-add_subdirectory(root)
+add_subdirectory(../.. root)
 add_subdirectory(src/gpu/kernels)
 
 if (WITH_MPI)
@@ -49,7 +49,6 @@ if (${DEVICE_BACKEND} STREQUAL "hipsycl")
 endif()
 
 target_include_directories(solver PUBLIC src
-                                         root
                                          ${__MPI_INCLUDES})
 
 if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.13")
@@ -90,8 +89,7 @@ if (WITH_TESTS)
         target_link_options(tests PUBLIC ${__MPI_LINK_FLAGS})
     endif()
 
-    target_include_directories(tests PRIVATE root
-                                             ${GTEST_INCLUDE_DIR}
+    target_include_directories(tests PRIVATE ${GTEST_INCLUDE_DIR}
                                              ${__MPI_INCLUDES}
                                              ${CMAKE_SOURCE_DIR}/src)
 
@@ -106,4 +104,3 @@ if (WITH_TESTS)
     target_compile_options(tests PRIVATE -std=c++17 ${__MPI_COMPILE_FLAGS})
 
 endif()
-

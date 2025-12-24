@@ -1,13 +1,12 @@
-# SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2020 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 enable_language(CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 
-add_library(device SHARED device.cpp
+add_library(device ${DEVICE_LIBTYPE} device.cpp
                  interfaces/cuda/Control.cu
-                 interfaces/cuda/Aux.cu
                  interfaces/cuda/Memory.cu
                  interfaces/cuda/Events.cu
                  interfaces/cuda/Copy.cu
@@ -42,9 +41,20 @@ if (USE_GRAPH_CAPTURING)
 endif()
 
 target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-        -Xptxas -v;
         --expt-relaxed-constexpr;
         >)
+
+if (DEVICE_KERNEL_INFOPRINT)
+        target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                -Xptxas -v;
+                >)
+endif()
+
+if (DEVICE_KERNEL_SAVETEMPS)
+        target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                --keep;
+                >)
+endif()
 
 if (EXTRA_DEVICE_FLAGS)
     target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
@@ -58,4 +68,3 @@ target_link_libraries(device PUBLIC CUDA::cudart CUDA::cuda_driver)
 if (ENABLE_PROFILING_MARKERS)
     target_link_libraries(device PUBLIC CUDA::nvtx3)
 endif()
-

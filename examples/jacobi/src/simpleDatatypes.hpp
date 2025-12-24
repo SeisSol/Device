@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -24,6 +24,4 @@ enum SystemType {
   OnDevice,
 };
 
-
 #endif // SEISSOLDEVICE_EXAMPLES_JACOBI_SRC_SIMPLEDATATYPES_HPP_
-

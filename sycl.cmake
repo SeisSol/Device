@@ -1,9 +1,8 @@
-# SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2021 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
 set(DEVICE_SOURCE_FILES device.cpp
-        interfaces/sycl/Aux.cpp
         interfaces/sycl/Control.cpp
         interfaces/sycl/Copy.cpp
         interfaces/sycl/Events.cpp
@@ -19,7 +18,7 @@ set(DEVICE_SOURCE_FILES device.cpp
         algorithms/sycl/Reduction.cpp
         )
 
-add_library(device SHARED ${DEVICE_SOURCE_FILES})
+add_library(device ${DEVICE_LIBTYPE} ${DEVICE_SOURCE_FILES})
 
 if ((${DEVICE_BACKEND} STREQUAL "acpp") OR (${DEVICE_BACKEND} STREQUAL "hipsycl"))
     if (DEVICE_ARCH MATCHES "sm_*")

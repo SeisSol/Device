@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -16,6 +16,4 @@ struct Statistics {
 };
 } // namespace device
 
-
 #endif // SEISSOLDEVICE_INTERFACES_CUDA_STATISTICS_H_
-

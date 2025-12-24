@@ -1,8 +1,8 @@
-# SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2021 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #Compile the HIP kernel
@@ -44,4 +44,3 @@ hip_add_library(${TARGET_NAME} SHARED ${SOURCE_FILES}
     HIPCC_OPTIONS ${HIPCC_FLAGS}
     HCC_OPTIONS ${HCC_FLAGS}
     NVCC_OPTIONS ${NVCC_FLAGS})
-

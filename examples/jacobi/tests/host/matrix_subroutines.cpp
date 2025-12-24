@@ -1,13 +1,14 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
 #include "datatypes.hpp"
+#include "helper.hpp"
 #include "host/subroutines.hpp"
 #include "matrix_manip.hpp"
-#include "helper.hpp"
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #ifdef USE_MPI
 #include <mpi.h>
 #endif
@@ -28,4 +29,3 @@ TEST(Matrix, MatrixMult) {
   VectorT resMustBe{-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 7.0};
   ASSERT_THAT(tmp, ElementsAreArray(resMustBe));
 }
-

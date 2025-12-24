@@ -1,8 +1,9 @@
-// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2021 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "datatypes.hpp"
+
 #include <device.h>
 #include <gmock/gmock.h>
 #include <gpu/kernels/subroutinesGPU.h>
@@ -12,7 +13,7 @@
 using ::testing::ElementsAreArray;
 
 TEST(Subroutines, MultMatrixVec) {
-  auto *api = ::device::DeviceInstance::getInstance().api;
+  auto* api = ::device::DeviceInstance::getInstance().api;
   auto defaultStream = api->getDefaultStream();
   const int size = 3;
 
@@ -20,21 +21,20 @@ TEST(Subroutines, MultMatrixVec) {
   MatrixInfoT matrixInfoT{space, size, size};
   GpuMatrixDataT matrix{matrixInfoT};
 
-  matrix.data = (real *)api->allocUnifiedMem(size * size * sizeof(real));
-  matrix.indices = (int *)api->allocUnifiedMem(size * size * sizeof(int));
+  matrix.data = (real*)api->allocUnifiedMem(size * size * sizeof(real));
+  matrix.indices = (int*)api->allocUnifiedMem(size * size * sizeof(int));
 
-  for (int i = 0; i < size * size; ++i)
-  {
+  for (int i = 0; i < size * size; ++i) {
     const int linIndex = (i / size) + (i % size) * size;
-    matrix.data[linIndex] =  i + 1 ;
+    matrix.data[linIndex] = i + 1;
     matrix.indices[i] = i % size;
   }
   real v[] = {1, 1, 1};
   real res[] = {0, 0, 0};
   real ref[] = {6, 15, 24};
 
-  auto *devV = (real *)api->allocGlobMem(size * sizeof(real));
-  auto *devRes = (real *)api->allocGlobMem(size * sizeof(real));
+  auto* devV = (real*)api->allocGlobMem(size * sizeof(real));
+  auto* devRes = (real*)api->allocGlobMem(size * sizeof(real));
 
   api->copyTo(devV, v, size * sizeof(real));
   api->copyTo(devRes, res, size * sizeof(real));
@@ -42,7 +42,7 @@ TEST(Subroutines, MultMatrixVec) {
   launch_multMatVec(matrix, devV, devRes, defaultStream);
   api->syncDevice();
 
-  //we dont need a sync here; all API queues are in order and this memory copy is synchronous
+  // we dont need a sync here; all API queues are in order and this memory copy is synchronous
   api->copyFrom(res, devRes, size * sizeof(real));
 
   api->freeGlobMem(matrix.data);
@@ -54,15 +54,15 @@ TEST(Subroutines, MultMatrixVec) {
 }
 
 TEST(Subroutines, VectorManips) {
-  auto *api = ::device::DeviceInstance::getInstance().api;
+  auto* api = ::device::DeviceInstance::getInstance().api;
   auto defaultStream = api->getDefaultStream();
 
   const int size = 3;
-  RangeT rng {0, size};
+  RangeT rng{0, size};
 
-  auto *devA = (real *)api->allocUnifiedMem(size * sizeof(real));
-  auto *devB = (real *)api->allocUnifiedMem(size * sizeof(real));
-  auto *devRes = (real *)api->allocUnifiedMem(size * sizeof(real));
+  auto* devA = (real*)api->allocUnifiedMem(size * sizeof(real));
+  auto* devB = (real*)api->allocUnifiedMem(size * sizeof(real));
+  auto* devRes = (real*)api->allocUnifiedMem(size * sizeof(real));
   auto ref = std::vector<real>(size);
   auto res = std::vector<real>(size);
 
@@ -94,4 +94,3 @@ TEST(Subroutines, VectorManips) {
   api->copyFrom(&res[0], devRes, size * sizeof(real));
   ASSERT_THAT(res, ElementsAreArray(ref));
 }
-

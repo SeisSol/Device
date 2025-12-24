@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -30,7 +30,4 @@ DeviceInstance::~DeviceInstance() {
   api = nullptr;
 }
 
-void DeviceInstance::finalize() {
-  api->finalize();
-}
-
+void DeviceInstance::finalize() { api->finalize(); }

@@ -1,20 +1,20 @@
-// SPDX-FileCopyrightText: 2021-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2021 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "interfaces/sycl/Internals.h"
 #include "subroutinesGPU.h"
 
-#include <sycl/sycl.hpp>
 #include <device.h>
+#include <sycl/sycl.hpp>
 
 using namespace device::internals;
 
-void launch_multMatVec(const GpuMatrixDataT &matrix, const real *v, real *res, void* streamPtr) {
+void launch_multMatVec(const GpuMatrixDataT& matrix, const real* v, real* res, void* streamPtr) {
   auto rng = computeExecutionRange1D(128, matrix.info.localNumRows);
 
   auto queue = reinterpret_cast<sycl::queue*>(streamPtr);
-  queue->submit([&](sycl::handler &cgh) {
+  queue->submit([&](sycl::handler& cgh) {
     cgh.parallel_for(rng, [=](sycl::nd_item<> item) {
       int i = item.get_global_id(0);
       if (i < matrix.info.localNumRows) {
@@ -34,17 +34,16 @@ void launch_multMatVec(const GpuMatrixDataT &matrix, const real *v, real *res, v
   });
 }
 
-
-void launch_manipVectors(const RangeT &range,
-                         const real *vec1,
-                         const real *vec2,
-                         real *res,
+void launch_manipVectors(const RangeT& range,
+                         const real* vec1,
+                         const real* vec2,
+                         real* res,
                          VectorManipOps op,
                          void* streamPtr) {
   sycl::nd_range<> rng = computeExecutionRange1D(128, range.end - range.start);
 
   auto queue = reinterpret_cast<sycl::queue*>(streamPtr);
-  queue->submit([&](sycl::handler &cgh) {
+  queue->submit([&](sycl::handler& cgh) {
     cgh.parallel_for(rng, [=](sycl::nd_item<> item) {
       const size_t localSize = range.end - range.start;
       if (item.get_global_id(0) < localSize) {
@@ -67,4 +66,3 @@ void launch_manipVectors(const RangeT &range,
     });
   });
 }
-

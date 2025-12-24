@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2019 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
@@ -34,6 +34,13 @@ option(ENABLE_PROFILING_MARKERS "Enable profiling markers (if available)" OFF)
 
 string(TOLOWER ${DEVICE_BACKEND} BACKEND_FOLDER)
 
+# (SHARED is/was the default)
+if (DEVICE_STATIC)
+    set(DEVICE_LIBTYPE STATIC)
+else()
+    set(DEVICE_LIBTYPE SHARED)
+endif()
+
 # define device library
 if (${DEVICE_BACKEND} STREQUAL "cuda")
     set(BACKEND_FOLDER "cuda")
@@ -46,8 +53,6 @@ elseif((${DEVICE_BACKEND} STREQUAL "oneapi") OR (${DEVICE_BACKEND} STREQUAL "hip
     include(sycl.cmake)
 endif()
 
-string(TOUPPER ${BACKEND_FOLDER} BACKEND_UPPER_CASE)
-
 # common options
 target_compile_features(device PRIVATE cxx_std_17)
 
@@ -58,15 +63,22 @@ if (ENABLE_PROFILING_MARKERS)
   target_compile_definitions(device PRIVATE PROFILING_ENABLED)
 endif()
 
+string(TOUPPER ${BACKEND_FOLDER} BACKEND_UPPER_CASE)
 target_compile_definitions(device PRIVATE DEVICE_LANG_${BACKEND_UPPER_CASE})
+
+target_include_directories(device PRIVATE
+                                          interfaces/${BACKEND_FOLDER}
+                                          interfaces/common
+                                          algorithms/${BACKEND_FOLDER})
 
 if (LOG_LEVEL_MASTER)
   target_compile_definitions(device PRIVATE LOG_LEVEL=${LOG_LEVEL_MASTER})
 endif()
 
-target_include_directories(device PRIVATE .
-                                          interfaces/${BACKEND_FOLDER}
-                                          interfaces/common
-                                          algorithms/${BACKEND_FOLDER}
-                                          submodules)
+target_include_directories(device PUBLIC .)
 
+if (DEFINED DEVICE_SUBMODULES)
+    target_include_directories(device PRIVATE ${DEVICE_SUBMODULES})
+else()
+    target_include_directories(device PRIVATE submodules)
+endif()

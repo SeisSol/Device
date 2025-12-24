@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+# SPDX-FileCopyrightText: 2020 SeisSol Group
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
@@ -23,6 +23,7 @@ endif()
 # set the CMAKE_MODULE_PATH for the helper cmake files from HIP
 set(CMAKE_MODULE_PATH "${HIP_PATH}/cmake" "${HIP_PATH}/lib/cmake/hip" "${ROCM_PATH}/cmake" ${CMAKE_MODULE_PATH})
 
+# TODO: switch to CMake HIP support once CMake 3.21 is the minimum version
 find_package(HIP REQUIRED)
 
 # Can set different FLAGS for the compilers via HCC_OPTIONS and NVCC_OPTIONS keywords;
@@ -48,9 +49,15 @@ else()
                      -DDEVICE_${BACKEND_UPPER_CASE}_LANG)
 endif()
 
+if (DEVICE_KERNEL_INFOPRINT)
+    set(DEVICE_HIPCC ${DEVICE_HIPCC} -Rpass-analysis=kernel-resource-usage)
+endif()
+if (DEVICE_KERNEL_SAVETEMPS)
+    set(DEVICE_HIPCC ${DEVICE_HIPCC} --save-temps)
+endif()
+
 
 set(DEVICE_SOURCE_FILES device.cpp
-                        interfaces/hip/Aux.cpp
                         interfaces/hip/Control.cpp
                         interfaces/hip/Copy.cpp
                         interfaces/hip/Events.cpp
@@ -68,7 +75,7 @@ set(CMAKE_HIP_CREATE_SHARED_LIBRARY "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HCC_PATH
 
 set_source_files_properties(${DEVICE_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
 hip_reset_flags()
-hip_add_library(device SHARED ${DEVICE_SOURCE_FILES}
+hip_add_library(device ${DEVICE_LIBTYPE} ${DEVICE_SOURCE_FILES}
                        HIPCC_OPTIONS ${DEVICE_HIPCC}
                        NVCC_OPTIONS ${DEVICE_NVCC})
 

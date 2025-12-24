@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -7,7 +7,7 @@
 
 size_t get1DGrid(size_t blockSize, size_t size) { return (size + blockSize - 1) / blockSize; }
 
-__global__ void kernel_multMatVec(GpuMatrixDataT matrix, const real *v, real *res) {
+__global__ void kernel_multMatVec(GpuMatrixDataT matrix, const real* v, real* res) {
   const size_t idx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
   if (idx < matrix.info.localNumRows) {
     const size_t row = matrix.info.range.start + idx;
@@ -23,14 +23,15 @@ __global__ void kernel_multMatVec(GpuMatrixDataT matrix, const real *v, real *re
   }
 }
 
-void launch_multMatVec(const GpuMatrixDataT &matrix, const real *v, real *res, void* streamPtr) {
+void launch_multMatVec(const GpuMatrixDataT& matrix, const real* v, real* res, void* streamPtr) {
   dim3 block(128, 1, 1);
   dim3 grid(get1DGrid(block.x, matrix.info.localNumRows), 1, 1);
   auto stream = reinterpret_cast<hipStream_t>(streamPtr);
   hipLaunchKernelGGL(kernel_multMatVec, grid, block, 0, stream, matrix, v, res);
 }
 
-__global__ void kernel_manipVectors(RangeT range, const real *vec1, const real *vec2, real *res, VectorManipOps op) {
+__global__ void kernel_manipVectors(
+    RangeT range, const real* vec1, const real* vec2, real* res, VectorManipOps op) {
   const size_t idx = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
   const size_t localSize = range.end - range.start;
   if (idx < localSize) {
@@ -52,10 +53,10 @@ __global__ void kernel_manipVectors(RangeT range, const real *vec1, const real *
   }
 }
 
-void launch_manipVectors(const RangeT &range,
-                         const real *vec1,
-                         const real *vec2,
-                         real *res,
+void launch_manipVectors(const RangeT& range,
+                         const real* vec1,
+                         const real* vec2,
+                         real* res,
                          VectorManipOps op,
                          void* streamPtr) {
   size_t localSize = range.end - range.start;
@@ -64,4 +65,3 @@ void launch_manipVectors(const RangeT &range,
   auto stream = reinterpret_cast<hipStream_t>(streamPtr);
   hipLaunchKernelGGL(kernel_manipVectors, grid, block, 0, stream, range, vec1, vec2, res, op);
 }
-

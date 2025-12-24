@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -7,12 +7,13 @@
 #include "host/subroutines.hpp"
 #include "matrix_manip.hpp"
 #include "solvers.hpp"
+
 #include <chrono>
 #include <iostream>
 #include <unordered_map>
 #include <yaml-cpp/yaml.h>
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 #ifdef USE_MPI
   MPI_Init(&argc, &argv);
 #endif
@@ -33,19 +34,20 @@ int main(int argc, char *argv[]) {
     settings.maxNumIters = params["max_num_iters"].as<unsigned>();
     settings.printInfoNumIters = params["iters_per_output"].as<unsigned>();
     std::string solverTypeStr = params["sovler_type"].as<std::string>();
-    std::unordered_map<std::string, SolverType> solverTypeMap{{"cpu", SolverType::Cpu}, {"gpu", SolverType::Gpu}};
+    std::unordered_map<std::string, SolverType> solverTypeMap{{"cpu", SolverType::Cpu},
+                                                              {"gpu", SolverType::Gpu}};
 
     if (solverTypeMap.find(solverTypeStr) != solverTypeMap.end()) {
       settings.solverType = solverTypeMap[solverTypeStr];
     } else {
       throw std::runtime_error("invalid solver type provided");
     }
-  } catch (const std::runtime_error &error) {
+  } catch (const std::runtime_error& error) {
     std::stringstream stream;
     stream << "Error: " << error.what();
     Logger(ws, 0) << stream;
     return -1;
-  } catch (const std::logic_error &error) {
+  } catch (const std::logic_error& error) {
     std::stringstream stream;
     stream << "Error: " << error.what();
     Logger(ws, 0) << stream;
@@ -84,8 +86,7 @@ int main(int argc, char *argv[]) {
     for (auto item : unknown) {
       stream << item << '\n';
     }
-  }
-  else {
+  } else {
     std::stringstream front, middle, back;
     constexpr int windowSize = 4;
     for (size_t i = 0; i < windowSize; ++i) {
@@ -107,4 +108,3 @@ int main(int argc, char *argv[]) {
 #endif
   return 0;
 }
-

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2023 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -6,6 +6,7 @@
 #include "DataTypes.h"
 #include "Internals.h"
 #include "utils/logger.h"
+
 #include <cassert>
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
@@ -35,7 +36,6 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 #endif
 }
 
-
 DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
   auto handle = DeviceGraphHandle();
 #ifdef DEVICE_USE_GRAPH_CAPTURING
@@ -44,13 +44,13 @@ DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs
     graphs.push_back(GraphDetails{});
     handle = DeviceGraphHandle(graphs.size() - 1);
 
-    GraphDetails &graphInstance = graphs[handle.getGraphId()];  
+    GraphDetails& graphInstance = graphs[handle.getGraphId()];
     graphInstance.ready = false;
     graphInstance.streamPtrs = streamPtrs;
   }
 
-  cudaStreamBeginCapture(static_cast<cudaStream_t>(streamPtrs[0]), cudaStreamCaptureModeThreadLocal);
-  CHECK_ERR;
+  APIWRAP(cudaStreamBeginCapture(static_cast<cudaStream_t>(streamPtrs[0]),
+                                 cudaStreamCaptureModeThreadLocal));
 #endif
   return handle;
 }
@@ -62,11 +62,11 @@ void ConcreteAPI::streamEndCapture(DeviceGraphHandle handle) {
     std::lock_guard guard(apiMutex);
     graphInstance = graphs[handle.getGraphId()];
   }
-  cudaStreamEndCapture(static_cast<cudaStream_t>(graphInstance.streamPtrs[0]), &(graphInstance.graph));
-  CHECK_ERR;
+  APIWRAP(cudaStreamEndCapture(static_cast<cudaStream_t>(graphInstance.streamPtrs[0]),
+                               &(graphInstance.graph)));
 
-  cudaGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0);
-  CHECK_ERR;
+  APIWRAP(
+      cudaGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0));
 
   graphInstance.ready = true;
 
@@ -85,8 +85,6 @@ void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
     std::lock_guard guard(apiMutex);
     graphInstance = graphs[graphHandle.getGraphId()];
   }
-  cudaGraphLaunch(graphInstance.instance, reinterpret_cast<cudaStream_t>(streamPtr));
-  CHECK_ERR;
+  APIWRAP(cudaGraphLaunch(graphInstance.instance, reinterpret_cast<cudaStream_t>(streamPtr)));
 #endif
 }
-

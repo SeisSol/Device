@@ -1,12 +1,13 @@
-// SPDX-FileCopyrightText: 2020-2024 SeisSol Group
+// SPDX-FileCopyrightText: 2020 SeisSol Group
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "utils/logger.h"
 #include "utils/env.h"
+#include "utils/logger.h"
+
 #include <cuda.h>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -20,40 +21,47 @@
 #include "Internals.h"
 
 namespace {
-// `static` is a bit out of place here; but we treat the whole class as an effective singleton anyways
+// `static` is a bit out of place here; but we treat the whole class as an effective singleton
+// anyways
 
 #ifdef DEVICE_CONTEXT_GLOBAL
 int currentDeviceId = 0;
 #else
 thread_local int currentDeviceId = 0;
 #endif
-}
+} // namespace
 
 using namespace device;
 
 ConcreteAPI::ConcreteAPI() {
-  cuInit(0);
+  DRVWRAP(cuInit(0));
+
   CHECK_ERR;
+
+  int numDevices{};
+  APIWRAP(cudaGetDeviceCount(&numDevices));
+
+  properties.resize(numDevices);
+  for (int i = 0; i < numDevices; ++i) {
+    APIWRAP(cudaGetDeviceProperties(&properties[i], i));
+  }
+
   status[StatusID::DriverApiInitialized] = true;
 }
 
 void ConcreteAPI::setDevice(int deviceId) {
-  
+
   currentDeviceId = deviceId;
 
-  cudaSetDevice(deviceId);
-  CHECK_ERR;
+  APIWRAP(cudaSetDevice(deviceId));
 
   // Note: the following sets the initial CUDA context
-  cudaFree(nullptr);
-  CHECK_ERR;
+  APIWRAP(cudaFree(nullptr));
 
   status[StatusID::DeviceSelected] = true;
 }
 
-bool ConcreteAPI::isUnifiedMemoryDefault() {
-  return usmDefault;
-}
+bool ConcreteAPI::isUnifiedMemoryDefault() { return usmDefault; }
 
 void ConcreteAPI::initialize() {
   if (!status[StatusID::DeviceSelected]) {
@@ -61,48 +69,40 @@ void ConcreteAPI::initialize() {
   }
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
-    cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking); CHECK_ERR;
+    APIWRAP(cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking));
 
-    int result{0};
-    cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, getDeviceId());
-    CHECK_ERR;
-    allowedConcurrentManagedAccess = result != 0;
+    allowedConcurrentManagedAccess = properties[getDeviceId()].concurrentManagedAccess != 0;
 
-    cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, getDeviceId());
-    usmDefault = result != 0;
+    usmDefault = properties[getDeviceId()].directManagedMemAccessFromHost != 0;
 
-    cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
-    CHECK_ERR;
+    APIWRAP(cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax));
 
     int canCompressProto = 0;
-    cuDeviceGetAttribute(&canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, getDeviceId());
+    DRVWRAP(cuDeviceGetAttribute(
+        &canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, getDeviceId()));
     canCompress = canCompressProto != 0;
-  }
-  else {
+  } else {
     logWarning() << "Device Interface has already been initialized";
   }
 }
 
 void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
-    cudaStreamDestroy(defaultStream); CHECK_ERR;
+    CHECK_ERR;
+
+    APIWRAP(cudaStreamDestroy(defaultStream));
     if (!genericStreams.empty()) {
       logInfo() << "DEVICE::WARNING:" << genericStreams.size()
-                               << "device generic stream(s) were not deleted.";
+                << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
-        cudaStreamDestroy(stream); CHECK_ERR;
+        APIWRAP(cudaStreamDestroy(stream));
       }
     }
     status[StatusID::InterfaceInitialized] = false;
   }
 }
 
-int ConcreteAPI::getNumDevices() {
-  int numDevices{};
-  cudaGetDeviceCount(&numDevices);
-  CHECK_ERR;
-  return numDevices;
-}
+int ConcreteAPI::getNumDevices() { return properties.size(); }
 
 int ConcreteAPI::getDeviceId() {
   if (!status[StatusID::DeviceSelected]) {
@@ -118,14 +118,14 @@ unsigned ConcreteAPI::getGlobMemAlignment() {
 
 void ConcreteAPI::syncDevice() {
   isFlagSet<DeviceSelected>(status);
-  cudaDeviceSynchronize();
+
   CHECK_ERR;
+
+  APIWRAP(cudaDeviceSynchronize());
 }
 
 std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
-  cudaDeviceProp property;
-  cudaGetDeviceProperties(&property, deviceId);
-  CHECK_ERR;
+  const auto& property = properties[deviceId];
 
   std::ostringstream info;
   info << "Name: " << property.name << '\n';
@@ -146,25 +146,16 @@ std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
   return info.str();
 }
 
-std::string ConcreteAPI::getApiName() {
-  return "CUDA";
-}
+std::string ConcreteAPI::getApiName() { return "CUDA"; }
 
-std::string ConcreteAPI::getDeviceName(int deviceId) {
-  cudaDeviceProp property;
-  cudaGetDeviceProperties(&property, deviceId);
-  CHECK_ERR;
-
-  return property.name;
-}
+std::string ConcreteAPI::getDeviceName(int deviceId) { return properties[deviceId].name; }
 
 std::string ConcreteAPI::getPciAddress(int deviceId) {
-  cudaDeviceProp property;
-  cudaGetDeviceProperties(&property, deviceId);
-  CHECK_ERR;
+  const auto& property = properties[deviceId];
 
   std::ostringstream str;
-  str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":" << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
+  str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":"
+      << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
   return str.str();
 }
 
@@ -175,7 +166,7 @@ void ConcreteAPI::profilingMessage(const std::string& message) {
 #endif
 }
 
-void ConcreteAPI::putProfilingMark(const std::string &name, ProfilingColors color) {
+void ConcreteAPI::putProfilingMark(const std::string& name, ProfilingColors color) {
 #ifdef PROFILING_ENABLED
   isFlagSet<DeviceSelected>(status);
   nvtxEventAttributes_t eventAttrib = {0};
@@ -196,7 +187,4 @@ void ConcreteAPI::popLastProfilingMark() {
 #endif
 }
 
-void ConcreteAPI::setupPrinting(int rank) {
-
-}
-
+void ConcreteAPI::setupPrinting(int rank) {}
