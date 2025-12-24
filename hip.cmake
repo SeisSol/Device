@@ -49,6 +49,13 @@ else()
                      -DDEVICE_${BACKEND_UPPER_CASE}_LANG)
 endif()
 
+if (DEVICE_KERNEL_INFOPRINT)
+    set(DEVICE_HIPCC ${DEVICE_HIPCC} -Rpass-analysis=kernel-resource-usage)
+endif()
+if (DEVICE_KERNEL_SAVETEMPS)
+    set(DEVICE_HIPCC ${DEVICE_HIPCC} --save-temps)
+endif()
+
 
 set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Control.cpp

@@ -41,9 +41,20 @@ if (USE_GRAPH_CAPTURING)
 endif()
 
 target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-        -Xptxas -v;
         --expt-relaxed-constexpr;
         >)
+
+if (DEVICE_KERNEL_INFOPRINT)
+        target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                -Xptxas -v;
+                >)
+endif()
+
+if (DEVICE_KERNEL_SAVETEMPS)
+        target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
+                --keep;
+                >)
+endif()
 
 if (EXTRA_DEVICE_FLAGS)
     target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
