@@ -7,7 +7,6 @@ set(CMAKE_CUDA_STANDARD 17)
 
 add_library(device SHARED device.cpp
                  interfaces/cuda/Control.cu
-                 interfaces/cuda/Aux.cu
                  interfaces/cuda/Memory.cu
                  interfaces/cuda/Events.cu
                  interfaces/cuda/Copy.cu

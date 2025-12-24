@@ -30,7 +30,7 @@ thread_local int currentDeviceId = 0;
 }
 
 ConcreteAPI::ConcreteAPI() {
-  hipInit(0);
+  APIWRAP(hipInit(0));
   CHECK_ERR;
   status[StatusID::DriverApiInitialized] = true;
 }
@@ -39,11 +39,10 @@ void ConcreteAPI::setDevice(int deviceId) {
   
   currentDeviceId = deviceId;
 
-  hipSetDevice(deviceId);
-  CHECK_ERR;
+  APIWRAP(hipSetDevice(deviceId));
 
   // Note: the following sets the initial HIP context
-  hipFree(nullptr);
+  APIWRAP(hipFree(nullptr));
   CHECK_ERR;
 
   status[StatusID::DeviceSelected] = true;
@@ -60,11 +59,10 @@ void ConcreteAPI::initialize() {
 
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
-    hipStreamCreateWithFlags(&defaultStream, hipStreamNonBlocking); CHECK_ERR;
+    APIWRAP(hipStreamCreateWithFlags(&defaultStream, hipStreamNonBlocking));
 
     hipDeviceProp_t properties{};
-    hipGetDeviceProperties(&properties, getDeviceId());
-    CHECK_ERR;
+    APIWRAP(hipGetDeviceProperties(&properties, getDeviceId()));
 
     // NOTE: hipDeviceGetAttribute internally calls hipGetDeviceProperties; hence it doesn't make sense to use it here
 
@@ -78,7 +76,7 @@ void ConcreteAPI::initialize() {
       usmDefault = properties.directManagedMemAccessFromHost != 0 && properties.pageableMemoryAccessUsesHostPageTables != 0;
     }
 
-    hipDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
+    APIWRAP(hipDeviceGetStreamPriorityRange(&priorityMin, &priorityMax));
     CHECK_ERR;
   }
   else {
@@ -88,12 +86,12 @@ void ConcreteAPI::initialize() {
 
 void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
-    hipStreamDestroy(defaultStream); CHECK_ERR;
+    APIWRAP(hipStreamDestroy(defaultStream));
     if (!genericStreams.empty()) {
       logInfo() << "DEVICE::WARNING:" << genericStreams.size()
                                << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
-        hipStreamDestroy(stream); CHECK_ERR;
+        APIWRAP(hipStreamDestroy(stream));
       }
     }
     status[StatusID::InterfaceInitialized] = false;
@@ -103,7 +101,7 @@ void ConcreteAPI::finalize() {
 
 int ConcreteAPI::getNumDevices() {
   int numDevices{};
-  hipGetDeviceCount(&numDevices);
+  APIWRAP(hipGetDeviceCount(&numDevices));
   CHECK_ERR;
   return numDevices;
 }
@@ -126,13 +124,13 @@ unsigned ConcreteAPI::getGlobMemAlignment() {
 
 void ConcreteAPI::syncDevice() {
   isFlagSet<DeviceSelected>(status);
-  hipDeviceSynchronize();
+  APIWRAP(hipDeviceSynchronize());
   CHECK_ERR;
 }
 
 std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
   hipDeviceProp_t property;
-  hipGetDeviceProperties(&property, deviceId);
+  APIWRAP(hipGetDeviceProperties(&property, deviceId));
   CHECK_ERR;
 
   std::ostringstream info;
@@ -160,7 +158,7 @@ std::string ConcreteAPI::getApiName() {
 
 std::string ConcreteAPI::getDeviceName(int deviceId) {
   hipDeviceProp_t property;
-  hipGetDeviceProperties(&property, deviceId);
+  APIWRAP(hipGetDeviceProperties(&property, deviceId));
   CHECK_ERR;
 
   return property.name;
@@ -168,7 +166,7 @@ std::string ConcreteAPI::getDeviceName(int deviceId) {
 
 std::string ConcreteAPI::getPciAddress(int deviceId) {
   hipDeviceProp_t property;
-  hipGetDeviceProperties(&property, deviceId);
+  APIWRAP(hipGetDeviceProperties(&property, deviceId));
   CHECK_ERR;
 
   std::ostringstream str;

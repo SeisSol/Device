@@ -18,7 +18,7 @@ void* ConcreteAPI::getDefaultStream() {
 
 void ConcreteAPI::syncDefaultStreamWithHost() {
   isFlagSet<InterfaceInitialized>(status);
-  hipStreamSynchronize(defaultStream);
+  APIWRAP(hipStreamSynchronize(defaultStream));
   CHECK_ERR;
 }
 
@@ -26,7 +26,7 @@ void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream;
   const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
-  hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, priority); CHECK_ERR;
+  APIWRAP(hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, priority)); CHECK_ERR;
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }
@@ -39,7 +39,7 @@ void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   if (it != genericStreams.end()) {
     genericStreams.erase(it);
   }
-  hipStreamDestroy(stream);
+  APIWRAP(hipStreamDestroy(stream));
   CHECK_ERR;
 }
 
@@ -47,7 +47,7 @@ void ConcreteAPI::destroyGenericStream(void* streamPtr) {
 void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
-  hipStreamSynchronize(stream);
+  APIWRAP(hipStreamSynchronize(stream));
   CHECK_ERR;
 }
 
@@ -55,23 +55,17 @@ void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
 bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
-  auto streamStatus = hipStreamQuery(stream);
+  auto streamStatus = APIWRAPX(hipStreamQuery(stream), {hipErrorNotReady});
+  CHECK_ERR;
 
-  if (streamStatus == hipSuccess) {
-    return true;
-  }
-  else {
-    // dump the last error e.g., hipErrorInvalidResourceHandle
-    hipGetLastError();
-    return false;
-  }
+  return streamStatus == hipSuccess;
 }
 
 void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
-  hipStreamWaitEvent(stream, event, 0);
+  APIWRAP(hipStreamWaitEvent(stream, event, 0));
   CHECK_ERR;
 }
 
@@ -92,15 +86,15 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
 
   hipStreamCaptureStatus status{};
-  hipStreamIsCapturing(stream, &status);
+  APIWRAP(hipStreamIsCapturing(stream, &status));
 
   if (status != hipStreamCaptureStatusInvalidated) {
     auto* functionData = new std::function<void()>(function);
     if (status == hipStreamCaptureStatusActive) {
-      hipLaunchHostFunc(stream, &streamCallbackPermanent, functionData);
+      APIWRAP(hipLaunchHostFunc(stream, &streamCallbackPermanent, functionData));
     }
     else {
-      hipLaunchHostFunc(stream, &streamCallbackEpheremal, functionData);
+      APIWRAP(hipLaunchHostFunc(stream, &streamCallbackEpheremal, functionData));
     }
     CHECK_ERR;
   }
@@ -121,9 +115,8 @@ __global__ void spinloop(uint32_t* location, uint32_t value) {
 void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   uint32_t* deviceLocation = nullptr;
-  hipHostGetDevicePointer(reinterpret_cast<void**>(&deviceLocation), location, 0);
-  CHECK_ERR;
-  const auto result = hipStreamWaitValue32(stream, deviceLocation, value, hipStreamWaitValueGte, 0xffffffff);
+  APIWRAP(hipHostGetDevicePointer(reinterpret_cast<void**>(&deviceLocation), location, 0));
+  const auto result = APIWRAPX(hipStreamWaitValue32(stream, deviceLocation, value, hipStreamWaitValueGte, 0xffffffff), {hipErrorNotSupported});
   if (result == hipErrorNotSupported) {
     spinloop<<<1,1,0,stream>>>(deviceLocation, value);
   }

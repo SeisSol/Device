@@ -16,40 +16,34 @@ using namespace device;
 
 void* ConcreteAPI::createEvent() {
   hipEvent_t event;
-  hipEventCreate(&event);
-  CHECK_ERR;
+  APIWRAP(hipEventCreate(&event));
   return static_cast<void*>(event);
 }
 
 void ConcreteAPI::destroyEvent(void* eventPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
-  hipEventDestroy(event);
-  CHECK_ERR;
+  APIWRAP(hipEventDestroy(event));
 }
 
 void ConcreteAPI::syncEventWithHost(void* eventPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
-  hipEventSynchronize(event);
-  CHECK_ERR;
+  APIWRAP(hipEventSynchronize(event));
 }
 
 bool ConcreteAPI::isEventCompleted(void* eventPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
-  auto result = hipEventQuery(event);
-  CHECK_ERR;
+  auto result = APIWRAPX(hipEventQuery(event), {hipErrorNotReady});
   return result == hipSuccess;
 }
 
 void ConcreteAPI::recordEventOnHost(void* eventPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
-  hipEventRecord(event);
-  CHECK_ERR;
+  APIWRAP(hipEventRecord(event));
 }
 
 void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
-  hipEventRecord(event, stream);
-  CHECK_ERR;
+  APIWRAP(hipEventRecord(event, stream));
 }
 

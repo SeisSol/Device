@@ -47,9 +47,7 @@ DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs
     graphInstance.streamPtrs = streamPtrs;
   }
 
-  hipStreamBeginCapture(static_cast<hipStream_t>(streamPtrs[0]), hipStreamCaptureModeThreadLocal);
-  CHECK_ERR;
-  return DeviceGraphHandle(graphs.size() - 1);
+  APIWRAP(hipStreamBeginCapture(static_cast<hipStream_t>(streamPtrs[0]), hipStreamCaptureModeThreadLocal));
 #endif
   return handle;
 }
@@ -62,11 +60,9 @@ void ConcreteAPI::streamEndCapture(DeviceGraphHandle handle) {
     std::lock_guard guard(apiMutex);
     graphInstance = graphs[handle.getGraphId()];
   }
-  hipStreamEndCapture(static_cast<hipStream_t>(graphInstance.streamPtrs[0]), &(graphInstance.graph));
-  CHECK_ERR;
+  APIWRAP(hipStreamEndCapture(static_cast<hipStream_t>(graphInstance.streamPtrs[0]), &(graphInstance.graph)));
 
-  hipGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0);
-  CHECK_ERR;
+  APIWRAP(hipGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0));
 
   graphInstance.ready = true;
 
@@ -86,7 +82,7 @@ void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
     std::lock_guard guard(apiMutex);
     graphInstance = graphs[graphHandle.getGraphId()];
   }
-  hipGraphLaunch(graphInstance.instance, reinterpret_cast<hipStream_t>(streamPtr));
+  APIWRAP(hipGraphLaunch(graphInstance.instance, reinterpret_cast<hipStream_t>(streamPtr)));
   CHECK_ERR;
 #endif
 }

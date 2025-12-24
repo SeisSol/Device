@@ -22,48 +22,44 @@ namespace {
 
 // adapted from https://github.com/NVIDIA/cuda-samples/blob/master/Samples/3_CUDA_Features/cudaCompressibleMemory/compMalloc.cpp
 
+std::size_t alignSize(std::size_t size, const CUmemAllocationProp& prop) {
+  std::size_t granularity{1};
+  DRVWRAP(cuMemGetAllocationGranularity(&granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM));
+
+  return ((size + granularity - 1) / granularity) * granularity;
+}
+
 void* driverAllocate(std::size_t size, const CUmemAllocationProp& prop) {
-  std::size_t granularity = 1;
-  cuMemGetAllocationGranularity(&granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM);
-  CHECK_ERR;
+  size = alignSize(size, prop);
 
-  size = ((size + granularity - 1) / granularity) * granularity;
-
-  CUdeviceptr cptr;
-  cuMemAddressReserve(&cptr, size, 0, 0, 0);
-  CHECK_ERR;
+  CUdeviceptr cptr{};
+  DRVWRAP(cuMemAddressReserve(&cptr, size, 0, 0, 0));
+  
   // cf. https://docs.nvidia.com/cuda/hopper-tuning-guide/index.html?highlight=inline%20compression#inline-compression
-  CUmemGenericAllocationHandle allocationHandle;
-  cuMemCreate(&allocationHandle, size, &prop, 0);
-  CHECK_ERR;
-  cuMemMap(cptr, size, 0, allocationHandle, 0);
-  CHECK_ERR;
-  cuMemRelease(allocationHandle);
-  CHECK_ERR;
+  CUmemGenericAllocationHandle allocationHandle{};
+  DRVWRAP(cuMemCreate(&allocationHandle, size, &prop, 0));
+
+  DRVWRAP(cuMemMap(cptr, size, 0, allocationHandle, 0));
+
+  DRVWRAP(cuMemRelease(allocationHandle));
 
   CUmemAccessDesc accessDescriptor{};
   accessDescriptor.location.id = prop.location.id;
   accessDescriptor.location.type = prop.location.type;
   accessDescriptor.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
 
-  cuMemSetAccess(cptr, size, &accessDescriptor, 1);
+  DRVWRAP(cuMemSetAccess(cptr, size, &accessDescriptor, 1));
 
   return reinterpret_cast<void*>(cptr);
 }
 
 void driverFree(void* ptr, std::size_t size, const CUmemAllocationProp& prop) {
-  std::size_t granularity = 1;
-  cuMemGetAllocationGranularity(&granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM);
-  CHECK_ERR;
-
-  size = ((size + granularity - 1) / granularity) * granularity;
+  size = alignSize(size, prop);
 
   CUdeviceptr cptr = reinterpret_cast<CUdeviceptr>(ptr);
 
-  cuMemUnmap(cptr, size);
-  CHECK_ERR;
-  cuMemAddressFree(cptr, size);
-  CHECK_ERR;
+  DRVWRAP(cuMemUnmap(cptr, size));
+  DRVWRAP(cuMemAddressFree(cptr, size));
 }
 
 } // namespace
@@ -83,7 +79,7 @@ void *ConcreteAPI::allocGlobMem(size_t size, bool compress) {
     allocationProperties[devPtr] = reinterpret_cast<void*>(new CUmemAllocationProp(prop));
   }
   else {
-    cudaMalloc(&devPtr, size);
+    APIWRAP(cudaMalloc(&devPtr, size));
     CHECK_ERR;
   }
   statistics.allocatedMemBytes += size;
@@ -94,7 +90,7 @@ void *ConcreteAPI::allocGlobMem(size_t size, bool compress) {
 void *ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint) {
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
-  cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal);
+  APIWRAP(cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal));
   CHECK_ERR;
 
   cudaMemLocation location{};
@@ -111,13 +107,13 @@ void *ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
 #endif
   }
 
-  cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation,
+  APIWRAP(cudaMemAdvise(devPtr, size, cudaMemAdviseSetPreferredLocation,
 #if CUDART_VERSION >= 13000
                        location
 #else
                        location.id
 #endif
-  );
+  ));
   CHECK_ERR;
 
   statistics.allocatedMemBytes += size;
@@ -130,7 +126,7 @@ void *ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
   isFlagSet<DeviceSelected>(status);
   void *devPtr;
   const auto flag = hint == Destination::Host ? cudaHostAllocDefault : cudaHostAllocMapped;
-  cudaHostAlloc(&devPtr, size, flag);
+  APIWRAP(cudaHostAlloc(&devPtr, size, flag));
   CHECK_ERR;
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
@@ -156,7 +152,7 @@ void ConcreteAPI::freeUnifiedMem(void *devPtr) {
   assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
-  cudaFree(devPtr);
+  APIWRAP(cudaFree(devPtr));
   CHECK_ERR;
 }
 
@@ -165,7 +161,7 @@ void ConcreteAPI::freePinnedMem(void *devPtr) {
   assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
          "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
   statistics.deallocatedMemBytes += memToSizeMap[devPtr];
-  cudaFreeHost(devPtr);
+  APIWRAP(cudaFreeHost(devPtr));
   CHECK_ERR;
 }
 
@@ -175,14 +171,14 @@ void *ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
   }
   else {
     void* ptr;
-    cudaMallocAsync(&ptr, size, static_cast<cudaStream_t>(streamPtr));
+    APIWRAP(cudaMallocAsync(&ptr, size, static_cast<cudaStream_t>(streamPtr)));
     CHECK_ERR;
     return ptr;
   }
 }
 void ConcreteAPI::freeMemAsync(void *devPtr, void* streamPtr) {
   if (devPtr != nullptr) {
-    cudaFreeAsync(devPtr, static_cast<cudaStream_t>(streamPtr));
+    APIWRAP(cudaFreeAsync(devPtr, static_cast<cudaStream_t>(streamPtr)));
     CHECK_ERR;
   }
 }
@@ -198,7 +194,7 @@ std::string ConcreteAPI::getMemLeaksReport() {
 size_t ConcreteAPI::getMaxAvailableMem() {
   isFlagSet<DeviceSelected>(status);
   cudaDeviceProp property;
-  cudaGetDeviceProperties(&property, getDeviceId());
+  APIWRAP(cudaGetDeviceProperties(&property, getDeviceId()));
   CHECK_ERR;
   return property.totalGlobalMem;
 }
@@ -215,20 +211,20 @@ size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
 
 void ConcreteAPI::pinMemory(void* ptr, size_t size) {
   isFlagSet<DeviceSelected>(status);
-  cudaHostRegister(ptr, size, 0);
+  APIWRAP(cudaHostRegister(ptr, size, 0));
   CHECK_ERR;
 }
 
 void ConcreteAPI::unpinMemory(void* ptr) {
   isFlagSet<DeviceSelected>(status);
-  cudaHostUnregister(ptr);
+  APIWRAP(cudaHostUnregister(ptr));
   CHECK_ERR;
 }
 
 void* ConcreteAPI::devicePointer(void* ptr) {
   isFlagSet<DeviceSelected>(status);
   void* result;
-  cudaHostGetDevicePointer(&result, ptr, 0);
+  APIWRAP(cudaHostGetDevicePointer(&result, ptr, 0));
   CHECK_ERR;
   return result;
 }

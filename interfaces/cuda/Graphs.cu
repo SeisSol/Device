@@ -49,7 +49,7 @@ DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs
     graphInstance.streamPtrs = streamPtrs;
   }
 
-  cudaStreamBeginCapture(static_cast<cudaStream_t>(streamPtrs[0]), cudaStreamCaptureModeThreadLocal);
+  APIWRAP(cudaStreamBeginCapture(static_cast<cudaStream_t>(streamPtrs[0]), cudaStreamCaptureModeThreadLocal));
   CHECK_ERR;
 #endif
   return handle;
@@ -62,11 +62,9 @@ void ConcreteAPI::streamEndCapture(DeviceGraphHandle handle) {
     std::lock_guard guard(apiMutex);
     graphInstance = graphs[handle.getGraphId()];
   }
-  cudaStreamEndCapture(static_cast<cudaStream_t>(graphInstance.streamPtrs[0]), &(graphInstance.graph));
-  CHECK_ERR;
+  APIWRAP(cudaStreamEndCapture(static_cast<cudaStream_t>(graphInstance.streamPtrs[0]), &(graphInstance.graph)));
 
-  cudaGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0);
-  CHECK_ERR;
+  APIWRAP(cudaGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0));
 
   graphInstance.ready = true;
 
@@ -85,7 +83,7 @@ void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
     std::lock_guard guard(apiMutex);
     graphInstance = graphs[graphHandle.getGraphId()];
   }
-  cudaGraphLaunch(graphInstance.instance, reinterpret_cast<cudaStream_t>(streamPtr));
+  APIWRAP(cudaGraphLaunch(graphInstance.instance, reinterpret_cast<cudaStream_t>(streamPtr)));
   CHECK_ERR;
 #endif
 }

@@ -19,7 +19,7 @@ void* ConcreteAPI::getDefaultStream() {
 
 void ConcreteAPI::syncDefaultStreamWithHost() {
   isFlagSet<InterfaceInitialized>(status);
-  cudaStreamSynchronize(defaultStream);
+  APIWRAP(cudaStreamSynchronize(defaultStream));
   CHECK_ERR;
 }
 
@@ -27,7 +27,7 @@ void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream;
   const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
-  cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking, truePriority); CHECK_ERR;
+  APIWRAP(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking, truePriority)); CHECK_ERR;
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }
@@ -40,7 +40,7 @@ void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   if (it != genericStreams.end()) {
     genericStreams.erase(it);
   }
-  cudaStreamDestroy(stream);
+  APIWRAP(cudaStreamDestroy(stream));
   CHECK_ERR;
 }
 
@@ -48,7 +48,7 @@ void ConcreteAPI::destroyGenericStream(void* streamPtr) {
 void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
-  cudaStreamSynchronize(stream);
+  APIWRAP(cudaStreamSynchronize(stream));
   CHECK_ERR;
 }
 
@@ -56,22 +56,15 @@ void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
 bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
-  auto streamStatus = cudaStreamQuery(stream);
+  const auto streamStatus = APIWRAPX(cudaStreamQuery(stream), {cudaErrorNotReady});
 
-  if (streamStatus == cudaSuccess) {
-    return true;
-  }
-  else {
-    // dump the last error e.g., cudaErrorInvalidResourceHandle
-    cudaGetLastError();
-    return false;
-  }
+  return streamStatus == cudaSuccess;
 }
 
 void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
   cudaEvent_t event = static_cast<cudaEvent_t>(eventPtr);
-  cudaStreamWaitEvent(stream, event);
+  APIWRAP(cudaStreamWaitEvent(stream, event));
   CHECK_ERR;
 }
 
@@ -92,15 +85,15 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
 
   cudaStreamCaptureStatus status{};
-  cudaStreamIsCapturing(stream, &status);
+  APIWRAP(cudaStreamIsCapturing(stream, &status));
 
   if (status != cudaStreamCaptureStatusInvalidated) {
     auto* functionData = new std::function<void()>(function);
     if (status == cudaStreamCaptureStatusActive) {
-      cudaLaunchHostFunc(stream, &streamCallbackPermanent, functionData);
+      APIWRAP(cudaLaunchHostFunc(stream, &streamCallbackPermanent, functionData));
     }
     else {
-      cudaLaunchHostFunc(stream, &streamCallbackEpheremal, functionData);
+      APIWRAP(cudaLaunchHostFunc(stream, &streamCallbackEpheremal, functionData));
     }
     CHECK_ERR;
   }
@@ -122,7 +115,7 @@ void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t
   // TODO: check for graph capture here?
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
   uint32_t* deviceLocation = nullptr;
-  cudaHostGetDevicePointer(&deviceLocation, location, 0);
+  APIWRAP(cudaHostGetDevicePointer(&deviceLocation, location, 0));
   CHECK_ERR;
   const auto result = cuStreamWaitValue32(stream, reinterpret_cast<uintptr_t>(deviceLocation), value, CU_STREAM_WAIT_VALUE_GEQ);
   if (result == CUDA_ERROR_NOT_SUPPORTED) {

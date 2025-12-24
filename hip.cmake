@@ -23,6 +23,7 @@ endif()
 # set the CMAKE_MODULE_PATH for the helper cmake files from HIP
 set(CMAKE_MODULE_PATH "${HIP_PATH}/cmake" "${HIP_PATH}/lib/cmake/hip" "${ROCM_PATH}/cmake" ${CMAKE_MODULE_PATH})
 
+# TODO: switch to CMake HIP support once CMake 3.21 is the minimum version
 find_package(HIP REQUIRED)
 
 # Can set different FLAGS for the compilers via HCC_OPTIONS and NVCC_OPTIONS keywords;
@@ -50,7 +51,6 @@ endif()
 
 
 set(DEVICE_SOURCE_FILES device.cpp
-                        interfaces/hip/Aux.cpp
                         interfaces/hip/Control.cpp
                         interfaces/hip/Copy.cpp
                         interfaces/hip/Events.cpp

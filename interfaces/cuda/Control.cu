@@ -32,7 +32,7 @@ thread_local int currentDeviceId = 0;
 using namespace device;
 
 ConcreteAPI::ConcreteAPI() {
-  cuInit(0);
+  DRVWRAP(cuInit(0));
   CHECK_ERR;
   status[StatusID::DriverApiInitialized] = true;
 }
@@ -41,11 +41,11 @@ void ConcreteAPI::setDevice(int deviceId) {
   
   currentDeviceId = deviceId;
 
-  cudaSetDevice(deviceId);
+  APIWRAP(cudaSetDevice(deviceId));
   CHECK_ERR;
 
   // Note: the following sets the initial CUDA context
-  cudaFree(nullptr);
+  APIWRAP(cudaFree(nullptr));
   CHECK_ERR;
 
   status[StatusID::DeviceSelected] = true;
@@ -61,21 +61,21 @@ void ConcreteAPI::initialize() {
   }
   if (!status[StatusID::InterfaceInitialized]) {
     status[StatusID::InterfaceInitialized] = true;
-    cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking); CHECK_ERR;
+    APIWRAP(cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking)); CHECK_ERR;
 
     int result{0};
-    cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, getDeviceId());
+    APIWRAP(cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, getDeviceId()));
     CHECK_ERR;
     allowedConcurrentManagedAccess = result != 0;
 
-    cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, getDeviceId());
+    APIWRAP(cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, getDeviceId()));
     usmDefault = result != 0;
 
-    cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax);
+    APIWRAP(cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax));
     CHECK_ERR;
 
     int canCompressProto = 0;
-    cuDeviceGetAttribute(&canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, getDeviceId());
+    DRVWRAP(cuDeviceGetAttribute(&canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, getDeviceId()));
     canCompress = canCompressProto != 0;
   }
   else {
@@ -85,12 +85,12 @@ void ConcreteAPI::initialize() {
 
 void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
-    cudaStreamDestroy(defaultStream); CHECK_ERR;
+    APIWRAP(cudaStreamDestroy(defaultStream)); CHECK_ERR;
     if (!genericStreams.empty()) {
       logInfo() << "DEVICE::WARNING:" << genericStreams.size()
                                << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
-        cudaStreamDestroy(stream); CHECK_ERR;
+        APIWRAP(cudaStreamDestroy(stream)); CHECK_ERR;
       }
     }
     status[StatusID::InterfaceInitialized] = false;
@@ -99,7 +99,7 @@ void ConcreteAPI::finalize() {
 
 int ConcreteAPI::getNumDevices() {
   int numDevices{};
-  cudaGetDeviceCount(&numDevices);
+  APIWRAP(cudaGetDeviceCount(&numDevices));
   CHECK_ERR;
   return numDevices;
 }
@@ -118,13 +118,13 @@ unsigned ConcreteAPI::getGlobMemAlignment() {
 
 void ConcreteAPI::syncDevice() {
   isFlagSet<DeviceSelected>(status);
-  cudaDeviceSynchronize();
+  APIWRAP(cudaDeviceSynchronize());
   CHECK_ERR;
 }
 
 std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
   cudaDeviceProp property;
-  cudaGetDeviceProperties(&property, deviceId);
+  APIWRAP(cudaGetDeviceProperties(&property, deviceId));
   CHECK_ERR;
 
   std::ostringstream info;
@@ -152,7 +152,7 @@ std::string ConcreteAPI::getApiName() {
 
 std::string ConcreteAPI::getDeviceName(int deviceId) {
   cudaDeviceProp property;
-  cudaGetDeviceProperties(&property, deviceId);
+  APIWRAP(cudaGetDeviceProperties(&property, deviceId));
   CHECK_ERR;
 
   return property.name;
@@ -160,7 +160,7 @@ std::string ConcreteAPI::getDeviceName(int deviceId) {
 
 std::string ConcreteAPI::getPciAddress(int deviceId) {
   cudaDeviceProp property;
-  cudaGetDeviceProperties(&property, deviceId);
+  APIWRAP(cudaGetDeviceProperties(&property, deviceId));
   CHECK_ERR;
 
   std::ostringstream str;

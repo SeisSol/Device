@@ -103,8 +103,6 @@ public:
   void setupPrinting(int rank) override;
 
 private:
-  void createCircularStreamAndEvents();
-
   device::StatusT status{false};
 
   std::vector<cudaDeviceProp> properties;
