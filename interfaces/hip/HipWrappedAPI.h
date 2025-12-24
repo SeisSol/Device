@@ -105,6 +105,8 @@ public:
 private:
   device::StatusT status{false};
 
+  std::vector<hipDeviceProp_t> properties;
+
   bool usmDefault{false};
 
   hipStream_t defaultStream{nullptr};

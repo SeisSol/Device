@@ -63,13 +63,17 @@ void ConcreteAPI::initialize() {
     status[StatusID::InterfaceInitialized] = true;
     APIWRAP(cudaStreamCreateWithFlags(&defaultStream, cudaStreamNonBlocking)); CHECK_ERR;
 
-    int result{0};
-    APIWRAP(cudaDeviceGetAttribute(&result, cudaDevAttrConcurrentManagedAccess, getDeviceId()));
-    CHECK_ERR;
-    allowedConcurrentManagedAccess = result != 0;
+    int numDevices{};
+    APIWRAP(cudaGetDeviceCount(&numDevices));
 
-    APIWRAP(cudaDeviceGetAttribute(&result, cudaDevAttrDirectManagedMemAccessFromHost, getDeviceId()));
-    usmDefault = result != 0;
+    properties.resize(numDevices);
+    for (int i = 0; i < numDevices; ++i) {
+      APIWRAP(cudaGetDeviceProperties(&properties[i], i));
+    }
+
+    allowedConcurrentManagedAccess = properties[getDeviceId()].concurrentManagedAccess != 0;
+
+    usmDefault = properties[getDeviceId()].directManagedMemAccessFromHost != 0;
 
     APIWRAP(cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax));
     CHECK_ERR;
@@ -98,10 +102,7 @@ void ConcreteAPI::finalize() {
 }
 
 int ConcreteAPI::getNumDevices() {
-  int numDevices{};
-  APIWRAP(cudaGetDeviceCount(&numDevices));
-  CHECK_ERR;
-  return numDevices;
+  return properties.size();
 }
 
 int ConcreteAPI::getDeviceId() {
@@ -123,9 +124,7 @@ void ConcreteAPI::syncDevice() {
 }
 
 std::string ConcreteAPI::getDeviceInfoAsText(int deviceId) {
-  cudaDeviceProp property;
-  APIWRAP(cudaGetDeviceProperties(&property, deviceId));
-  CHECK_ERR;
+  const auto& property = properties[deviceId];
 
   std::ostringstream info;
   info << "Name: " << property.name << '\n';
@@ -151,17 +150,11 @@ std::string ConcreteAPI::getApiName() {
 }
 
 std::string ConcreteAPI::getDeviceName(int deviceId) {
-  cudaDeviceProp property;
-  APIWRAP(cudaGetDeviceProperties(&property, deviceId));
-  CHECK_ERR;
-
-  return property.name;
+  return properties[deviceId].name;
 }
 
 std::string ConcreteAPI::getPciAddress(int deviceId) {
-  cudaDeviceProp property;
-  APIWRAP(cudaGetDeviceProperties(&property, deviceId));
-  CHECK_ERR;
+  const auto& property = properties[deviceId];
 
   std::ostringstream str;
   str << std::setfill('0') << std::setw(4) << std::hex << property.pciDomainID << ":" << std::setw(2) << property.pciBusID << ":" << property.pciDeviceID << "." << "0";
