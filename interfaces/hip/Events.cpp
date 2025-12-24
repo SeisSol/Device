@@ -14,9 +14,14 @@
 
 using namespace device;
 
-void* ConcreteAPI::createEvent() {
+void* ConcreteAPI::createEvent(bool withTiming) {
   hipEvent_t event;
-  APIWRAP(hipEventCreate(&event));
+  if (withTiming) {
+    APIWRAP(hipEventCreate(&event));
+  }
+  else {
+    APIWRAP(hipEventCreateWithFlags(&event, hipEventDisableTiming));
+  }
   return static_cast<void*>(event);
 }
 

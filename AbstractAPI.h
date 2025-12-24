@@ -94,7 +94,7 @@ struct AbstractAPI {
 
   virtual void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) = 0;
 
-  virtual void* createEvent() = 0;
+  virtual void* createEvent(bool withTiming = false) = 0;
   virtual void destroyEvent(void* eventPtr) = 0;
   virtual void syncEventWithHost(void* eventPtr) = 0;
   virtual bool isEventCompleted(void* eventPtr) = 0;

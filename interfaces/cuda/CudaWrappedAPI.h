@@ -85,7 +85,7 @@ public:
 
   void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) override;
 
-  void* createEvent() override;
+  void* createEvent(bool withTiming) override;
   void destroyEvent(void* eventPtr) override;
   void syncEventWithHost(void* eventPtr) override;
   bool isEventCompleted(void* eventPtr) override;

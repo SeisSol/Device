@@ -23,7 +23,7 @@ struct Event {
 };
 } // namespace
 
-void* ConcreteAPI::createEvent() {
+void* ConcreteAPI::createEvent(bool withTiming) {
   return new Event();
 }
 

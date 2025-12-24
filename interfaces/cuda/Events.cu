@@ -13,9 +13,14 @@
 
 using namespace device;
 
-void* ConcreteAPI::createEvent() {
-  cudaEvent_t event;
-  APIWRAP(cudaEventCreate(&event));
+void* ConcreteAPI::createEvent(bool withTiming) {
+  cudaEvent_t event{};
+  if (withTiming) {
+    APIWRAP(cudaEventCreate(&event));
+  }
+  else {
+    APIWRAP(cudaEventCreateWithFlags(&event, cudaEventDisableTiming));
+  }
   CHECK_ERR;
   return static_cast<void*>(event);
 }
