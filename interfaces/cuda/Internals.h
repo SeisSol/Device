@@ -13,6 +13,8 @@
 #define APIWRAP(call) (void)::device::internals::checkResult(call, __FILE__, __LINE__, {})
 #define APIWRAPX(call, except) ::device::internals::checkResult(call, __FILE__, __LINE__, except)
 #define DRVWRAP(call) (void)::device::internals::checkResultDriver(call, __FILE__, __LINE__, {})
+#define DRVWRAPX(call, except)                                                                     \
+  ::device::internals::checkResultDriver(call, __FILE__, __LINE__, except)
 #define CHECK_ERR APIWRAP(cudaGetLastError())
 
 namespace device::internals {

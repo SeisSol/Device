@@ -139,7 +139,7 @@ void ConcreteAPI::freeGlobMem(void* devPtr) {
                memToSizeMap.at(devPtr),
                *reinterpret_cast<CUmemAllocationProp*>(allocationProperties.at(devPtr)));
   } else {
-    cudaFree(devPtr);
+    APIWRAP(cudaFree(devPtr));
   }
 }
 

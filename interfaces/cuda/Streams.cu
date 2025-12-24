@@ -115,8 +115,10 @@ void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
   uint32_t* deviceLocation = nullptr;
   APIWRAP(cudaHostGetDevicePointer(&deviceLocation, location, 0));
-  const auto result = cuStreamWaitValue32(
-      stream, reinterpret_cast<uintptr_t>(deviceLocation), value, CU_STREAM_WAIT_VALUE_GEQ);
+  const auto result = DRVWRAPX(
+      cuStreamWaitValue32(
+          stream, reinterpret_cast<uintptr_t>(deviceLocation), value, CU_STREAM_WAIT_VALUE_GEQ),
+      {CUDA_ERROR_NOT_SUPPORTED});
   if (result == CUDA_ERROR_NOT_SUPPORTED) {
     spinloop<<<1, 1, 0, stream>>>(deviceLocation, value);
   }
