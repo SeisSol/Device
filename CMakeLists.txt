@@ -46,8 +46,6 @@ elseif((${DEVICE_BACKEND} STREQUAL "oneapi") OR (${DEVICE_BACKEND} STREQUAL "hip
     include(sycl.cmake)
 endif()
 
-string(TOUPPER ${BACKEND_FOLDER} BACKEND_UPPER_CASE)
-
 # common options
 target_compile_features(device PRIVATE cxx_std_17)
 
@@ -58,7 +56,13 @@ if (ENABLE_PROFILING_MARKERS)
   target_compile_definitions(device PRIVATE PROFILING_ENABLED)
 endif()
 
+string(TOUPPER ${BACKEND_FOLDER} BACKEND_UPPER_CASE)
 target_compile_definitions(device PRIVATE DEVICE_LANG_${BACKEND_UPPER_CASE})
+
+target_include_directories(device PRIVATE
+                                          interfaces/${BACKEND_FOLDER}
+                                          interfaces/common
+                                          algorithms/${BACKEND_FOLDER})
 
 if (LOG_LEVEL_MASTER)
   target_compile_definitions(device PRIVATE LOG_LEVEL=${LOG_LEVEL_MASTER})
