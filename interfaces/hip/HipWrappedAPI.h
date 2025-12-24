@@ -91,6 +91,7 @@ public:
   bool isEventCompleted(void* eventPtr) override;
   void recordEventOnHost(void* eventPtr) override;
   void recordEventOnStream(void* eventPtr, void* streamPtr) override;
+  double timespanEvents(void* eventPtrStart, void* eventPtrEnd) override;
 
   void initialize() override;
   void finalize() override;

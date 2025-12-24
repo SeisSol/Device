@@ -100,6 +100,7 @@ struct AbstractAPI {
   virtual bool isEventCompleted(void* eventPtr) = 0;
   virtual void recordEventOnHost(void* eventPtr) = 0;
   virtual void recordEventOnStream(void* eventPtr, void* streamPtr) = 0;
+  virtual double timespanEvents(void* eventPtrStart, void* eventPtrEnd) = 0;
 
   virtual bool isUnifiedMemoryDefault() = 0;
 

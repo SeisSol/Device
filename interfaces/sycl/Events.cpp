@@ -27,6 +27,22 @@ void* ConcreteAPI::createEvent(bool withTiming) {
   return new Event();
 }
 
+double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
+  auto* start = static_cast<Event*>(eventPtrStart);
+  auto* end = static_cast<Event*>(eventPtrEnd);
+
+  if (!(start->syclEvent.has_value() && end->syclEvent.has_value())) {
+    logError() << "Invalid events given for timing calculation.";
+  }
+
+  const auto startTime = start->syclEvent.value().get_profiling_info<sycl::info::event_profiling::command_end>();
+  const auto endTime = end->syclEvent.value().get_profiling_info<sycl::info::event_profiling::command_end>();
+
+  // cf. https://oneapi-src.github.io/SYCLomatic/dev_guide/reference/diagnostic_ref/dpct1012.html
+
+  return static_cast<double>(endTime - startTime) / 1'000'000'000.0;
+}
+
 void ConcreteAPI::destroyEvent(void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
   delete event;
@@ -62,6 +78,10 @@ void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
 void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   auto* queue = static_cast<sycl::queue*>(streamPtr);
   auto* event = static_cast<Event*>(eventPtr);
+
+  if (!event->syclEvent.has_value()) {
+    logError() << "Event not yet recorded; no synchronization possible.";
+  }
 
   queue->submit([&](sycl::handler& h) {
     DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(h, event->syclEvent.value());

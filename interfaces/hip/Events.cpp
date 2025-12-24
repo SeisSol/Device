@@ -25,6 +25,14 @@ void* ConcreteAPI::createEvent(bool withTiming) {
   return static_cast<void*>(event);
 }
 
+double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
+  float time{};
+  hipEvent_t start = reinterpret_cast<hipEvent_t>(eventPtrStart);
+  hipEvent_t end = reinterpret_cast<hipEvent_t>(eventPtrEnd);
+  APIWRAP(hipEventElapsedTime(&time, start, end));
+  return static_cast<double>(time) / 1000.0;
+}
+
 void ConcreteAPI::destroyEvent(void* eventPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   APIWRAP(hipEventDestroy(event));
