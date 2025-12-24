@@ -11,8 +11,7 @@
 #include <string>
 #include <sycl/sycl.hpp>
 
-namespace device {
-namespace internals {
+namespace device::internals {
 constexpr static int DefaultBlockDim = 1024;
 
 template <typename T>
@@ -37,8 +36,6 @@ inline sycl::nd_range<1> computeExecutionRange1D(const size_t targetWorkGroupSiz
   return sycl::nd_range<>{{factor * targetWorkGroupSize}, {targetWorkGroupSize}};
 }
 
-} // namespace internals
-
-} // namespace device
+} // namespace device::internals
 
 #endif // SEISSOLDEVICE_INTERFACES_SYCL_INTERNALS_H_

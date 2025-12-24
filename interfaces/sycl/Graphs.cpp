@@ -26,10 +26,6 @@ using namespace device;
  *    syncGraph(graph)                   // 2
  * */
 
-namespace device {
-namespace graph_capturing {} // namespace graph_capturing
-} // namespace device
-
 bool ConcreteAPI::isCapableOfGraphCapturing() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   return true;
