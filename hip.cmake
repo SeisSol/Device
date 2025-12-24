@@ -68,7 +68,7 @@ set(CMAKE_HIP_CREATE_SHARED_LIBRARY "${HIP_HIPCC_CMAKE_LINKER_HELPER} ${HCC_PATH
 
 set_source_files_properties(${DEVICE_SOURCE_FILES} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
 hip_reset_flags()
-hip_add_library(device SHARED ${DEVICE_SOURCE_FILES}
+hip_add_library(device ${DEVICE_LIBTYPE} ${DEVICE_SOURCE_FILES}
                        HIPCC_OPTIONS ${DEVICE_HIPCC}
                        NVCC_OPTIONS ${DEVICE_NVCC})
 

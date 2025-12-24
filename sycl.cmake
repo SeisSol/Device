@@ -18,7 +18,7 @@ set(DEVICE_SOURCE_FILES device.cpp
         algorithms/sycl/Reduction.cpp
         )
 
-add_library(device SHARED ${DEVICE_SOURCE_FILES})
+add_library(device ${DEVICE_LIBTYPE} ${DEVICE_SOURCE_FILES})
 
 if ((${DEVICE_BACKEND} STREQUAL "acpp") OR (${DEVICE_BACKEND} STREQUAL "hipsycl"))
     if (DEVICE_ARCH MATCHES "sm_*")

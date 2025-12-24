@@ -34,6 +34,13 @@ option(ENABLE_PROFILING_MARKERS "Enable profiling markers (if available)" OFF)
 
 string(TOLOWER ${DEVICE_BACKEND} BACKEND_FOLDER)
 
+# (SHARED is/was the default)
+if (DEVICE_STATIC)
+    set(DEVICE_LIBTYPE STATIC)
+else()
+    set(DEVICE_LIBTYPE SHARED)
+endif()
+
 # define device library
 if (${DEVICE_BACKEND} STREQUAL "cuda")
     set(BACKEND_FOLDER "cuda")

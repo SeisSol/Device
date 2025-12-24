@@ -5,7 +5,7 @@
 enable_language(CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 
-add_library(device SHARED device.cpp
+add_library(device ${DEVICE_LIBTYPE} device.cpp
                  interfaces/cuda/Control.cu
                  interfaces/cuda/Memory.cu
                  interfaces/cuda/Events.cu
