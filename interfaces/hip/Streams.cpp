@@ -47,6 +47,9 @@ void ConcreteAPI::destroyGenericStream(void* streamPtr) {
 void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+
+  CHECK_ERR;
+
   APIWRAP(hipStreamSynchronize(stream));
 }
 

@@ -39,6 +39,9 @@ void ConcreteAPI::destroyEvent(void* eventPtr) {
 
 void ConcreteAPI::syncEventWithHost(void* eventPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
+
+  CHECK_ERR;
+
   APIWRAP(hipEventSynchronize(event));
 }
 

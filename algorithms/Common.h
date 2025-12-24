@@ -61,12 +61,9 @@ int blockcount(F&& func, int blocksize) {
   int smCount = 0;
   int blocksPerSM = 0;
   APIWRAP(cudaGetDevice(&device));
-  CHECK_ERR;
   APIWRAP(cudaDeviceGetAttribute(&smCount, cudaDevAttrMultiProcessorCount, device));
-  CHECK_ERR;
   APIWRAP(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
       &blocksPerSM, std::forward<F>(func), blocksize, 0));
-  CHECK_ERR;
   return smCount * blocksPerSM;
 }
 
@@ -90,12 +87,9 @@ int blockcount(F&& func, int blocksize) {
   int smCount = 0;
   int blocksPerSM = 0;
   APIWRAP(hipGetDevice(&device));
-  CHECK_ERR;
   APIWRAP(hipDeviceGetAttribute(&smCount, hipDeviceAttributeMultiprocessorCount, device));
-  CHECK_ERR;
   APIWRAP(hipOccupancyMaxActiveBlocksPerMultiprocessor(
       &blocksPerSM, std::forward<F>(func), blocksize, 0));
-  CHECK_ERR;
   return smCount * blocksPerSM;
 }
 

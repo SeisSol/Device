@@ -58,8 +58,6 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
 
-  CHECK_ERR;
-
   const auto streamStatus = APIWRAPX(cudaStreamQuery(stream), {cudaErrorNotReady});
 
   return streamStatus == cudaSuccess;

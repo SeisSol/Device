@@ -79,7 +79,6 @@ void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
     allocationProperties[devPtr] = reinterpret_cast<void*>(new CUmemAllocationProp(prop));
   } else {
     APIWRAP(cudaMalloc(&devPtr, size));
-    CHECK_ERR;
   }
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
@@ -90,7 +89,6 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
   isFlagSet<DeviceSelected>(status);
   void* devPtr = nullptr;
   APIWRAP(cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal));
-  CHECK_ERR;
 
   cudaMemLocation location{};
   if (hint == Destination::Host) {
@@ -114,7 +112,6 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
                         location.id
 #endif
                         ));
-  CHECK_ERR;
 
   statistics.allocatedMemBytes += size;
   statistics.allocatedUnifiedMemBytes += size;
@@ -127,7 +124,6 @@ void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
   void* devPtr = nullptr;
   const auto flag = hint == Destination::Host ? cudaHostAllocDefault : cudaHostAllocMapped;
   APIWRAP(cudaHostAlloc(&devPtr, size, flag));
-  CHECK_ERR;
   statistics.allocatedMemBytes += size;
   memToSizeMap[devPtr] = size;
   return devPtr;
