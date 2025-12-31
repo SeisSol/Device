@@ -22,7 +22,7 @@ add_subdirectory(.. root)
 
 find_package(GTest REQUIRED)
 
-add_executable(tests main.cpp reductions.cpp array_manip.cpp memory.cpp batch_manip.cpp)
+add_executable(tests main.cpp reductions.cpp memory.cpp array_manip.cpp batch_manip.cpp)
 target_link_libraries(tests PRIVATE device ${GTEST_BOTH_LIBRARIES})
 target_include_directories(tests PRIVATE ${GTEST_INCLUDE_DIR})
 

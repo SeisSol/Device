@@ -73,15 +73,17 @@ TEST_F(ArrayManip, touchNoClean32) {
   device->api->freeGlobMem(arr);
 }
 
+// avoid double, due to some archs (also in the CI) don't seem to thoroughly support it
+
 TEST_F(ArrayManip, touchClean64) {
 
   const int N = 100;
-  double* arr = (double*)device->api->allocGlobMem(N * sizeof(double));
+  long* arr = (long*)device->api->allocGlobMem(N * sizeof(long));
   device->algorithms.touchMemory(arr, N, true, device->api->getDefaultStream());
-  std::vector<double> hostVector(N, 1);
+  std::vector<long> hostVector(N, 1);
 
   device->api->copyFromAsync(
-      &hostVector[0], arr, N * sizeof(double), device->api->getDefaultStream());
+      &hostVector[0], arr, N * sizeof(long), device->api->getDefaultStream());
 
   device->api->syncDefaultStreamWithHost();
 
@@ -95,14 +97,13 @@ TEST_F(ArrayManip, touchClean64) {
 TEST_F(ArrayManip, touchNoClean64) {
 
   const int N = 100;
-  double* arr = (double*)device->api->allocGlobMem(N * sizeof(double));
-  std::vector<double> hostVector(N, 0);
+  long* arr = (long*)device->api->allocGlobMem(N * sizeof(long));
+  std::vector<long> hostVector(N, 0);
 
-  device->api->copyToAsync(
-      arr, &hostVector[0], N * sizeof(double), device->api->getDefaultStream());
+  device->api->copyToAsync(arr, &hostVector[0], N * sizeof(long), device->api->getDefaultStream());
   device->algorithms.touchMemory(arr, N, false, device->api->getDefaultStream());
   device->api->copyFromAsync(
-      &hostVector[0], arr, N * sizeof(double), device->api->getDefaultStream());
+      &hostVector[0], arr, N * sizeof(long), device->api->getDefaultStream());
 
   device->api->syncDefaultStreamWithHost();
 
