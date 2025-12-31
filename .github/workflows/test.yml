@@ -97,7 +97,8 @@ jobs:
             cc: icx
             cxx: icpx
             fc: ifx
-            container: seissol/gha-gpu-intel-2025:davschneller-ci-merge
+            container: seissol/gha-gpu-intel:davschneller-gpu-image
+            container-options: --device /dev/dri
             runner: self-hosted
             pythonbreak: false
             test: true
@@ -132,7 +133,11 @@ jobs:
           export CXX=${{matrix.setup.cxx}}
           export FC=${{matrix.setup.fc}}
 
-          cmake .. -GNinja -DDEVICE_BACKEND=${{matrix.setup.backend}} -DSM=${{matrix.setup.arch}}
+          cmake .. -GNinja \
+            -DDEVICE_BACKEND=${{matrix.setup.backend}} \
+            -DSM=${{matrix.setup.arch}} \
+            -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+
           ninja
 
       - id: test
