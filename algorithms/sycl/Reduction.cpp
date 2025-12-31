@@ -93,8 +93,7 @@ void launchReduction(AccT* result,
         (size + (workGroupSize * itemsPerWorkItem) - 1) / (workGroupSize * itemsPerWorkItem);
 
     cgh.parallel_for(
-        sycl::nd_range<1>{numWorkGroups * itemsPerWorkItem, workGroupSize},
-        [=](sycl::nd_item<1> idx) {
+        sycl::nd_range<1>{numWorkGroups * workGroupSize, workGroupSize}, [=](sycl::nd_item<1> idx) {
           const auto localId = idx.get_local_id(0);
           const auto groupId = idx.get_group(0);
 

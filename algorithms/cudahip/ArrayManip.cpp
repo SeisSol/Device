@@ -80,7 +80,7 @@ template void
 
 //--------------------------------------------------------------------------------------------------
 __global__ void kernel_touchMemory(void* ptr, size_t size, bool clean) {
-  int id = threadIdx.x + blockIdx.x * blockDim.x;
+  const int id = threadIdx.x + blockIdx.x * blockDim.x;
   if (clean) {
     imemset(ptr, size, id, blockDim.x * gridDim.x);
   } else {
