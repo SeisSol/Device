@@ -13,81 +13,94 @@ jobs:
   device-build-test:
     name: device-build-test
     runs-on: ${{ matrix.setup.runner }}
-    container: ${{ matrix.setup.container }}
+    container:
+      image: ${{ matrix.setup.container }}
+      options: ${{ matrix.setup.container-options || ' ' }}
     strategy:
       fail-fast: false
       matrix:
         arch:
-          - snb # <-- needed for the self-hosted CI node for now :/
+          - hsw
         build_type:
           - Release
           - Debug
         setup:
-          - arch: sm_60
+          - arch: sm_86
             backend: cuda
             cc: gcc-13
             cxx: g++-13
             fc: gfortran-13
-            container: seissol/gha-gpu-nv:davschneller-gpu-image
-            runner: ubuntu-24.04
+            container: seissol/gha-gpu-nv:davschneller-ci-merge
+            runner: self-hosted
+            container-options: --runtime=nvidia --gpus=all
             pythonbreak: true
-          - arch: sm_60
+            test: true
+          - arch: sm_86
             backend: acpp
             cc: gcc-13
             cxx: g++-13
             fc: gfortran-13
-            container: seissol/gha-gpu-nv:davschneller-gpu-image
-            runner: ubuntu-24.04
+            container: seissol/gha-gpu-nv:davschneller-ci-merge
+            runner: self-hosted
+            container-options: --runtime=nvidia --gpus=all
             pythonbreak: true
-          - arch: sm_60
+            test: true
+          - arch: sm_86
             backend: cuda
             cc: clang-18
             cxx: clang++-18
             fc: gfortran-13 # TODO?
-            container: seissol/gha-gpu-nv:davschneller-gpu-image
-            runner: ubuntu-24.04
+            container: seissol/gha-gpu-nv:davschneller-ci-merge
+            runner: self-hosted
+            container-options: --runtime=nvidia --gpus=all
             pythonbreak: true
-          # TODO: needs a working GPU runner
-          #- arch: sm_60
-          #  backend: cuda
-          #  cc: nvc
-          #  cxx: nvc++
-          #  fc: nvfortran
-          #  container: seissol/gha-gpu-nvhpc:davschneller-gpu-image
-          #  runner: sccs-ci-nv-sm60
-          #  pythonbreak: true
+            test: true
+          - arch: sm_86
+            backend: cuda
+            cc: nvc
+            cxx: nvc++
+            fc: nvfortran
+            container: seissol/gha-gpu-nvhpc:davschneller-ci-merge
+            runner: self-hosted
+            container-options: --runtime=nvidia --gpus=all
+            pythonbreak: true
+            test: true
           - arch: gfx906
             backend: hip
             cc: gcc-13
             cxx: g++-13
             fc: gfortran-13
-            container: seissol/gha-gpu-amd:davschneller-gpu-image
+            container: seissol/gha-gpu-amd:davschneller-ci-merge
             runner: ubuntu-24.04
             pythonbreak: true
+            test: false
           - arch: gfx906
             backend: acpp
             cc: gcc-13
             cxx: g++-13
             fc: gfortran-13
-            container: seissol/gha-gpu-amd:davschneller-gpu-image
+            container: seissol/gha-gpu-amd:davschneller-ci-merge
             runner: ubuntu-24.04
             pythonbreak: true
+            test: false
           - arch: gfx906
             backend: hip
             cc: clang-18
             cxx: clang++-18
             fc: gfortran-13 # TODO?
-            container: seissol/gha-gpu-amd:davschneller-gpu-image
+            container: seissol/gha-gpu-amd:davschneller-ci-merge
             runner: ubuntu-24.04
             pythonbreak: true
+            test: false
           - arch: skl
             backend: oneapi
             cc: icx
             cxx: icpx
             fc: ifx
-            container: seissol/gha-gpu-intel:davschneller-gpu-image
-            runner: ubuntu-24.04
+            container: seissol/gha-gpu-intel-2025:davschneller-ci-merge
+            runner: self-hosted
             pythonbreak: false
+            test: true
     steps:
       - name: install-gtest
         run: |
@@ -98,7 +111,7 @@ jobs:
           cd ../..
 
       - name: checkout-device
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -121,3 +134,12 @@ jobs:
 
           cmake .. -GNinja -DDEVICE_BACKEND=${{matrix.setup.backend}} -DSM=${{matrix.setup.arch}}
           ninja
+
+      - id: test
+        name: test-device
+        if: ${{matrix.setup.test}}
+        run: |
+          cd tests
+          cd build
+
+          ./tests
