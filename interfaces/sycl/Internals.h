@@ -12,7 +12,7 @@
 #include <sycl/sycl.hpp>
 
 namespace device::internals {
-constexpr static int DefaultBlockDim = 1024;
+constexpr static int DefaultBlockDim = 256;
 
 template <typename T>
 void waitCheck(T&& result) {
