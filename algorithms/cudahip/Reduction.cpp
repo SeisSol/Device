@@ -56,19 +56,23 @@ __launch_bounds__(1024) void __global__ kernel_reduce(
   const auto threadInWarp = threadIdx.x % warpSize;
   const auto warpsNeeded = (size + warpSize - 1) / warpSize;
 
+  auto value = operation.defaultValue;
   auto acc = operation.defaultValue;
 
 #pragma unroll 4
   for (std::size_t i = currentWarp; i < warpsNeeded; i += warpCount) {
     const auto id = threadInWarp + i * warpSize;
-    auto value = (id < size) ? static_cast<AccT>(ntload(&vector[id])) : operation.defaultValue;
+    const auto valueNew =
+        (id < size) ? static_cast<AccT>(ntload(&vector[id])) : operation.defaultValue;
 
-    for (int offset = 1; offset < warpSize; offset *= 2) {
-      value = operation(value, shuffledown(value, offset));
-    }
-
-    acc = operation(acc, value);
+    value = operation(value, valueNew);
   }
+
+  for (int offset = 1; offset < warpSize; offset *= 2) {
+    value = operation(value, shuffledown(value, offset));
+  }
+
+  acc = operation(acc, value);
 
   if (threadInWarp == 0) {
     shmem[currentWarp] = acc;
@@ -78,18 +82,23 @@ __launch_bounds__(1024) void __global__ kernel_reduce(
 
   if (currentWarp == 0) {
     const auto lastWarpsNeeded = (warpCount + warpSize - 1) / warpSize;
+
+    auto value = operation.defaultValue;
     auto lastAcc = operation.defaultValue;
+
 #pragma unroll 2
     for (int i = 0; i < lastWarpsNeeded; ++i) {
       const auto id = threadInWarp + i * warpSize;
-      auto value = (id < warpCount) ? shmem[id] : operation.defaultValue;
+      const auto valueNew = (id < warpCount) ? shmem[id] : operation.defaultValue;
 
-      for (int offset = 1; offset < warpSize; offset *= 2) {
-        value = operation(value, shuffledown(value, offset));
-      }
-
-      lastAcc = operation(lastAcc, value);
+      value = operation(value, valueNew);
     }
+
+    for (int offset = 1; offset < warpSize; offset *= 2) {
+      value = operation(value, shuffledown(value, offset));
+    }
+
+    lastAcc = operation(lastAcc, value);
 
     if (threadIdx.x == 0) {
       if (overrideResult) {

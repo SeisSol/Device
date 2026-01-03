@@ -119,6 +119,13 @@ template void Algorithms::setToValue(
 template void Algorithms::setToValue(
     unsigned** out, unsigned value, size_t elementSize, size_t numElements, void* streamPtr);
 template void Algorithms::setToValue(
+    long** out, long value, size_t elementSize, size_t numElements, void* streamPtr);
+template void Algorithms::setToValue(unsigned long** out,
+                                     unsigned long value,
+                                     size_t elementSize,
+                                     size_t numElements,
+                                     void* streamPtr);
+template void Algorithms::setToValue(
     char** out, char value, size_t elementSize, size_t numElements, void* streamPtr);
 
 void Algorithms::copyUniformToScatterI(const void* src,

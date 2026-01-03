@@ -14,5 +14,10 @@ int main(int argc, char** argv) {
   device.api->setDevice(0);
   device.api->initialize();
 
-  return RUN_ALL_TESTS();
+  const auto result = RUN_ALL_TESTS();
+
+  device.api->syncDevice();
+  device.api->finalize();
+
+  return result;
 }
