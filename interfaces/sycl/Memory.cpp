@@ -38,7 +38,7 @@ void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
 void ConcreteAPI::freeMem(void* devPtr) {
   // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behaviour
   // contrast to C++/CUDA/HIP
-  if (devPtr != nullptr) {
+  if (devPtr != nullptr && this->currentMemoryToSizeMap != nullptr) {
     if (this->currentMemoryToSizeMap().find(devPtr) == this->currentMemoryToSizeMap().end()) {
       throw std::invalid_argument(
           this->getDeviceInfoAsText(getDeviceId())
