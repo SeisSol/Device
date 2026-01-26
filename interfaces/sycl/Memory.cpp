@@ -51,10 +51,10 @@ void ConcreteAPI::freeMem(void* devPtr) {
   }
 
   // Use the first device context to free memory
-  DeviceContext* context = this->availableDevices[0];
-  if (!context)
+  DeviceContext* context = this->availableDevices[getDeviceId()];
+  if (!context) {
     return;
-
+  }
   auto& map = context->memoryToSizeMap;
 
   if (map.find(devPtr) == map.end()) {
