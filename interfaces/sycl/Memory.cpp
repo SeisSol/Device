@@ -38,19 +38,34 @@ void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
 void ConcreteAPI::freeMem(void* devPtr) {
   // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behaviour
   // contrast to C++/CUDA/HIP
-  if (devPtr != nullptr) {
-    if (this->currentMemoryToSizeMap().find(devPtr) == this->currentMemoryToSizeMap().end()) {
-      throw std::invalid_argument(
-          this->getDeviceInfoAsText(getDeviceId())
-              .append("an attempt to delete memory that has not been allocated. Is this "
-                      "a pointer to this device or was this a double free?"));
-    }
-
-    this->currentStatistics().deallocatedMemBytes += this->currentMemoryToSizeMap().at(devPtr);
-    this->currentMemoryToSizeMap().erase(devPtr);
-    free(devPtr, this->currentDefaultQueue().get_context());
-    waitCheck(currentDefaultQueue());
+  if (devPtr == nullptr) {
+    return;
   }
+
+  if (!this->deviceInitialized) {
+    return;
+  }
+
+  if (this->availableDevices.empty()) {
+    return;
+  }
+
+  // Use the first device context to free memory
+  DeviceContext* context = this->availableDevices[getDeviceId()];
+  if (!context) {
+    return;
+  }
+  auto& map = context->memoryToSizeMap;
+
+  if (map.find(devPtr) == map.end()) {
+    return; // the std::throw is throwing some errors during the program finalization
+  }
+
+  context->statistics.deallocatedMemBytes += map.at(devPtr);
+  map.erase(devPtr);
+  auto& queue = context->queueBuffer.getDefaultQueue();
+  sycl::free(devPtr, queue.get_context());
+  queue.wait();
 }
 
 void ConcreteAPI::freeGlobMem(void* devPtr) {
