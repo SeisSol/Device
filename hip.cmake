@@ -65,6 +65,7 @@ set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Memory.cpp
                         interfaces/hip/Streams.cpp
                         interfaces/hip/Graphs.cpp
+                        interfaces/hip/Interop.cpp
                         algorithms/cudahip/ArrayManip.cpp
                         algorithms/cudahip/BatchManip.cpp
                         algorithms/cudahip/Debugging.cpp
