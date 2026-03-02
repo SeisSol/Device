@@ -11,8 +11,8 @@
 
 namespace device {
 
-constexpr int WorkGroupSize = 1024;
-constexpr int ItemsPerWorkItem = 4;
+constexpr int BlockSize = 1024;
+constexpr int ItemsPerThread = 4;
 template <typename T>
 struct Sum {
   T defaultValue{0};
@@ -98,15 +98,17 @@ __device__ __forceinline__ T blockReduce(T val, T* shmem, OperationT operation) 
   const int warpId = threadIdx.x / warpSize;
 
   val = warpReduce(val, operation);
-  if (laneId == 0)
+  if (laneId == 0) {
     shmem[warpId] = val;
+  }
   __syncthreads();
 
-  const int numWarps = WorkGroupSize / warpSize;
+  const int numWarps = BlockSize / warpSize;
   val = (threadIdx.x < numWarps) ? shmem[laneId] : operation.defaultValue;
 
-  if (warpId == 0)
+  if (warpId == 0) {
     val = warpReduce(val, operation);
+  }
 
   return val;
 }
@@ -120,7 +122,7 @@ __global__ void initKernel(T* result, OperationT operation) {
 }
 
 template <typename AccT, typename VecT, typename OperationT>
-__launch_bounds__(WorkGroupSize) void __global__ kernel_reduce(
+__launch_bounds__(BlockSize) void __global__ kernel_reduce(
     AccT* result, const VecT* vector, size_t size, bool overrideResult, OperationT operation) {
 
   // Maximum block size 1024, warp size 32 so 1024/32 = 32 chosen
@@ -128,12 +130,12 @@ __launch_bounds__(WorkGroupSize) void __global__ kernel_reduce(
   __shared__ AccT shmem[32];
 
   AccT threadAcc = operation.defaultValue;
-  size_t blockBaseIdx = blockIdx.x * (WorkGroupSize * ItemsPerWorkItem);
+  size_t blockBaseIdx = blockIdx.x * (BlockSize * ItemsPerThread);
   size_t threadBaseIdx = blockBaseIdx + threadIdx.x;
 
 #pragma unroll
-  for (int i = 0; i < ItemsPerWorkItem; i++) {
-    size_t idx = threadBaseIdx + i * WorkGroupSize;
+  for (int i = 0; i < ItemsPerThread; i++) {
+    size_t idx = threadBaseIdx + i * BlockSize;
     if (idx < size) {
       threadAcc = operation(threadAcc, static_cast<AccT>(ntload(&vector[idx])));
     }
@@ -156,8 +158,8 @@ void Algorithms::reduceVector(AccT* result,
                               void* streamPtr) {
   auto* stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
 
-  size_t totalItems = WorkGroupSize * ItemsPerWorkItem;
-  size_t numBlocks = (size + totalItems - 1) / totalItems;
+  const size_t totalItems = BlockSize * ItemsPerThread;
+  const size_t numBlocks = (size + totalItems - 1) / totalItems;
 
   if (overrideResult) {
     switch (type) {
@@ -175,17 +177,17 @@ void Algorithms::reduceVector(AccT* result,
 
   switch (type) {
   case ReductionType::Add: {
-    kernel_reduce<<<numBlocks, WorkGroupSize, 0, stream>>>(
+    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(
         result, buffer, size, overrideResult, device::Sum<AccT>());
     break;
   }
   case ReductionType::Max: {
-    kernel_reduce<<<numBlocks, WorkGroupSize, 0, stream>>>(
+    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(
         result, buffer, size, overrideResult, device::Max<AccT>());
     break;
   }
   case ReductionType::Min: {
-    kernel_reduce<<<numBlocks, WorkGroupSize, 0, stream>>>(
+    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(
         result, buffer, size, overrideResult, device::Min<AccT>());
     break;
   }
