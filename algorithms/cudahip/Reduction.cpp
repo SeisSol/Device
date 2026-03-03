@@ -51,6 +51,22 @@ __forceinline__ __device__ T shuffledown(T value, int offset) {
 template <typename T, typename OperationT>
 __device__ __forceinline__ T warpReduce(T value, OperationT operation) {
 
+#if (defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800)
+  // C++17 compile-time check to ensure we only use this for ints
+  if constexpr (std::is_same_v<T, int> || std::is_same_v<T, unsigned int>) {
+
+    unsigned int mask = 0xFFFFFFFF; // 32-bit active thread mask
+
+    if constexpr (std::is_same_v<OperationT, device::Sum<T>>) {
+      return __reduce_add_sync(mask, value);
+    } else if constexpr (std::is_same_v<OperationT, device::Min<T>>) {
+      return __reduce_min_sync(mask, value);
+    } else if constexpr (std::is_same_v<OperationT, device::Max<T>>) {
+      return __reduce_max_sync(mask, value);
+    }
+  }
+#endif
+
   for (int offset = warpSize / 2; offset > 0; offset /= 2) {
     value = operation(value, shuffledown(value, offset));
   }
