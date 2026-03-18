@@ -10,6 +10,9 @@
 #include <math.h>
 
 namespace device {
+
+constexpr int BlockSize = 1024;
+constexpr int ItemsPerThread = 4;
 template <typename T>
 struct Sum {
   T defaultValue{0};
@@ -44,69 +47,105 @@ __forceinline__ __device__ T shuffledown(T value, int offset) {
 }
 #endif
 
-// a rather "dumb", but general reduction kernel
-// (not intended for intensive use; there's the thrust libraries instead)
+// Warp reduce operation similar to SYCL
+template <typename T, typename OperationT>
+__device__ __forceinline__ T warpReduce(T value, OperationT operation) {
 
-template <typename AccT, typename VecT, typename OperationT>
-__launch_bounds__(1024) void __global__ kernel_reduce(
-    AccT* result, const VecT* vector, size_t size, bool overrideResult, OperationT operation) {
-  __shared__ AccT shmem[256];
-  const auto warpCount = blockDim.x / warpSize;
-  const auto currentWarp = threadIdx.x / warpSize;
-  const auto threadInWarp = threadIdx.x % warpSize;
-  const auto warpsNeeded = (size + warpSize - 1) / warpSize;
-
-  auto value = operation.defaultValue;
-  auto acc = operation.defaultValue;
-
-#pragma unroll 4
-  for (std::size_t i = currentWarp; i < warpsNeeded; i += warpCount) {
-    const auto id = threadInWarp + i * warpSize;
-    const auto valueNew =
-        (id < size) ? static_cast<AccT>(ntload(&vector[id])) : operation.defaultValue;
-
-    value = operation(value, valueNew);
-  }
-
-  for (int offset = 1; offset < warpSize; offset *= 2) {
+  for (int offset = warpSize / 2; offset > 0; offset /= 2) {
     value = operation(value, shuffledown(value, offset));
   }
+  return value;
+}
 
-  acc = operation(acc, value);
+// Helper function for Generic Atomic Update
+// Fallback to atomicCAS-based implementation if atomic instruction is not available
+// Picked from: https://docs.nvidia.com/cuda/cuda-c-programming-guide/#atomic-functions
+template <typename T, typename OperationT>
+__device__ __forceinline__ void atomicUpdate(T* address, T val, OperationT operation) {
+  unsigned long long* address_as_ull = (unsigned long long*)address;
+  unsigned long long old = *address_as_ull, assumed;
+  do {
+    assumed = old;
+    T calculatedRes = operation(*(T*)&assumed, val);
+    old = atomicCAS(address_as_ull, assumed, *(unsigned long long*)&calculatedRes);
+  } while (assumed != old);
+}
 
-  if (threadInWarp == 0) {
-    shmem[currentWarp] = acc;
+// Native atomics
+template <>
+__device__ __forceinline__ void
+    atomicUpdate<int, device::Sum<int>>(int* address, int val, device::Sum<int> operation) {
+  atomicAdd(address, val);
+}
+template <>
+__device__ __forceinline__ void atomicUpdate<float, device::Sum<float>>(
+    float* address, float val, device::Sum<float> operation) {
+  atomicAdd(address, val);
+}
+#if __CUDA_ARCH__ >= 600
+template <>
+__device__ __forceinline__ void atomicUpdate<double, device::Sum<double>>(
+    double* address, double val, device::Sum<double> operation) {
+  atomicAdd(address, val);
+}
+#endif
+
+// Block Reduce
+template <typename T, typename OperationT>
+__device__ __forceinline__ T blockReduce(T val, T* shmem, OperationT operation) {
+
+  const int laneId = threadIdx.x % warpSize;
+  const int warpId = threadIdx.x / warpSize;
+
+  val = warpReduce(val, operation);
+  if (laneId == 0) {
+    shmem[warpId] = val;
   }
-
   __syncthreads();
 
-  if (currentWarp == 0) {
-    const auto lastWarpsNeeded = (warpCount + warpSize - 1) / warpSize;
+  const int numWarps = BlockSize / warpSize;
+  val = (threadIdx.x < numWarps) ? shmem[laneId] : operation.defaultValue;
 
-    auto value = operation.defaultValue;
-    auto lastAcc = operation.defaultValue;
+  if (warpId == 0) {
+    val = warpReduce(val, operation);
+  }
 
-#pragma unroll 2
-    for (int i = 0; i < lastWarpsNeeded; ++i) {
-      const auto id = threadInWarp + i * warpSize;
-      const auto valueNew = (id < warpCount) ? shmem[id] : operation.defaultValue;
+  return val;
+}
 
-      value = operation(value, valueNew);
+// Init Kernel to handle overrideResult safely across multiple blocks
+template <typename T, typename OperationT>
+__global__ void initKernel(T* result, OperationT operation) {
+  if (threadIdx.x == 0) {
+    *result = operation.defaultValue;
+  }
+}
+
+template <typename AccT, typename VecT, typename OperationT>
+__launch_bounds__(BlockSize) void __global__ kernel_reduce(
+    AccT* result, const VecT* vector, size_t size, bool overrideResult, OperationT operation) {
+
+  // Maximum block size 1024, warp size 32 so 1024/32 = 32 chosen
+  // For AMD, warp size 64, 1024/64 = 16, but 32 should work with a few idle memory addresses
+  __shared__ AccT shmem[32];
+
+  AccT threadAcc = operation.defaultValue;
+  size_t blockBaseIdx = blockIdx.x * (BlockSize * ItemsPerThread);
+  size_t threadBaseIdx = blockBaseIdx + threadIdx.x;
+
+#pragma unroll
+  for (int i = 0; i < ItemsPerThread; i++) {
+    size_t idx = threadBaseIdx + i * BlockSize;
+    if (idx < size) {
+      threadAcc = operation(threadAcc, static_cast<AccT>(ntload(&vector[idx])));
     }
+  }
 
-    for (int offset = 1; offset < warpSize; offset *= 2) {
-      value = operation(value, shuffledown(value, offset));
-    }
+  AccT blockAcc = blockReduce<AccT, OperationT>(threadAcc, shmem, operation);
 
-    lastAcc = operation(lastAcc, value);
-
-    if (threadIdx.x == 0) {
-      if (overrideResult) {
-        ntstore(result, lastAcc);
-      } else {
-        ntstore(result, operation(ntload(result), lastAcc));
-      }
-    }
+  if (threadIdx.x == 0) {
+    (void)overrideResult; // to silence unused parameter warning for non-Add reductions
+    atomicUpdate(result, blockAcc, operation);
   }
 }
 
@@ -119,22 +158,36 @@ void Algorithms::reduceVector(AccT* result,
                               void* streamPtr) {
   auto* stream = reinterpret_cast<internals::DeviceStreamT>(streamPtr);
 
-  dim3 grid(1, 1, 1);
-  dim3 block(1024, 1, 1);
+  const size_t totalItems = BlockSize * ItemsPerThread;
+  const size_t numBlocks = (size + totalItems - 1) / totalItems;
+
+  if (overrideResult) {
+    switch (type) {
+    case ReductionType::Add:
+      initKernel<<<1, 1, 0, stream>>>(result, device::Sum<AccT>());
+      break;
+    case ReductionType::Max:
+      initKernel<<<1, 1, 0, stream>>>(result, device::Max<AccT>());
+      break;
+    case ReductionType::Min:
+      initKernel<<<1, 1, 0, stream>>>(result, device::Min<AccT>());
+      break;
+    }
+  }
 
   switch (type) {
   case ReductionType::Add: {
-    kernel_reduce<<<grid, block, 0, stream>>>(
+    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(
         result, buffer, size, overrideResult, device::Sum<AccT>());
     break;
   }
   case ReductionType::Max: {
-    kernel_reduce<<<grid, block, 0, stream>>>(
+    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(
         result, buffer, size, overrideResult, device::Max<AccT>());
     break;
   }
   case ReductionType::Min: {
-    kernel_reduce<<<grid, block, 0, stream>>>(
+    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(
         result, buffer, size, overrideResult, device::Min<AccT>());
     break;
   }
