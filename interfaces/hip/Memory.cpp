@@ -26,11 +26,16 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
   isFlagSet<DeviceSelected>(status);
   void* devPtr;
   APIWRAP(hipMallocManaged(&devPtr, size, hipMemAttachGlobal));
+
+  // make coarse-grained memory access behavior the default (match with allocGlobMem)
+  APIWRAP(hipMemAdvise(devPtr, size, hipMemAdviseSetCoarseGrain, 1));
+
   if (hint == Destination::Host) {
     APIWRAP(hipMemAdvise(devPtr, size, hipMemAdviseSetPreferredLocation, hipCpuDeviceId));
   } else {
     APIWRAP(hipMemAdvise(devPtr, size, hipMemAdviseSetPreferredLocation, getDeviceId()));
   }
+
   statistics.allocatedMemBytes += size;
   statistics.allocatedUnifiedMemBytes += size;
   memToSizeMap[devPtr] = size;
