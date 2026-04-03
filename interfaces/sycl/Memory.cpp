@@ -7,14 +7,72 @@
 
 #include <iostream>
 
+#ifdef SYCL_BACKEND_ZE
+#include <ze_api.h>
+#endif
+
+// should only exist if <ze_api.h> has been included
+#ifdef ZE_MEMORY_COMPRESSION_HINTS_EXT_NAME
+
+namespace {
+constexpr bool HasCompress = true;
+
+void* allocCompressed(sycl::queue& queue, size_t size) {
+  void* ptrOut{nullptr};
+  void** ptrptr = &ptrOut;
+
+  queue.host_task([=](const sycl::interop_handle& handle) {
+    // for the basic code structure cf.
+    // https://github.com/intel/llvm/blob/c757480800a9e0224b81e509bf88d2b77067da69/unified-runtime/source/adapters/level_zero/usm.cpp#L183-L204
+
+    ze_memory_compression_hints_ext_desc_t compresshints{};
+    compresshints.stype = ZE_STRUCTURE_TYPE_MEMORY_COMPRESSION_HINTS_EXT_DESC;
+    compresshints.pNext = nullptr;
+    compresshints.flags = ZE_MEMORY_COMPRESSION_HINTS_EXT_FLAG_COMPRESSED;
+    ze_device_mem_alloc_desc_t desc{};
+    desc.stype = ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
+    desc.pNext = &compresshints;
+    desc.flags = 0;
+    desc.ordinal = 0;
+
+    const ze_context_handle_t nativeContext = handle.get_native_context<sycl::backend::ze>();
+    const ze_device_handle_t nativeDevice = handle.get_native_device<sycl::backend::ze>();
+
+    zeMemAllocDevice(nativeContext, &desc, size, 128, nativeDevice, ptrptr);
+  });
+
+  // wait for the pointer on the stack to be written out
+  waitCheck(queue);
+
+  return ptrOut;
+}
+
+} // namespace
+
+#else
+
+namespace {
+constexpr bool HasCompress = false;
+
+void* allocCompressed(sycl::queue& queue, size_t size) { return nullptr; }
+
+} // namespace
+
+#endif
+
 using namespace device;
 using namespace device::internals;
 
 void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
-  auto* ptr = malloc_device(size, this->currentDefaultQueue());
+  void* ptr{nullptr};
+  if (HasCompress && compress) {
+    ptr = allocCompressed(this->currentDefaultQueue(), size);
+  } else {
+    ptr = malloc_device(size, this->currentDefaultQueue());
+    waitCheck(this->currentDefaultQueue());
+  }
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
-  waitCheck(this->currentDefaultQueue());
   return ptr;
 }
 
