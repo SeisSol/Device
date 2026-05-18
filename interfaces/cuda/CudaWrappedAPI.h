@@ -20,6 +20,7 @@
 #include <vector>
 
 namespace device {
+
 class ConcreteAPI : public AbstractAPI {
   public:
   ConcreteAPI();
@@ -110,6 +111,15 @@ class ConcreteAPI : public AbstractAPI {
   void popLastProfilingMark() override;
 
   bool isUnifiedMemoryDefault() override;
+
+  bool canAccessPeer(int otherDeviceId) override;
+  void switchPeerAccess(int otherDeviceId, bool enable) override;
+
+  std::vector<uint8_t> makeIpcMemHandle(void* ptr) override;
+  void* openIpcMemHandle(const std::vector<uint8_t>& handle) override;
+  void closeIpcMemHandle(void* ptr) override;
+  std::vector<uint8_t> makeIpcEventHandle(void* event) override;
+  void* openIpcEventHandle(const std::vector<uint8_t>& handle) override;
 
   void setupPrinting(int rank) override;
 

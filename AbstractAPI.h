@@ -114,6 +114,15 @@ struct AbstractAPI {
   virtual void putProfilingMark(const std::string& name, ProfilingColors color) = 0;
   virtual void popLastProfilingMark() = 0;
 
+  virtual bool canAccessPeer(int otherDeviceId) = 0;
+  virtual void switchPeerAccess(int otherDeviceId, bool enable) = 0;
+
+  virtual std::vector<uint8_t> makeIpcMemHandle(void* ptr) = 0;
+  virtual void* openIpcMemHandle(const std::vector<uint8_t>& handle) = 0;
+  virtual void closeIpcMemHandle(void* ptr) = 0;
+  virtual std::vector<uint8_t> makeIpcEventHandle(void* event) = 0;
+  virtual void* openIpcEventHandle(const std::vector<uint8_t>& handle) = 0;
+
   virtual void setupPrinting(int rank) = 0;
 
   bool hasFinalized() { return m_isFinalized; }

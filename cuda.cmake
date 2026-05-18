@@ -13,6 +13,7 @@ add_library(device ${DEVICE_LIBTYPE} device.cpp
                  interfaces/cuda/Streams.cu
                  interfaces/cuda/Graphs.cu
                  interfaces/cuda/Internals.cu
+                 interfaces/cuda/Interop.cu
                  algorithms/cudahip/ArrayManip.cpp
                  algorithms/cudahip/BatchManip.cpp
                  algorithms/cudahip/Debugging.cpp
