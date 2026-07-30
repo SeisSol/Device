@@ -136,7 +136,8 @@ jobs:
           cmake .. -GNinja \
             -DDEVICE_BACKEND=${{matrix.setup.backend}} \
             -DSM=${{matrix.setup.arch}} \
-            -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+            -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+            -DENABLE_PROFILING_MARKERS=ON
 
           ninja
 
