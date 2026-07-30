@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.21)
 project(device_submodule)
 
 #set(CMAKE_CXX_CLANG_TIDY clang-tidy)
