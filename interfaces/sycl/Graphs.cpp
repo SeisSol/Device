@@ -34,8 +34,7 @@ struct DeviceGraph {
       sycl::ext::oneapi::experimental::graph_state::modifiable>
       graph;
 
-  DeviceGraph(const sycl::context& context, const sycl::device& device)
-      : graph(context, device) {}
+  DeviceGraph(const sycl::context& context, const sycl::device& device) : graph(context, device) {}
 #endif
 
   bool ready{false};
@@ -116,8 +115,7 @@ void ConcreteAPI::launchGraph(const DeviceGraphHandle& graphHandle, void* stream
   assert(graphInstance != nullptr && graphInstance->ready &&
          "a graph must be captured before launching");
 
-  static_cast<sycl::queue*>(streamPtr)->submit([&](sycl::handler& handler) {
-    handler.ext_oneapi_graph(graphInstance->instance.value());
-  });
+  static_cast<sycl::queue*>(streamPtr)->submit(
+      [&](sycl::handler& handler) { handler.ext_oneapi_graph(graphInstance->instance.value()); });
 #endif
 }

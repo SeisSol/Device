@@ -137,13 +137,8 @@ std::vector<cudaGraphNode_t> captureFrontier(cudaStream_t stream) {
 
 #if CUDART_VERSION >= 13000
   const cudaGraphEdgeData* edgeData{nullptr};
-  APIWRAP(cudaStreamGetCaptureInfo(stream,
-                                   &captureStatus,
-                                   &captureId,
-                                   &capturedGraph,
-                                   &frontier,
-                                   &edgeData,
-                                   &frontierSize));
+  APIWRAP(cudaStreamGetCaptureInfo(
+      stream, &captureStatus, &captureId, &capturedGraph, &frontier, &edgeData, &frontierSize));
 #else
   APIWRAP(cudaStreamGetCaptureInfo(
       stream, &captureStatus, &captureId, &capturedGraph, &frontier, &frontierSize));

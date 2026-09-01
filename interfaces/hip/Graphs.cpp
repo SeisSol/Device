@@ -85,7 +85,7 @@ DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs
   graphInstance->streamPtrs = streamPtrs;
 
   APIWRAP(hipStreamBeginCapture(static_cast<hipStream_t>(streamPtrs[0]),
-                                 hipStreamCaptureModeThreadLocal));
+                                hipStreamCaptureModeThreadLocal));
 
   return DeviceGraphHandle(std::move(graphInstance));
 #else
@@ -99,7 +99,7 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
   assert(graphInstance != nullptr && "a capture must be started before it can be ended");
 
   APIWRAP(hipStreamEndCapture(static_cast<hipStream_t>(graphInstance->streamPtrs[0]),
-                               &(graphInstance->graph)));
+                              &(graphInstance->graph)));
 
   APIWRAP(
       hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
