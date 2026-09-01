@@ -123,10 +123,11 @@ class ConcreteAPI : public AbstractAPI {
 
   bool isCapableOfGraphNodes() override;
   DeviceGraphHandle graphCreate() override;
-  DeviceGraphNodeHandle graphAddNode(const DeviceGraphHandle& graphHandle,
-                                     const std::vector<DeviceGraphNodeHandle>& dependencies,
-                                     void* streamPtr,
-                                     const std::function<void(void*)>& recorder) override;
+  void graphBeginNode(const DeviceGraphHandle& graphHandle,
+                      const std::vector<DeviceGraphNodeHandle>& dependencies,
+                      void* streamPtr) override;
+  DeviceGraphNodeHandle graphEndNode(const DeviceGraphHandle& graphHandle,
+                                     void* streamPtr) override;
   void graphInstantiate(const DeviceGraphHandle& graphHandle) override;
 
   void* createStream(double priority) override;

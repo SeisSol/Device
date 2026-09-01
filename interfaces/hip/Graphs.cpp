@@ -118,11 +118,30 @@ DeviceGraphHandle ConcreteAPI::graphCreate() {
 #endif
 }
 
-DeviceGraphNodeHandle
-    ConcreteAPI::graphAddNode(const DeviceGraphHandle& graphHandle,
-                              const std::vector<DeviceGraphNodeHandle>& dependencies,
-                              void* streamPtr,
-                              const std::function<void(void*)>& recorder) {
+namespace {
+#ifdef DEVICE_USE_GRAPH_CAPTURING
+/**
+ * Reads the capture frontier, i.e. the nodes a subsequently captured operation would depend on.
+ * Has to be called while the capture is still open.
+ */
+std::vector<hipGraphNode_t> captureFrontier(hipStream_t stream) {
+  hipStreamCaptureStatus captureStatus{};
+  unsigned long long captureId{};
+  hipGraph_t capturedGraph{nullptr};
+  const hipGraphNode_t* frontier{nullptr};
+  size_t frontierSize{0};
+
+  APIWRAP(hipStreamGetCaptureInfo_v2(
+      stream, &captureStatus, &captureId, &capturedGraph, &frontier, &frontierSize));
+
+  return std::vector<hipGraphNode_t>(frontier, frontier + frontierSize);
+}
+#endif
+} // namespace
+
+void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
+                                 const std::vector<DeviceGraphNodeHandle>& dependencies,
+                                 void* streamPtr) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && "a graph must be created before nodes can be added");
@@ -135,27 +154,24 @@ DeviceGraphNodeHandle
     nativeDependencies.insert(nativeDependencies.end(), nodes.begin(), nodes.end());
   }
 
-  auto stream = static_cast<hipStream_t>(streamPtr);
   // the edge-data argument is not supported by HIP and has to stay a nullptr
-  APIWRAP(hipStreamBeginCaptureToGraph(stream,
-                                        graphInstance->graph,
-                                        nativeDependencies.data(),
-                                        nullptr,
-                                        nativeDependencies.size(),
-                                        hipStreamCaptureModeThreadLocal));
+  APIWRAP(hipStreamBeginCaptureToGraph(static_cast<hipStream_t>(streamPtr),
+                                       graphInstance->graph,
+                                       nativeDependencies.data(),
+                                       nullptr,
+                                       nativeDependencies.size(),
+                                       hipStreamCaptureModeThreadLocal));
+#endif
+}
 
-  recorder(streamPtr);
+DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHandle,
+                                                void* streamPtr) {
+#ifdef DEVICE_USE_GRAPH_CAPTURING
+  auto* graphInstance = graphHandle.get();
+  assert(graphInstance != nullptr && "a node must be opened before it can be closed");
 
-  // the capture frontier is what the next node has to depend on; it has to be read out before
-  // the capture is ended
-  hipStreamCaptureStatus captureStatus{};
-  unsigned long long captureId{};
-  hipGraph_t capturedGraph{nullptr};
-  const hipGraphNode_t* frontier{nullptr};
-  size_t frontierSize{0};
-  APIWRAP(hipStreamGetCaptureInfo_v2(
-      stream, &captureStatus, &captureId, &capturedGraph, &frontier, &frontierSize));
-  std::vector<hipGraphNode_t> produced(frontier, frontier + frontierSize);
+  auto stream = static_cast<hipStream_t>(streamPtr);
+  auto produced = captureFrontier(stream);
 
   hipGraph_t endedGraph{nullptr};
   APIWRAP(hipStreamEndCapture(stream, &endedGraph));

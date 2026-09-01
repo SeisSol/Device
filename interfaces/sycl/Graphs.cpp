@@ -94,11 +94,14 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
 
 DeviceGraphHandle ConcreteAPI::graphCreate() { return DeviceGraphHandle(); }
 
-DeviceGraphNodeHandle
-    ConcreteAPI::graphAddNode(const DeviceGraphHandle& graphHandle,
-                              const std::vector<DeviceGraphNodeHandle>& dependencies,
-                              void* streamPtr,
-                              const std::function<void(void*)>& recorder) {
+void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
+                                 const std::vector<DeviceGraphNodeHandle>& dependencies,
+                                 void* streamPtr) {
+  logError() << "Explicit graph nodes are not supported by the SYCL backend.";
+}
+
+DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHandle,
+                                                void* streamPtr) {
   logError() << "Explicit graph nodes are not supported by the SYCL backend.";
   return DeviceGraphNodeHandle();
 }

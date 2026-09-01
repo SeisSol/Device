@@ -118,11 +118,45 @@ DeviceGraphHandle ConcreteAPI::graphCreate() {
 #endif
 }
 
-DeviceGraphNodeHandle
-    ConcreteAPI::graphAddNode(const DeviceGraphHandle& graphHandle,
-                              const std::vector<DeviceGraphNodeHandle>& dependencies,
-                              void* streamPtr,
-                              const std::function<void(void*)>& recorder) {
+namespace {
+#ifdef DEVICE_USE_GRAPH_CAPTURING
+/**
+ * Reads the capture frontier, i.e. the nodes a subsequently captured operation would depend on.
+ * Has to be called while the capture is still open.
+ *
+ * The unversioned name resolves to different signatures depending on the toolkit: up to CUDA
+ * 12.x it is the six-argument form, from CUDA 13 on it is the one that also reports edge data.
+ * cudaStreamGetCaptureInfo_v2 is not an option, as CUDA 13 no longer declares it.
+ */
+std::vector<cudaGraphNode_t> captureFrontier(cudaStream_t stream) {
+  cudaStreamCaptureStatus captureStatus{};
+  unsigned long long captureId{};
+  cudaGraph_t capturedGraph{nullptr};
+  const cudaGraphNode_t* frontier{nullptr};
+  size_t frontierSize{0};
+
+#if CUDART_VERSION >= 13000
+  const cudaGraphEdgeData* edgeData{nullptr};
+  APIWRAP(cudaStreamGetCaptureInfo(stream,
+                                   &captureStatus,
+                                   &captureId,
+                                   &capturedGraph,
+                                   &frontier,
+                                   &edgeData,
+                                   &frontierSize));
+#else
+  APIWRAP(cudaStreamGetCaptureInfo(
+      stream, &captureStatus, &captureId, &capturedGraph, &frontier, &frontierSize));
+#endif
+
+  return std::vector<cudaGraphNode_t>(frontier, frontier + frontierSize);
+}
+#endif
+} // namespace
+
+void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
+                                 const std::vector<DeviceGraphNodeHandle>& dependencies,
+                                 void* streamPtr) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && "a graph must be created before nodes can be added");
@@ -135,26 +169,23 @@ DeviceGraphNodeHandle
     nativeDependencies.insert(nativeDependencies.end(), nodes.begin(), nodes.end());
   }
 
-  auto stream = static_cast<cudaStream_t>(streamPtr);
-  APIWRAP(cudaStreamBeginCaptureToGraph(stream,
+  APIWRAP(cudaStreamBeginCaptureToGraph(static_cast<cudaStream_t>(streamPtr),
                                         graphInstance->graph,
                                         nativeDependencies.data(),
                                         nullptr,
                                         nativeDependencies.size(),
                                         cudaStreamCaptureModeThreadLocal));
+#endif
+}
 
-  recorder(streamPtr);
+DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHandle,
+                                                void* streamPtr) {
+#ifdef DEVICE_USE_GRAPH_CAPTURING
+  auto* graphInstance = graphHandle.get();
+  assert(graphInstance != nullptr && "a node must be opened before it can be closed");
 
-  // the capture frontier is what the next node has to depend on; it has to be read out before
-  // the capture is ended
-  cudaStreamCaptureStatus captureStatus{};
-  unsigned long long captureId{};
-  cudaGraph_t capturedGraph{nullptr};
-  const cudaGraphNode_t* frontier{nullptr};
-  size_t frontierSize{0};
-  APIWRAP(cudaStreamGetCaptureInfo_v2(
-      stream, &captureStatus, &captureId, &capturedGraph, &frontier, &frontierSize));
-  std::vector<cudaGraphNode_t> produced(frontier, frontier + frontierSize);
+  auto stream = static_cast<cudaStream_t>(streamPtr);
+  auto produced = captureFrontier(stream);
 
   cudaGraph_t endedGraph{nullptr};
   APIWRAP(cudaStreamEndCapture(stream, &endedGraph));

@@ -104,15 +104,28 @@ struct AbstractAPI {
    *
    * If `recorder` enqueues nothing, the returned handle refers to `dependencies` themselves, so
    * an empty recorder is a valid way to express a pure join node.
+   *
+   * graphBeginNode and graphEndNode are the same thing split in two, for callers that cannot
+   * wrap the recorded work in a callback and instead have to leave a node open across code they
+   * do not control. Only one node per stream may be open at a time.
    */
   virtual bool isCapableOfGraphNodes() = 0;
   virtual DeviceGraphHandle graphCreate() = 0;
-  virtual DeviceGraphNodeHandle
-      graphAddNode(const DeviceGraphHandle& graphHandle,
-                   const std::vector<DeviceGraphNodeHandle>& dependencies,
-                   void* streamPtr,
-                   const std::function<void(void*)>& recorder) = 0;
+  virtual void graphBeginNode(const DeviceGraphHandle& graphHandle,
+                              const std::vector<DeviceGraphNodeHandle>& dependencies,
+                              void* streamPtr) = 0;
+  virtual DeviceGraphNodeHandle graphEndNode(const DeviceGraphHandle& graphHandle,
+                                             void* streamPtr) = 0;
   virtual void graphInstantiate(const DeviceGraphHandle& graphHandle) = 0;
+
+  DeviceGraphNodeHandle graphAddNode(const DeviceGraphHandle& graphHandle,
+                                     const std::vector<DeviceGraphNodeHandle>& dependencies,
+                                     void* streamPtr,
+                                     const std::function<void(void*)>& recorder) {
+    graphBeginNode(graphHandle, dependencies, streamPtr);
+    recorder(streamPtr);
+    return graphEndNode(graphHandle, streamPtr);
+  }
 
   virtual void* createStream(double priority = NAN) = 0;
   virtual void destroyGenericStream(void* streamPtr) = 0;
