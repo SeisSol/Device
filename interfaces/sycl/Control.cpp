@@ -73,8 +73,6 @@ void ConcreteAPI::finalize() {
   this->availableDevices.clear();
   this->availableDevices.shrink_to_fit();
 
-  this->graphs.clear();
-
   this->m_isFinalized = true;
   this->deviceInitialized = false;
 }

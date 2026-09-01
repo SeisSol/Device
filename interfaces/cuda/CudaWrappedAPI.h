@@ -83,8 +83,8 @@ class ConcreteAPI : public AbstractAPI {
 
   bool isCapableOfGraphCapturing() override;
   DeviceGraphHandle streamBeginCapture(std::vector<void*>& streamPtrs) override;
-  void streamEndCapture(DeviceGraphHandle handle) override;
-  void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
+  void streamEndCapture(const DeviceGraphHandle& handle) override;
+  void launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) override;
 
   void* createStream(double priority) override;
   void destroyGenericStream(void* streamPtr) override;
@@ -126,14 +126,6 @@ class ConcreteAPI : public AbstractAPI {
   cudaStream_t defaultStream{nullptr};
 
   std::unordered_set<cudaStream_t> genericStreams{};
-
-  struct GraphDetails {
-    cudaGraph_t graph;
-    cudaGraphExec_t instance;
-    std::vector<void*> streamPtrs;
-    bool ready{false};
-  };
-  std::vector<GraphDetails> graphs;
 
   Statistics statistics{};
   std::unordered_map<void*, size_t> memToSizeMap{{nullptr, 0}};

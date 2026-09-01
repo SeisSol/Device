@@ -86,8 +86,8 @@ struct AbstractAPI {
 
   virtual bool isCapableOfGraphCapturing() = 0;
   virtual DeviceGraphHandle streamBeginCapture(std::vector<void*>& streamPtrs) = 0;
-  virtual void streamEndCapture(DeviceGraphHandle handle) = 0;
-  virtual void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) = 0;
+  virtual void streamEndCapture(const DeviceGraphHandle& handle) = 0;
+  virtual void launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) = 0;
 
   virtual void* createStream(double priority = NAN) = 0;
   virtual void destroyGenericStream(void* streamPtr) = 0;

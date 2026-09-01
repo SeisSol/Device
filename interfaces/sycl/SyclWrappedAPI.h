@@ -118,8 +118,8 @@ class ConcreteAPI : public AbstractAPI {
 
   bool isCapableOfGraphCapturing() override;
   DeviceGraphHandle streamBeginCapture(std::vector<void*>& streamPtrs) override;
-  void streamEndCapture(DeviceGraphHandle handle) override;
-  void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
+  void streamEndCapture(const DeviceGraphHandle& handle) override;
+  void launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) override;
 
   void* createStream(double priority) override;
   void destroyGenericStream(void* streamPtr) override;
@@ -158,24 +158,6 @@ class ConcreteAPI : public AbstractAPI {
   std::unordered_map<void*, size_t>& currentMemoryToSizeMap() {
     return this->currentContext()->memoryToSizeMap;
   }
-
-#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  struct GraphDetails {
-    std::optional<sycl::ext::oneapi::experimental::command_graph<
-        sycl::ext::oneapi::experimental::graph_state::executable>>
-        instance;
-    sycl::ext::oneapi::experimental::command_graph<
-        sycl::ext::oneapi::experimental::graph_state::modifiable>
-        graph;
-    bool ready{false};
-  };
-#else
-  struct GraphDetails {
-    bool ready{false};
-  };
-#endif
-
-  std::vector<GraphDetails> graphs;
 
   void freeMem(void* devPtr);
 

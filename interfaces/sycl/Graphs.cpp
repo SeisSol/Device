@@ -8,23 +8,41 @@
 #include "utils/logger.h"
 
 #include <cassert>
+#include <memory>
 #include <vector>
 
 using namespace device;
 
-/* This is a wrapped graph capturing CUDA mechanism.
+/* This is a wrapped graph capturing mechanism.
  * Call the following in order to capture a computational graph
- *    streamBeginCapture();              // 1
- *
- *    // your GPU code here              // 2
- *
- *    streamEndCapture();                // 3
- *    auto graph = getGraphInstance();   // 4
+ *    auto graph = streamBeginCapture(streams);   // 1
+ *    // your GPU code here                       // 2
+ *    streamEndCapture(graph);                    // 3
  *
  * Once you have a compute-graph recorded you can invoke it as follows:
- *    launchGraph(graph)                 // 1
- *    syncGraph(graph)                   // 2
+ *    launchGraph(graph, stream);                 // 1
  * */
+
+namespace device {
+struct DeviceGraph {
+#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+  std::optional<sycl::ext::oneapi::experimental::command_graph<
+      sycl::ext::oneapi::experimental::graph_state::executable>>
+      instance;
+  sycl::ext::oneapi::experimental::command_graph<
+      sycl::ext::oneapi::experimental::graph_state::modifiable>
+      graph;
+
+  DeviceGraph(const sycl::context& context, const sycl::device& device)
+      : graph(context, device) {}
+#endif
+
+  bool ready{false};
+
+  DeviceGraph(const DeviceGraph&) = delete;
+  DeviceGraph& operator=(const DeviceGraph&) = delete;
+};
+} // namespace device
 
 bool ConcreteAPI::isCapableOfGraphCapturing() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
@@ -35,51 +53,44 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 }
 
 DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
-  auto handle = DeviceGraphHandle();
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   std::vector<sycl::queue> queues;
-
+  queues.reserve(streamPtrs.size());
   for (auto* streamPtr : streamPtrs) {
     queues.emplace_back(*static_cast<sycl::queue*>(streamPtr));
   }
 
-  auto recordingGraph = sycl::ext::oneapi::experimental::command_graph<
-      sycl::ext::oneapi::experimental::graph_state::modifiable>(queues.at(0).get_context(),
-                                                                queues.at(0).get_device());
+  auto graphInstance =
+      std::make_shared<DeviceGraph>(queues.at(0).get_context(), queues.at(0).get_device());
+  graphInstance->graph.begin_recording(queues);
 
-  {
-    std::lock_guard guard(apiMutex);
-    graphs.push_back(GraphDetails{std::nullopt, std::move(recordingGraph), false});
-    handle = DeviceGraphHandle(graphs.size() - 1);
-
-    GraphDetails& graphInstance = graphs[handle.getGraphId()];
-
-    graphInstance.graph.begin_recording(queues);
-  }
-#endif
-  return handle;
-}
-
-void ConcreteAPI::streamEndCapture(DeviceGraphHandle handle) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  std::lock_guard guard(apiMutex);
-  auto& graphInstance = graphs[handle.getGraphId()];
-  graphInstance.graph.end_recording();
-  graphInstance.instance = std::optional<sycl::ext::oneapi::experimental::command_graph<
-      sycl::ext::oneapi::experimental::graph_state::executable>>(graphInstance.graph.finalize());
-
-  graphInstance.ready = true;
+  return DeviceGraphHandle(std::move(graphInstance));
+#else
+  return DeviceGraphHandle();
 #endif
 }
 
-void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
+void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  assert(graphHandle.isInitialized() && "a graph must be captured before launching");
-  GraphDetails graphInstance = [&]() {
-    std::lock_guard guard(apiMutex);
-    return graphs[graphHandle.getGraphId()];
-  }();
-  static_cast<sycl::queue*>(streamPtr)->submit(
-      [&](sycl::handler& handler) { handler.ext_oneapi_graph(graphInstance.instance.value()); });
+  auto* graphInstance = handle.get();
+  assert(graphInstance != nullptr && "a capture must be started before it can be ended");
+
+  graphInstance->graph.end_recording();
+  graphInstance->instance = std::optional<sycl::ext::oneapi::experimental::command_graph<
+      sycl::ext::oneapi::experimental::graph_state::executable>>(graphInstance->graph.finalize());
+
+  graphInstance->ready = true;
+#endif
+}
+
+void ConcreteAPI::launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) {
+#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+  auto* graphInstance = graphHandle.get();
+  assert(graphInstance != nullptr && graphInstance->ready &&
+         "a graph must be captured before launching");
+
+  static_cast<sycl::queue*>(streamPtr)->submit([&](sycl::handler& handler) {
+    handler.ext_oneapi_graph(graphInstance->instance.value());
+  });
 #endif
 }

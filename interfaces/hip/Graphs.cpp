@@ -8,22 +8,48 @@
 #include "utils/logger.h"
 
 #include <cassert>
+#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+#include <memory>
+#include <vector>
 
 using namespace device;
 
-/* This is a wrapped graph capturing CUDA mechanism.
+/* This is a wrapped graph capturing mechanism.
  * Call the following in order to capture a computational graph
- *    streamBeginCapture();              // 1
+ *    auto graph = streamBeginCapture(streams);   // 1
+ *    // your GPU code here                       // 2
+ *    streamEndCapture(graph);                    // 3
  *
- *    // your GPU code here              // 2
- *
- *    streamEndCapture();                // 3
- *    auto graph = getGraphInstance();   // 4
- *
- * Once you have a coompute-graph recorded you can invoke it as follows:
- *    launchGraph(graph)                 // 1
- *    syncGraph(graph)                   // 2
+ * Once you have a compute-graph recorded you can invoke it as follows:
+ *    launchGraph(graph, stream);                 // 1
  * */
+
+namespace device {
+struct DeviceGraph {
+  hipGraph_t graph{nullptr};
+  hipGraphExec_t instance{nullptr};
+
+  std::vector<void*> streamPtrs;
+
+  bool ready{false};
+
+  DeviceGraph() = default;
+  DeviceGraph(const DeviceGraph&) = delete;
+  DeviceGraph& operator=(const DeviceGraph&) = delete;
+
+  ~DeviceGraph() {
+    // deliberately unchecked: the graph may outlive the device context during teardown, and a
+    // failure here has nothing left to report to
+    if (instance != nullptr) {
+      hipGraphExecDestroy(instance);
+    }
+    if (graph != nullptr) {
+      hipGraphDestroy(graph);
+    }
+  }
+};
+} // namespace device
 
 bool ConcreteAPI::isCapableOfGraphCapturing() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
@@ -34,53 +60,40 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 }
 
 DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
-  auto handle = DeviceGraphHandle();
 #ifdef DEVICE_USE_GRAPH_CAPTURING
-  {
-    std::lock_guard guard(apiMutex);
-    graphs.push_back(GraphDetails{});
-    handle = DeviceGraphHandle(graphs.size() - 1);
-
-    GraphDetails& graphInstance = graphs[handle.getGraphId()];
-    graphInstance.ready = false;
-    graphInstance.streamPtrs = streamPtrs;
-  }
+  auto graphInstance = std::make_shared<DeviceGraph>();
+  graphInstance->streamPtrs = streamPtrs;
 
   APIWRAP(hipStreamBeginCapture(static_cast<hipStream_t>(streamPtrs[0]),
-                                hipStreamCaptureModeThreadLocal));
-#endif
-  return handle;
-}
+                                 hipStreamCaptureModeThreadLocal));
 
-void ConcreteAPI::streamEndCapture(DeviceGraphHandle handle) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  GraphDetails graphInstance{};
-  {
-    std::lock_guard guard(apiMutex);
-    graphInstance = graphs[handle.getGraphId()];
-  }
-  APIWRAP(hipStreamEndCapture(static_cast<hipStream_t>(graphInstance.streamPtrs[0]),
-                              &(graphInstance.graph)));
-
-  APIWRAP(hipGraphInstantiate(&(graphInstance.instance), graphInstance.graph, nullptr, nullptr, 0));
-
-  graphInstance.ready = true;
-
-  {
-    std::lock_guard guard(apiMutex);
-    graphs[handle.getGraphId()] = graphInstance;
-  }
+  return DeviceGraphHandle(std::move(graphInstance));
+#else
+  return DeviceGraphHandle();
 #endif
 }
 
-void ConcreteAPI::launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) {
+void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
-  assert(graphHandle.isInitialized() && "a graph must be captured before launching");
-  GraphDetails graphInstance{};
-  {
-    std::lock_guard guard(apiMutex);
-    graphInstance = graphs[graphHandle.getGraphId()];
-  }
-  APIWRAP(hipGraphLaunch(graphInstance.instance, reinterpret_cast<hipStream_t>(streamPtr)));
+  auto* graphInstance = handle.get();
+  assert(graphInstance != nullptr && "a capture must be started before it can be ended");
+
+  APIWRAP(hipStreamEndCapture(static_cast<hipStream_t>(graphInstance->streamPtrs[0]),
+                               &(graphInstance->graph)));
+
+  APIWRAP(
+      hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
+
+  graphInstance->ready = true;
+#endif
+}
+
+void ConcreteAPI::launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) {
+#ifdef DEVICE_USE_GRAPH_CAPTURING
+  auto* graphInstance = graphHandle.get();
+  assert(graphInstance != nullptr && graphInstance->ready &&
+         "a graph must be captured before launching");
+
+  APIWRAP(hipGraphLaunch(graphInstance->instance, static_cast<hipStream_t>(streamPtr)));
 #endif
 }
