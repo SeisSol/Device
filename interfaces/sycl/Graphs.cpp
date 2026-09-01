@@ -8,6 +8,7 @@
 #include "utils/logger.h"
 
 #include <cassert>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -52,6 +53,14 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 #endif
 }
 
+bool ConcreteAPI::isCapableOfGraphNodes() {
+  // The oneAPI graph extension does expose an explicit node API, but it takes a sycl::handler
+  // rather than a queue, so it cannot record the queue-based kernel launches that the rest of
+  // SeisSol emits. Until those launches are expressed through a sink abstraction, this backend
+  // stays on whole-queue recording.
+  return false;
+}
+
 DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   std::vector<sycl::queue> queues;
@@ -81,6 +90,21 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
 
   graphInstance->ready = true;
 #endif
+}
+
+DeviceGraphHandle ConcreteAPI::graphCreate() { return DeviceGraphHandle(); }
+
+DeviceGraphNodeHandle
+    ConcreteAPI::graphAddNode(const DeviceGraphHandle& graphHandle,
+                              const std::vector<DeviceGraphNodeHandle>& dependencies,
+                              void* streamPtr,
+                              const std::function<void(void*)>& recorder) {
+  logError() << "Explicit graph nodes are not supported by the SYCL backend.";
+  return DeviceGraphNodeHandle();
+}
+
+void ConcreteAPI::graphInstantiate(const DeviceGraphHandle& graphHandle) {
+  logError() << "Explicit graph nodes are not supported by the SYCL backend.";
 }
 
 void ConcreteAPI::launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) {

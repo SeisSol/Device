@@ -89,6 +89,31 @@ struct AbstractAPI {
   virtual void streamEndCapture(const DeviceGraphHandle& handle) = 0;
   virtual void launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) = 0;
 
+  /**
+   * Explicit graph construction.
+   *
+   * Instead of recording a whole stream and letting the backend infer the dependency structure
+   * from events, the caller states the structure directly: every graphAddNode call contributes
+   * the work recorded by `recorder` and makes it depend on exactly `dependencies`. Fork/join is
+   * then a property of the graph rather than something that has to be expressed through streams
+   * and events.
+   *
+   * A single graph is built by one thread at a time. `recorder` receives a stream that is only a
+   * recording vehicle: the stream carries no ordering information beyond the extent of that one
+   * call, and the same stream may be reused for sibling nodes.
+   *
+   * If `recorder` enqueues nothing, the returned handle refers to `dependencies` themselves, so
+   * an empty recorder is a valid way to express a pure join node.
+   */
+  virtual bool isCapableOfGraphNodes() = 0;
+  virtual DeviceGraphHandle graphCreate() = 0;
+  virtual DeviceGraphNodeHandle
+      graphAddNode(const DeviceGraphHandle& graphHandle,
+                   const std::vector<DeviceGraphNodeHandle>& dependencies,
+                   void* streamPtr,
+                   const std::function<void(void*)>& recorder) = 0;
+  virtual void graphInstantiate(const DeviceGraphHandle& graphHandle) = 0;
+
   virtual void* createStream(double priority = NAN) = 0;
   virtual void destroyGenericStream(void* streamPtr) = 0;
   virtual void syncStreamWithHost(void* streamPtr) = 0;

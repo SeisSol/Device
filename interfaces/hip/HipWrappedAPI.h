@@ -85,6 +85,14 @@ class ConcreteAPI : public AbstractAPI {
   void streamEndCapture(const DeviceGraphHandle& handle) override;
   void launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) override;
 
+  bool isCapableOfGraphNodes() override;
+  DeviceGraphHandle graphCreate() override;
+  DeviceGraphNodeHandle graphAddNode(const DeviceGraphHandle& graphHandle,
+                                     const std::vector<DeviceGraphNodeHandle>& dependencies,
+                                     void* streamPtr,
+                                     const std::function<void(void*)>& recorder) override;
+  void graphInstantiate(const DeviceGraphHandle& graphHandle) override;
+
   void* createStream(double priority) override;
   void destroyGenericStream(void* streamPtr) override;
   void syncStreamWithHost(void* streamPtr) override;

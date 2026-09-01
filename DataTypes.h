@@ -43,6 +43,29 @@ class DeviceGraphHandle {
   private:
   std::shared_ptr<DeviceGraph> graph;
 };
+
+/**
+ * Refers to the set of graph nodes produced by a single AbstractAPI::graphAddNode call.
+ *
+ * A node handle is an index into the graph that produced it and stays valid for that graph's
+ * lifetime. Passing it to a different graph is undefined.
+ */
+class DeviceGraphNodeHandle {
+  public:
+  static const size_t invalidId{std::numeric_limits<size_t>::max()};
+
+  DeviceGraphNodeHandle() = default;
+  explicit DeviceGraphNodeHandle(size_t id) : nodeId(id) {}
+
+  [[nodiscard]] bool isInitialized() const { return nodeId != invalidId; }
+
+  operator bool() const { return isInitialized(); }
+
+  [[nodiscard]] size_t getNodeId() const { return nodeId; }
+
+  private:
+  size_t nodeId{invalidId};
+};
 } // namespace device
 
 #endif // SEISSOLDEVICE_DATATYPES_H_

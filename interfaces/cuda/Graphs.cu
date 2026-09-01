@@ -10,19 +10,26 @@
 #include <cassert>
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
+#include <functional>
 #include <memory>
 #include <vector>
 
 using namespace device;
 
-/* This is a wrapped graph capturing mechanism.
- * Call the following in order to capture a computational graph
+/* Two ways of building a compute graph are offered.
+ *
+ * Whole-stream capture, for code that only wants to replay a fixed sequence:
  *    auto graph = streamBeginCapture(streams);   // 1
  *    // your GPU code here                       // 2
  *    streamEndCapture(graph);                    // 3
+ *    launchGraph(graph, stream);                 // 4
  *
- * Once you have a compute-graph recorded you can invoke it as follows:
- *    launchGraph(graph, stream);                 // 1
+ * Explicit node construction, for code that knows its own dependency structure:
+ *    auto graph = graphCreate();                             // 1
+ *    auto a = graphAddNode(graph, {}, stream, recordA);      // 2
+ *    auto b = graphAddNode(graph, {a}, stream, recordB);     // 3
+ *    graphInstantiate(graph);                                // 4
+ *    launchGraph(graph, stream);                             // 5
  * */
 
 namespace device {
@@ -30,6 +37,10 @@ struct DeviceGraph {
   cudaGraph_t graph{nullptr};
   cudaGraphExec_t instance{nullptr};
 
+  // one entry per graphAddNode call; an entry may hold zero, one or several native nodes
+  std::vector<std::vector<cudaGraphNode_t>> nodes;
+
+  // only used by the whole-stream capture path
   std::vector<void*> streamPtrs;
 
   bool ready{false};
@@ -59,6 +70,15 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 #endif
 }
 
+bool ConcreteAPI::isCapableOfGraphNodes() {
+#ifdef DEVICE_USE_GRAPH_CAPTURING
+  // requires cudaStreamBeginCaptureToGraph, i.e. CUDA >= 12.3
+  return true;
+#else
+  return false;
+#endif
+}
+
 DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   auto graphInstance = std::make_shared<DeviceGraph>();
@@ -80,6 +100,76 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
 
   APIWRAP(cudaStreamEndCapture(static_cast<cudaStream_t>(graphInstance->streamPtrs[0]),
                                &(graphInstance->graph)));
+
+  APIWRAP(
+      cudaGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
+
+  graphInstance->ready = true;
+#endif
+}
+
+DeviceGraphHandle ConcreteAPI::graphCreate() {
+#ifdef DEVICE_USE_GRAPH_CAPTURING
+  auto graphInstance = std::make_shared<DeviceGraph>();
+  APIWRAP(cudaGraphCreate(&(graphInstance->graph), 0));
+  return DeviceGraphHandle(std::move(graphInstance));
+#else
+  return DeviceGraphHandle();
+#endif
+}
+
+DeviceGraphNodeHandle
+    ConcreteAPI::graphAddNode(const DeviceGraphHandle& graphHandle,
+                              const std::vector<DeviceGraphNodeHandle>& dependencies,
+                              void* streamPtr,
+                              const std::function<void(void*)>& recorder) {
+#ifdef DEVICE_USE_GRAPH_CAPTURING
+  auto* graphInstance = graphHandle.get();
+  assert(graphInstance != nullptr && "a graph must be created before nodes can be added");
+  assert(!graphInstance->ready && "no nodes can be added to an instantiated graph");
+
+  std::vector<cudaGraphNode_t> nativeDependencies;
+  for (const auto& dependency : dependencies) {
+    assert(dependency.isInitialized() && "an uninitialized node cannot be depended upon");
+    const auto& nodes = graphInstance->nodes.at(dependency.getNodeId());
+    nativeDependencies.insert(nativeDependencies.end(), nodes.begin(), nodes.end());
+  }
+
+  auto stream = static_cast<cudaStream_t>(streamPtr);
+  APIWRAP(cudaStreamBeginCaptureToGraph(stream,
+                                        graphInstance->graph,
+                                        nativeDependencies.data(),
+                                        nullptr,
+                                        nativeDependencies.size(),
+                                        cudaStreamCaptureModeThreadLocal));
+
+  recorder(streamPtr);
+
+  // the capture frontier is what the next node has to depend on; it has to be read out before
+  // the capture is ended
+  cudaStreamCaptureStatus captureStatus{};
+  unsigned long long captureId{};
+  cudaGraph_t capturedGraph{nullptr};
+  const cudaGraphNode_t* frontier{nullptr};
+  size_t frontierSize{0};
+  APIWRAP(cudaStreamGetCaptureInfo_v2(
+      stream, &captureStatus, &captureId, &capturedGraph, &frontier, &frontierSize));
+  std::vector<cudaGraphNode_t> produced(frontier, frontier + frontierSize);
+
+  cudaGraph_t endedGraph{nullptr};
+  APIWRAP(cudaStreamEndCapture(stream, &endedGraph));
+
+  graphInstance->nodes.emplace_back(std::move(produced));
+  return DeviceGraphNodeHandle(graphInstance->nodes.size() - 1);
+#else
+  return DeviceGraphNodeHandle();
+#endif
+}
+
+void ConcreteAPI::graphInstantiate(const DeviceGraphHandle& graphHandle) {
+#ifdef DEVICE_USE_GRAPH_CAPTURING
+  auto* graphInstance = graphHandle.get();
+  assert(graphInstance != nullptr && "a graph must be created before it is instantiated");
 
   APIWRAP(
       cudaGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
