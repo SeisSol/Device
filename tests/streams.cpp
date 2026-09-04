@@ -15,6 +15,11 @@ using namespace ::testing;
 
 namespace {
 constexpr std::size_t ArraySize = 1 << 14;
+
+// Enough queued work that the host is certain to run ahead of the producing stream. Without it,
+// an ordering test passes whenever the producer happens to finish first, so a missing dependency
+// shows up as an occasional failure rather than as a verdict.
+constexpr int EnqueueDepth = 64;
 } // namespace
 
 class Streams : public BaseTestSuite {
@@ -48,7 +53,9 @@ class Streams : public BaseTestSuite {
 TEST_F(Streams, anEventOrdersTwoStreams) {
   auto* event = device->api->createEvent();
 
-  device->algorithms.fillArray(devArray, 2.0F, ArraySize, streamA);
+  for (int i = 0; i < EnqueueDepth; ++i) {
+    device->algorithms.fillArray(devArray, 2.0F, ArraySize, streamA);
+  }
   device->api->recordEventOnStream(event, streamA);
 
   device->api->syncStreamWithEvent(streamB, event);
@@ -56,7 +63,7 @@ TEST_F(Streams, anEventOrdersTwoStreams) {
 
   device->api->syncStreamWithHost(streamB);
 
-  // without the event the scale could read the array before the fill wrote it
+  // a 7 here means the scale read the array before the fills wrote it
   for (const auto value : download(streamB)) {
     ASSERT_EQ(14.0F, value);
   }
@@ -70,14 +77,19 @@ TEST_F(Streams, anEventCanBeRecordedAgain) {
   auto* event = device->api->createEvent();
 
   for (int round = 1; round <= 4; ++round) {
-    device->algorithms.fillArray(devArray, static_cast<float>(round), ArraySize, streamA);
+    for (int i = 0; i < EnqueueDepth; ++i) {
+      device->algorithms.fillArray(devArray, static_cast<float>(round), ArraySize, streamA);
+    }
     device->api->recordEventOnStream(event, streamA);
     device->api->syncStreamWithEvent(streamB, event);
     device->algorithms.scaleArray(devArray, 2.0F, ArraySize, streamB);
     device->api->syncStreamWithHost(streamB);
 
+    // twice the previous round's value means the scale overtook this round's fills
     for (const auto value : download(streamB)) {
-      ASSERT_EQ(2.0F * static_cast<float>(round), value) << "in round " << round;
+      ASSERT_EQ(2.0F * static_cast<float>(round), value)
+          << "in round " << round << " (twice the previous round's value would be "
+          << 4.0F * static_cast<float>(round - 1) << ")";
     }
   }
 
