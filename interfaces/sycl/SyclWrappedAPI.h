@@ -42,7 +42,7 @@
 #define DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(handle, event)                                      \
   handle.depends_on(event);                                                                        \
   handle.DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...) {});
-#elif defined(SYCL_EXT_ONEAPI_ENQUEUE_BARRIER) && !defined(DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT)
+#elif defined(SYCL_EXT_ONEAPI_ENQUEUE_BARRIER)
 #define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.ext_oneapi_barrier();
 #define DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(handle, event) handle.ext_oneapi_barrier({event});
 #else
