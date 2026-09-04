@@ -8,6 +8,7 @@
 #include "SyclWrappedAPI.h"
 #include "utils/logger.h"
 
+#include <algorithm>
 #include <sycl/sycl.hpp>
 
 using namespace device::internals;
@@ -101,6 +102,19 @@ sycl::queue* DeviceCircularQueueBuffer::newQueue(double priority) {
 
 void DeviceCircularQueueBuffer::deleteQueue(void* queue) {
   auto* queuePtr = static_cast<sycl::queue*>(queue);
+
+  // The queue has to leave the list before it is freed: syncAllQueuesWithHost walks that list,
+  // so a stale entry turns into a use-after-free at the next device-wide synchronization, far
+  // away from whoever destroyed the queue.
+  const auto entry = std::find(externalQueues.begin(), externalQueues.end(), queuePtr);
+  if (entry == externalQueues.end()) {
+    logWarning() << "Tried to destroy a stream that this device does not know about. It has "
+                    "either been destroyed already or belongs to a different device; not "
+                    "freeing it again.";
+    return;
+  }
+
+  externalQueues.erase(entry);
   delete queuePtr;
 }
 
@@ -136,10 +150,10 @@ bool DeviceCircularQueueBuffer::exists(sycl::queue* queuePtr) {
   bool isDefaultQueue = queuePtr == (&defaultQueue.queue);
   bool isGenericQueue = queuePtr == (&genericQueue.queue);
 
-  bool isReservedQueue{true};
+  bool isReservedQueue{false};
   for (auto& reservedQueue : queues) {
-    if (queuePtr != (&reservedQueue.queue)) {
-      isReservedQueue = false;
+    if (queuePtr == (&reservedQueue.queue)) {
+      isReservedQueue = true;
       break;
     }
   }

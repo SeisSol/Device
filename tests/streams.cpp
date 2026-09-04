@@ -149,6 +149,22 @@ TEST_F(Streams, asyncAllocationsLiveOnTheStream) {
   }
 }
 
+TEST_F(Streams, aDestroyedStreamIsForgotten) {
+  // A device-wide synchronization walks every stream the backend knows about. A stream that was
+  // destroyed therefore has to be off that list, or the walk runs into freed memory - long after
+  // the code that destroyed it, which is what makes this kind of fault hard to place.
+  auto* scratch = device->api->createStream();
+  device->algorithms.fillArray(devArray, 1.0F, ArraySize, scratch);
+  device->api->syncStreamWithHost(scratch);
+  device->api->destroyGenericStream(scratch);
+
+  device->api->syncDevice();
+
+  for (const auto value : download(streamA)) {
+    ASSERT_EQ(1.0F, value);
+  }
+}
+
 TEST_F(Streams, workOnSeparateStreamsStaysSeparate) {
   auto* other = static_cast<float*>(device->api->allocGlobMem(ArraySize * sizeof(float)));
 
