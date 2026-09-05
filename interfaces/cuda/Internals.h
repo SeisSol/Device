@@ -6,8 +6,7 @@
 #define SEISSOLDEVICE_INTERFACES_CUDA_INTERNALS_H_
 
 #include <cuda.h>
-#include <string>
-#include <unordered_set>
+#include <initializer_list>
 #include <vector>
 
 #define APIWRAP(call) (void)::device::internals::checkResult(call, __FILE__, __LINE__, {})
@@ -22,14 +21,17 @@ using DeviceStreamT = cudaStream_t;
 
 constexpr static int DefaultBlockDim = 1024;
 
+// Every wrapped call goes through here, so the parameters stay free of anything that allocates:
+// the file name is the string literal __FILE__ expands to, and the accepted errors are read from
+// the caller's temporary array.
 cudaError_t checkResult(cudaError_t error,
-                        const std::string& file,
+                        const char* file,
                         int line,
-                        const std::unordered_set<cudaError_t>& except);
+                        std::initializer_list<cudaError_t> except);
 CUresult checkResultDriver(CUresult error,
-                           const std::string& file,
+                           const char* file,
                            int line,
-                           const std::unordered_set<CUresult>& except);
+                           std::initializer_list<CUresult> except);
 
 inline dim3 computeGrid1D(const dim3& block, const size_t size) {
   int numBlocks = (size + block.x - 1) / block.x;

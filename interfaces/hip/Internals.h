@@ -7,8 +7,7 @@
 
 #include "hip/hip_runtime.h"
 
-#include <string>
-#include <unordered_set>
+#include <initializer_list>
 
 #define APIWRAP(call) (void)::device::internals::checkResult(call, __FILE__, __LINE__, {})
 #define APIWRAPX(call, except) ::device::internals::checkResult(call, __FILE__, __LINE__, except)
@@ -19,10 +18,13 @@ namespace device::internals {
 constexpr static int DefaultBlockDim = 1024;
 
 using DeviceStreamT = hipStream_t;
+// Every wrapped call goes through here, so the parameters stay free of anything that allocates:
+// the file name is the string literal __FILE__ expands to, and the accepted errors are read from
+// the caller's temporary array.
 hipError_t checkResult(hipError_t error,
-                       const std::string& file,
+                       const char* file,
                        int line,
-                       const std::unordered_set<hipError_t>& except);
+                       std::initializer_list<hipError_t> except);
 inline dim3 computeGrid1D(const dim3& block, const size_t size) {
   int numBlocks = (size + block.x - 1) / block.x;
   return dim3(numBlocks, 1, 1);
