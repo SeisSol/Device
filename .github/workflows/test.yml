@@ -35,6 +35,7 @@ jobs:
             container-options: --runtime=nvidia --gpus=all
             pythonbreak: true
             test: true
+            sanitizer: compute-sanitizer
           - arch: sm_86
             backend: acpp
             cc: gcc-13
@@ -55,6 +56,7 @@ jobs:
             container-options: --runtime=nvidia --gpus=all
             pythonbreak: true
             test: true
+            sanitizer: compute-sanitizer
           - arch: sm_86
             backend: cuda
             cc: nvc
@@ -122,8 +124,7 @@ jobs:
           cd tests
           mkdir build && cd build
 
-          # TODO: change to `-Wall -Werror` at some point
-          EXTRA_FLAGS="-Wall"
+          EXTRA_FLAGS="-Wall -Werror"
 
           export CFLAGS="${EXTRA_FLAGS} ${CFLAGS}"
           export CXXFLAGS="${EXTRA_FLAGS} ${CXXFLAGS}"
@@ -148,3 +149,15 @@ jobs:
           cd build
 
           ./tests
+
+      - id: sanitize
+        name: sanitize-device
+        if: ${{matrix.setup.test && matrix.setup.sanitizer && matrix.build_type == 'Debug'}}
+        run: |
+          cd tests
+          cd build
+
+          # The three large reductions take minutes under the sanitizer and cover no pointer
+          # arithmetic the smaller suites do not, so they sit this one out.
+          ${{matrix.setup.sanitizer}} --tool memcheck --error-exitcode 1 ./tests \
+            --gtest_filter=-Reductions.Add:Reductions.Max:Reductions.Min

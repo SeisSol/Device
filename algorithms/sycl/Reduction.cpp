@@ -10,8 +10,6 @@
 #include <limits>
 #include <sycl/sycl.hpp>
 
-#if 1
-
 namespace {
 using namespace device;
 
@@ -21,7 +19,9 @@ constexpr T neutral() {
     return T(0);
   }
   if constexpr (Type == ReductionType::Max) {
-    return std::numeric_limits<T>::min();
+    // lowest(), not min(): for floating point types min() is the smallest positive normal value,
+    // which is larger than every negative input
+    return std::numeric_limits<T>::lowest();
   }
   if constexpr (Type == ReductionType::Min) {
     return std::numeric_limits<T>::max();
@@ -88,6 +88,11 @@ void launchReduction(AccT* result,
     });
   }
 
+  // the result is set either way, but there is nothing to reduce into it
+  if (size == 0) {
+    return;
+  }
+
   ((sycl::queue*)streamPtr)->submit([&](sycl::handler& cgh) {
     const size_t numWorkGroups =
         (size + (workGroupSize * itemsPerWorkItem) - 1) / (workGroupSize * itemsPerWorkItem);
@@ -147,58 +152,6 @@ void Algorithms::reduceVector(AccT* result,
   }
   }
 }
-
-#else
-
-namespace {
-template <typename AccT, typename VecT, typename S>
-void launchReduction(AccT* result, const VecT* buffer, size_t size, S reducer, void* streamPtr) {
-  ((sycl::queue*)streamPtr)->submit([&](sycl::handler& cgh) {
-    cgh.parallel_for(sycl::range<1>{size}, reducer, [=](sycl::id<1> idx, auto& redval) {
-      redval.combine(static_cast<AccT>(buffer[idx]));
-    });
-  });
-}
-} // namespace
-
-namespace device {
-template <typename AccT, typename VecT>
-void Algorithms::reduceVector(AccT* result,
-                              const VecT* buffer,
-                              bool overrideResult,
-                              size_t size,
-                              ReductionType type,
-                              void* streamPtr) {
-  auto properties = [&]() -> sycl::property_list {
-    if (overrideResult) {
-      return sycl::property_list{sycl::property::reduction::initialize_to_identity()};
-    } else {
-      return sycl::property_list{};
-    }
-  }();
-  switch (type) {
-  case ReductionType::Add: {
-    return launchReduction(
-        result, buffer, size, sycl::reduction(result, sycl::plus<AccT>(), properties), streamPtr);
-  }
-  case ReductionType::Max: {
-    return launchReduction(result,
-                           buffer,
-                           size,
-                           sycl::reduction(result, sycl::maximum<AccT>(), properties),
-                           streamPtr);
-  }
-  case ReductionType::Min: {
-    return launchReduction(result,
-                           buffer,
-                           size,
-                           sycl::reduction(result, sycl::minimum<AccT>(), properties),
-                           streamPtr);
-  }
-  }
-}
-
-#endif
 
 template void Algorithms::reduceVector(int* result,
                                        const int* buffer,

@@ -43,8 +43,16 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   // otherwise, synchronize
 #ifdef SYCL_EXT_ONEAPI_QUEUE_EMPTY
   return queuePtr->ext_oneapi_empty();
-#elif defined(HIPSYCL_EXT_QUEUE_WAIT_LIST) || defined(ACPP_EXT_QUEUE_WAIT_LIST)
-  return queuePtr->get_wait_list().empty();
+#elif defined(HIPSYCL_EXT_QUEUE_WAIT_LIST) || defined(ACPP_EXT_QUEUE_WAIT_LIST) ||                 \
+    defined(SYCL_EXT_ACPP_QUEUE_WAIT_LIST)
+  // The wait list holds the events a newly submitted operation would have to depend on. Those
+  // entries are not dropped once they have been reached, so an empty list means "nothing was
+  // ever submitted", not "nothing is outstanding". Ask the events themselves instead.
+  const auto waitList = queuePtr->get_wait_list();
+  return std::all_of(waitList.begin(), waitList.end(), [](const sycl::event& event) {
+    return event.get_info<sycl::info::event::command_execution_status>() ==
+           sycl::info::event_command_status::complete;
+  });
 #else
   this->currentQueueBuffer().syncQueueWithHost(queuePtr);
   return true;
@@ -67,7 +75,9 @@ void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t
   volatile uint32_t* spinLocation = location;
   queuePtr->single_task([=]() {
     while (true) {
-      if (*spinLocation == value) {
+      // ">=", like the wait-value operations of the other backends: a counter that is written
+      // once per step is past the awaited value by the time this runs often enough
+      if (*spinLocation >= value) {
         return;
       }
 

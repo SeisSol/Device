@@ -6,8 +6,9 @@
 #define SEISSOLDEVICE_INTERFACES_CUDA_INTERNALS_H_
 
 #include <cuda.h>
-#include <string>
-#include <unordered_set>
+#include <cuda_runtime_api.h>
+#include <functional>
+#include <initializer_list>
 #include <vector>
 
 #define APIWRAP(call) (void)::device::internals::checkResult(call, __FILE__, __LINE__, {})
@@ -20,16 +21,39 @@
 namespace device::internals {
 using DeviceStreamT = cudaStream_t;
 
+/**
+ * What a stream is currently recording into: the capture status, the graph the operations end up
+ * in, and the nodes a subsequently recorded operation would depend on.
+ */
+struct CaptureState {
+  cudaStreamCaptureStatus status{};
+  cudaGraph_t graph{nullptr};
+  std::vector<cudaGraphNode_t> frontier;
+};
+
+CaptureState captureState(cudaStream_t stream);
+
+/**
+ * Hands a host function to the graph that is being recorded, which keeps it alive for as long as
+ * the graph can be replayed, and returns the copy to pass to the runtime. Returns nullptr if the
+ * graph is not one of ours.
+ */
+std::function<void()>* adoptHostFunction(cudaGraph_t graph, const std::function<void()>& function);
+void forgetHostFunctions(cudaGraph_t graph);
+
 constexpr static int DefaultBlockDim = 1024;
 
+// Every wrapped call goes through here, so the parameters stay free of anything that allocates:
+// the file name is the string literal __FILE__ expands to, and the accepted errors are read from
+// the caller's temporary array.
 cudaError_t checkResult(cudaError_t error,
-                        const std::string& file,
+                        const char* file,
                         int line,
-                        const std::unordered_set<cudaError_t>& except);
+                        std::initializer_list<cudaError_t> except);
 CUresult checkResultDriver(CUresult error,
-                           const std::string& file,
+                           const char* file,
                            int line,
-                           const std::unordered_set<CUresult>& except);
+                           std::initializer_list<CUresult> except);
 
 inline dim3 computeGrid1D(const dim3& block, const size_t size) {
   int numBlocks = (size + block.x - 1) / block.x;

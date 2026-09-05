@@ -65,6 +65,13 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type,
                                        size_t count,
                                        void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
+
+  // Prefetching managed memory needs concurrent managed access, in either direction. A prefetch
+  // is a hint, so where the device cannot serve it, skipping is the whole handling.
+  if (!allowedConcurrentManagedAccess) {
+    return;
+  }
+
   cudaStream_t stream = (streamPtr == nullptr) ? nullptr : (static_cast<cudaStream_t>(streamPtr));
 
   cudaMemLocation location{};
@@ -73,7 +80,7 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type,
 #if CUDART_VERSION >= 13000
     location.type = cudaMemLocationTypeHost;
 #endif
-  } else if (allowedConcurrentManagedAccess) {
+  } else {
     location.id = getDeviceId();
 #if CUDART_VERSION >= 13000
     location.type = cudaMemLocationTypeDevice;

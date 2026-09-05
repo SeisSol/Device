@@ -17,6 +17,11 @@ void Algorithms::streamBatchedDataI(const void** baseSrcPtr,
                                     size_t elementSize,
                                     size_t numElements,
                                     void* streamPtr) {
+  // an empty range is not a valid launch configuration
+  if (numElements == 0) {
+    return;
+  }
+
   auto rng = sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim,
                                device::internals::DefaultBlockDim};
 
@@ -39,6 +44,11 @@ void Algorithms::streamBatchedDataI(const void** baseSrcPtr,
 template <typename T>
 void Algorithms::accumulateBatchedData(
     const T** baseSrcPtr, T** baseDstPtr, size_t elementSize, size_t numElements, void* streamPtr) {
+  // an empty range is not a valid launch configuration
+  if (numElements == 0) {
+    return;
+  }
+
   auto rng = sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim,
                                device::internals::DefaultBlockDim};
 
@@ -69,6 +79,11 @@ template void Algorithms::accumulateBatchedData(const double** baseSrcPtr,
 
 void Algorithms::touchBatchedMemoryI(
     void** basePtr, size_t elementSize, size_t numElements, bool clean, void* streamPtr) {
+  // an empty range is not a valid launch configuration
+  if (numElements == 0) {
+    return;
+  }
+
   auto rng = sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim,
                                device::internals::DefaultBlockDim};
 
@@ -93,6 +108,11 @@ void Algorithms::touchBatchedMemoryI(
 template <typename T>
 void Algorithms::setToValue(
     T** out, T value, size_t elementSize, size_t numElements, void* streamPtr) {
+  // an empty range is not a valid launch configuration
+  if (numElements == 0) {
+    return;
+  }
+
   auto rng = sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim,
                                device::internals::DefaultBlockDim};
   ((sycl::queue*)streamPtr)->submit([&](sycl::handler& cgh) {
@@ -134,6 +154,11 @@ void Algorithms::copyUniformToScatterI(const void* src,
                                        size_t copySize,
                                        size_t numElements,
                                        void* streamPtr) {
+  // an empty range is not a valid launch configuration
+  if (numElements == 0) {
+    return;
+  }
+
   auto rng = sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim,
                                device::internals::DefaultBlockDim};
 
@@ -143,11 +168,13 @@ void Algorithms::copyUniformToScatterI(const void* src,
       const void* srcElement =
           reinterpret_cast<const void*>(&reinterpret_cast<const char*>(src)[block * srcOffset]);
       void* dstElement = dst[block];
-      imemcpy(dstElement,
-              srcElement,
-              copySize,
-              item.get_local_id(0),
-              device::internals::DefaultBlockDim);
+      if (dstElement != nullptr) {
+        imemcpy(dstElement,
+                srcElement,
+                copySize,
+                item.get_local_id(0),
+                device::internals::DefaultBlockDim);
+      }
     });
   });
 }
@@ -158,6 +185,11 @@ void Algorithms::copyScatterToUniformI(const void** src,
                                        size_t copySize,
                                        size_t numElements,
                                        void* streamPtr) {
+  // an empty range is not a valid launch configuration
+  if (numElements == 0) {
+    return;
+  }
+
   auto rng = sycl::nd_range<1>{numElements * device::internals::DefaultBlockDim,
                                device::internals::DefaultBlockDim};
 
@@ -166,11 +198,13 @@ void Algorithms::copyScatterToUniformI(const void** src,
       const auto block = item.get_group().get_group_id(0);
       const void* srcElement = src[block];
       void* dstElement = reinterpret_cast<void*>(&reinterpret_cast<char*>(dst)[block * dstOffset]);
-      imemcpy(dstElement,
-              srcElement,
-              copySize,
-              item.get_local_id(0),
-              device::internals::DefaultBlockDim);
+      if (srcElement != nullptr) {
+        imemcpy(dstElement,
+                srcElement,
+                copySize,
+                item.get_local_id(0),
+                device::internals::DefaultBlockDim);
+      }
     });
   });
 }

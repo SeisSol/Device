@@ -6,36 +6,40 @@
 #include "SyclWrappedAPI.h"
 
 #include <iostream>
+#include <mutex>
 
 using namespace device;
 using namespace device::internals;
 
 void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   auto* ptr = malloc_device(size, this->currentDefaultQueue());
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
-  waitCheck(this->currentDefaultQueue());
   return ptr;
 }
 
 void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint) {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   auto* ptr = malloc_shared(size, this->currentDefaultQueue());
   this->currentStatistics().allocatedUnifiedMemBytes += size;
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
-  waitCheck(this->currentDefaultQueue());
   return ptr;
 }
 
 void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   auto* ptr = malloc_host(size, this->currentDefaultQueue());
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
-  waitCheck(this->currentDefaultQueue());
   return ptr;
 }
 
-void ConcreteAPI::freeMem(void* devPtr) {
+void ConcreteAPI::freeMem(void* devPtr, bool unified) {
   // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behaviour
   // contrast to C++/CUDA/HIP
   if (devPtr == nullptr) {
@@ -50,6 +54,8 @@ void ConcreteAPI::freeMem(void* devPtr) {
     return;
   }
 
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   // Use the first device context to free memory
   DeviceContext* context = this->availableDevices[getDeviceId()];
   if (!context) {
@@ -61,11 +67,17 @@ void ConcreteAPI::freeMem(void* devPtr) {
     return; // the std::throw is throwing some errors during the program finalization
   }
 
-  context->statistics.deallocatedMemBytes += map.at(devPtr);
+  const auto size = map.at(devPtr);
+  context->statistics.deallocatedMemBytes += size;
+  if (unified) {
+    context->statistics.allocatedUnifiedMemBytes -= size;
+  }
   map.erase(devPtr);
+  // freeing memory that a queue may still be reading from is undefined, and the caller has no
+  // way to state that it is done, so the wait stays
   auto& queue = context->queueBuffer.getDefaultQueue();
-  sycl::free(devPtr, queue.get_context());
   queue.wait();
+  sycl::free(devPtr, queue.get_context());
 }
 
 void ConcreteAPI::freeGlobMem(void* devPtr) {
@@ -80,7 +92,7 @@ void ConcreteAPI::freeUnifiedMem(void* devPtr) {
   // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behavior
   // contrast to C++/CUDA/HIP
   if (devPtr != nullptr) {
-    this->freeMem(devPtr);
+    this->freeMem(devPtr, true);
   }
 }
 
@@ -106,6 +118,8 @@ void ConcreteAPI::freeMemAsync(void* devPtr, void* streamPtr) {
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   std::ostringstream report{};
 
   report << "----MEMORY REPORT----\n";
@@ -124,10 +138,14 @@ size_t ConcreteAPI::getMaxAvailableMem() {
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   return this->currentStatistics().allocatedMemBytes;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   return this->currentStatistics().allocatedUnifiedMemBytes;
 }
 

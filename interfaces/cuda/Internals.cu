@@ -4,26 +4,27 @@
 
 #include "utils/logger.h"
 
+#include <algorithm>
 #include <cuda.h>
+#include <initializer_list>
 #include <sstream>
 #include <string>
-#include <unordered_set>
 
 namespace device::internals {
 
-thread_local std::string prevFile{};
+thread_local const char* prevFile{nullptr};
 thread_local int prevLine{-1};
 
 cudaError_t checkResult(cudaError_t error,
-                        const std::string& file,
+                        const char* file,
                         int line,
-                        const std::unordered_set<cudaError_t>& except) {
-  if (error != cudaSuccess && except.find(error) == except.end()) {
+                        std::initializer_list<cudaError_t> except) {
+  if (error != cudaSuccess && std::find(except.begin(), except.end(), error) == except.end()) {
     std::stringstream stream;
     stream << '\n'
            << file << ", line " << line << ": " << cudaGetErrorString(error) << " (" << error
            << ")\n";
-    if (prevLine >= 0) {
+    if (prevFile != nullptr) {
       stream << "Previous CUDA API/Driver call:" << std::endl
              << prevFile << ", line " << prevLine << std::endl;
     }
@@ -35,10 +36,10 @@ cudaError_t checkResult(cudaError_t error,
 }
 
 CUresult checkResultDriver(CUresult error,
-                           const std::string& file,
+                           const char* file,
                            int line,
-                           const std::unordered_set<CUresult>& except) {
-  if (error != CUDA_SUCCESS && except.find(error) == except.end()) {
+                           std::initializer_list<CUresult> except) {
+  if (error != CUDA_SUCCESS && std::find(except.begin(), except.end(), error) == except.end()) {
     const char* errstr = nullptr;
     const auto errstrRes = cuGetErrorString(error, &errstr);
 
@@ -50,7 +51,7 @@ CUresult checkResultDriver(CUresult error,
       stream << "[ERROR WHILE RETRIEVING ERROR STRING]";
     }
     stream << " (" << error << ")\n";
-    if (prevLine >= 0) {
+    if (prevFile != nullptr) {
       stream << "Previous CUDA API/Driver call:" << std::endl
              << prevFile << ", line " << prevLine << std::endl;
     }

@@ -45,6 +45,9 @@ __global__ void kernel_accumulateBatchedData(const T** baseSrcPtr,
   for (size_t block = blockIdx.x; block < elementCount; block += gridDim.x) {
     const T* srcElement = baseSrcPtr[block];
     T* dstElement = baseDstPtr[block];
+    if (srcElement == nullptr || dstElement == nullptr) {
+      continue;
+    }
 #pragma unroll 4
     for (int index = threadIdx.x; index < elementSize;
          index += device::internals::DefaultBlockDim) {
@@ -105,6 +108,9 @@ template <typename T>
 __global__ void kernel_setToValue(T** out, T value, size_t elementSize, size_t elementCount) {
   for (size_t block = blockIdx.x; block < elementCount; block += gridDim.x) {
     T* element = out[block];
+    if (element == nullptr) {
+      continue;
+    }
 #pragma unroll 4
     for (int index = threadIdx.x; index < elementSize;
          index += device::internals::DefaultBlockDim) {
@@ -148,7 +154,9 @@ __global__ void kernel_copyUniformToScatter(
     const void* srcElement =
         reinterpret_cast<const void*>(&reinterpret_cast<const char*>(src)[block * srcOffset]);
     void* dstElement = dst[block];
-    imemcpy(dstElement, srcElement, copySize, threadIdx.x, device::internals::DefaultBlockDim);
+    if (dstElement != nullptr) {
+      imemcpy(dstElement, srcElement, copySize, threadIdx.x, device::internals::DefaultBlockDim);
+    }
   }
 }
 
@@ -172,7 +180,9 @@ __global__ void kernel_copyScatterToUniform(
   for (size_t block = blockIdx.x; block < elementCount; block += gridDim.x) {
     const void* srcElement = src[block];
     void* dstElement = reinterpret_cast<void*>(&reinterpret_cast<char*>(dst)[block * dstOffset]);
-    imemcpy(dstElement, srcElement, copySize, threadIdx.x, device::internals::DefaultBlockDim);
+    if (srcElement != nullptr) {
+      imemcpy(dstElement, srcElement, copySize, threadIdx.x, device::internals::DefaultBlockDim);
+    }
   }
 }
 

@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <mutex>
 #include <sstream>
 
 using namespace device;
@@ -27,20 +28,30 @@ void ConcreteAPI::syncDefaultStreamWithHost() {
 
 void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   hipStream_t stream;
-  const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
-  APIWRAP(hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, priority));
+  const auto truePriority = mapStreamPriority(priorityLeast, priorityGreatest, priority);
+  APIWRAP(hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, truePriority));
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }
 
 void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+
+  // The stream has to leave the set before it is destroyed, and a stream that is not in it is not
+  // this backend's to destroy - the default stream, for one, would take the whole interface with
+  // it.
   auto it = genericStreams.find(stream);
-  if (it != genericStreams.end()) {
-    genericStreams.erase(it);
+  if (it == genericStreams.end()) {
+    logWarning() << "Tried to destroy a stream that this device does not know about. It has "
+                    "either been destroyed already or was not created here; not destroying it.";
+    return;
   }
+
+  genericStreams.erase(it);
   APIWRAP(hipStreamDestroy(stream));
 }
 
@@ -69,13 +80,14 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
 }
 
 namespace {
+// Called once, so the copy goes away with the call.
 void streamCallbackEpheremal(void* data) {
   auto* function = reinterpret_cast<std::function<void()>*>(data);
   (*function)();
   delete function;
 }
 
-void streamCallbackPermanent(void* data) {
+void streamCallbackRecorded(void* data) {
   auto* function = reinterpret_cast<std::function<void()>*>(data);
   (*function)();
 }
@@ -84,17 +96,22 @@ void streamCallbackPermanent(void* data) {
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
 
-  hipStreamCaptureStatus status{};
-  APIWRAP(hipStreamIsCapturing(stream, &status));
-
-  if (status != hipStreamCaptureStatusInvalidated) {
-    auto* functionData = new std::function<void()>(function);
-    if (status == hipStreamCaptureStatusActive) {
-      APIWRAP(hipLaunchHostFunc(stream, &streamCallbackPermanent, functionData));
-    } else {
-      APIWRAP(hipLaunchHostFunc(stream, &streamCallbackEpheremal, functionData));
-    }
+  const auto capture = internals::captureState(stream);
+  if (capture.status == hipStreamCaptureStatusInvalidated) {
+    return;
   }
+
+  if (capture.status == hipStreamCaptureStatusActive) {
+    auto* recorded = internals::adoptHostFunction(capture.graph, function);
+    if (recorded == nullptr) {
+      logError() << "A host function was recorded into a graph this backend does not know.";
+      return;
+    }
+    APIWRAP(hipLaunchHostFunc(stream, &streamCallbackRecorded, recorded));
+    return;
+  }
+
+  APIWRAP(hipLaunchHostFunc(stream, &streamCallbackEpheremal, new std::function<void()>(function)));
 }
 
 namespace {

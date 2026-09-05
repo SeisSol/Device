@@ -45,8 +45,7 @@ if (IS_NVCC_PLATFORM)
 else()
     set(DEVICE_HIPCC -std=c++17;
                      -O3;
-                     --offload-arch=${DEVICE_ARCH};
-                     -DDEVICE_${BACKEND_UPPER_CASE}_LANG)
+                     --offload-arch=${DEVICE_ARCH})
 endif()
 
 if (DEVICE_KERNEL_INFOPRINT)

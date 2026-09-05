@@ -7,7 +7,10 @@
 
 #include <cassert>
 #include <device.h>
+#include <limits>
 #include <math.h>
+#include <string.h>
+#include <type_traits>
 
 namespace device {
 
@@ -21,7 +24,9 @@ struct Sum {
 
 template <typename T>
 struct Max {
-  T defaultValue{std::numeric_limits<T>::min()};
+  // lowest(), not min(): for floating point types min() is the smallest positive normal value,
+  // which is larger than every negative input
+  T defaultValue{std::numeric_limits<T>::lowest()};
   __device__ __forceinline__ T operator()(T op1, T op2) { return op1 > op2 ? op1 : op2; }
 };
 
@@ -57,38 +62,79 @@ __device__ __forceinline__ T warpReduce(T value, OperationT operation) {
   return value;
 }
 
-// Helper function for Generic Atomic Update
-// Fallback to atomicCAS-based implementation if atomic instruction is not available
-// Picked from: https://docs.nvidia.com/cuda/cuda-c-programming-guide/#atomic-functions
+template <std::size_t Size>
+struct AtomicWord {
+  static_assert(Size == 4 || Size == 8, "no atomic word of the size of the accumulator type");
+};
+
+template <>
+struct AtomicWord<4> {
+  using Type = unsigned int;
+};
+
+template <>
+struct AtomicWord<8> {
+  using Type = unsigned long long;
+};
+
+template <typename ToT, typename FromT>
+__device__ __forceinline__ ToT reinterpretValue(const FromT& from) {
+  static_assert(sizeof(ToT) == sizeof(FromT), "reinterpretValue requires types of equal size");
+  ToT to{};
+  memcpy(&to, &from, sizeof(ToT));
+  return to;
+}
+
+// Fallback for the combinations without a native atomic. The compare-and-swap runs on a word of
+// exactly the size of T: a wider word would read and write the memory next to the result.
 template <typename T, typename OperationT>
-__device__ __forceinline__ void atomicUpdate(T* address, T val, OperationT operation) {
-  unsigned long long* address_as_ull = (unsigned long long*)address;
-  unsigned long long old = *address_as_ull, assumed;
+__device__ __forceinline__ void atomicUpdateCas(T* address, T val, OperationT operation) {
+  using WordT = typename AtomicWord<sizeof(T)>::Type;
+  auto* wordAddress = reinterpret_cast<WordT*>(address);
+
+  WordT old = *wordAddress;
+  WordT assumed{};
   do {
     assumed = old;
-    T calculatedRes = operation(*(T*)&assumed, val);
-    old = atomicCAS(address_as_ull, assumed, *(unsigned long long*)&calculatedRes);
+    const T updated = operation(reinterpretValue<T>(assumed), val);
+    old = atomicCAS(wordAddress, assumed, reinterpretValue<WordT>(updated));
   } while (assumed != old);
 }
 
-// Native atomics
-template <>
-__device__ __forceinline__ void
-    atomicUpdate<int, device::Sum<int>>(int* address, int val, device::Sum<int> operation) {
-  atomicAdd(address, val);
-}
-template <>
-__device__ __forceinline__ void atomicUpdate<float, device::Sum<float>>(
-    float* address, float val, device::Sum<float> operation) {
-  atomicAdd(address, val);
-}
-#if __CUDA_ARCH__ >= 600
-template <>
-__device__ __forceinline__ void atomicUpdate<double, device::Sum<double>>(
-    double* address, double val, device::Sum<double> operation) {
-  atomicAdd(address, val);
-}
+template <typename T, typename OperationT>
+__device__ __forceinline__ void atomicUpdate(T* address, T val, OperationT operation) {
+  if constexpr (std::is_same_v<OperationT, Sum<T>>) {
+    if constexpr (std::is_same_v<T, int> || std::is_same_v<T, unsigned int> ||
+                  std::is_same_v<T, unsigned long long> || std::is_same_v<T, float>) {
+      atomicAdd(address, val);
+      return;
+    } else if constexpr (std::is_integral_v<T> && sizeof(T) == sizeof(unsigned long long)) {
+      // the unsigned addition wraps the same way, so it also gives the signed result
+      atomicAdd(reinterpret_cast<unsigned long long*>(address),
+                static_cast<unsigned long long>(val));
+      return;
+    } else if constexpr (std::is_same_v<T, double>) {
+// mirrors the guard the toolkit puts on the declaration itself
+#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 600)
+      atomicAdd(address, val);
+      return;
 #endif
+    }
+  }
+  if constexpr (std::is_same_v<OperationT, Max<T>> &&
+                (std::is_same_v<T, int> || std::is_same_v<T, unsigned int> ||
+                 std::is_same_v<T, unsigned long long>)) {
+    atomicMax(address, val);
+    return;
+  }
+  if constexpr (std::is_same_v<OperationT, Min<T>> &&
+                (std::is_same_v<T, int> || std::is_same_v<T, unsigned int> ||
+                 std::is_same_v<T, unsigned long long>)) {
+    atomicMin(address, val);
+    return;
+  }
+  atomicUpdateCas(address, val, operation);
+}
 
 // Block Reduce
 template <typename T, typename OperationT>
@@ -122,8 +168,8 @@ __global__ void initKernel(T* result, OperationT operation) {
 }
 
 template <typename AccT, typename VecT, typename OperationT>
-__launch_bounds__(BlockSize) void __global__ kernel_reduce(
-    AccT* result, const VecT* vector, size_t size, bool overrideResult, OperationT operation) {
+__launch_bounds__(BlockSize) void __global__
+    kernel_reduce(AccT* result, const VecT* vector, size_t size, OperationT operation) {
 
   // Maximum block size 1024, warp size 32 so 1024/32 = 32 chosen
   // For AMD, warp size 64, 1024/64 = 16, but 32 should work with a few idle memory addresses
@@ -144,7 +190,6 @@ __launch_bounds__(BlockSize) void __global__ kernel_reduce(
   AccT blockAcc = blockReduce<AccT, OperationT>(threadAcc, shmem, operation);
 
   if (threadIdx.x == 0) {
-    (void)overrideResult; // to silence unused parameter warning for non-Add reductions
     atomicUpdate(result, blockAcc, operation);
   }
 }
@@ -175,20 +220,24 @@ void Algorithms::reduceVector(AccT* result,
     }
   }
 
+  // the result is set either way, but there is nothing to reduce into it, and a grid of zero
+  // blocks is not a valid launch configuration
+  if (size == 0) {
+    CHECK_ERR;
+    return;
+  }
+
   switch (type) {
   case ReductionType::Add: {
-    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(
-        result, buffer, size, overrideResult, device::Sum<AccT>());
+    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(result, buffer, size, device::Sum<AccT>());
     break;
   }
   case ReductionType::Max: {
-    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(
-        result, buffer, size, overrideResult, device::Max<AccT>());
+    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(result, buffer, size, device::Max<AccT>());
     break;
   }
   case ReductionType::Min: {
-    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(
-        result, buffer, size, overrideResult, device::Min<AccT>());
+    kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(result, buffer, size, device::Min<AccT>());
     break;
   }
   default: {
