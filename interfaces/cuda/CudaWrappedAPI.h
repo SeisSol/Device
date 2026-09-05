@@ -123,6 +123,9 @@ class ConcreteAPI : public AbstractAPI {
   void setupPrinting(int rank) override;
 
   private:
+  // Drops the allocation from the bookkeeping and returns its size.
+  size_t forgetAllocation(void* devPtr);
+
   device::StatusT status{false};
 
   std::vector<cudaDeviceProp> properties;
@@ -137,12 +140,12 @@ class ConcreteAPI : public AbstractAPI {
   std::unordered_set<cudaStream_t> genericStreams{};
 
   Statistics statistics{};
-  std::unordered_map<void*, size_t> memToSizeMap{{nullptr, 0}};
+  std::unordered_map<void*, size_t> memToSizeMap;
 
   int priorityLeast{0};
   int priorityGreatest{0};
 
-  std::unordered_map<void*, void*> allocationProperties;
+  std::unordered_map<void*, CUmemAllocationProp> allocationProperties;
 };
 } // namespace device
 

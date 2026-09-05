@@ -168,7 +168,7 @@ class ConcreteAPI : public AbstractAPI {
     return this->currentContext()->memoryToSizeMap;
   }
 
-  void freeMem(void* devPtr);
+  void freeMem(void* devPtr, bool unified = false);
 
   void initDevices();
 

@@ -52,27 +52,48 @@ void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
   return devPtr;
 }
 
+size_t ConcreteAPI::forgetAllocation(void* devPtr) {
+  const auto entry = memToSizeMap.find(devPtr);
+  if (entry == memToSizeMap.end()) {
+    assert(false && "DEVICE: an attempt to delete mem. which has not been allocated. unknown "
+                    "pointer");
+    return 0;
+  }
+
+  const auto size = entry->second;
+  memToSizeMap.erase(entry);
+  statistics.deallocatedMemBytes += size;
+  return size;
+}
+
 void ConcreteAPI::freeGlobMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
-  assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
-         "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
+  if (devPtr == nullptr) {
+    return;
+  }
+
+  forgetAllocation(devPtr);
   APIWRAP(hipFree(devPtr));
 }
 
 void ConcreteAPI::freeUnifiedMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
-  assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
-         "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
+  if (devPtr == nullptr) {
+    return;
+  }
+
+  const auto size = forgetAllocation(devPtr);
+  statistics.allocatedUnifiedMemBytes -= size;
   APIWRAP(hipFree(devPtr));
 }
 
 void ConcreteAPI::freePinnedMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
-  assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
-         "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
+  if (devPtr == nullptr) {
+    return;
+  }
+
+  forgetAllocation(devPtr);
   APIWRAP(hipHostFree(devPtr));
 }
 

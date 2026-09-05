@@ -35,7 +35,7 @@ void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
   return ptr;
 }
 
-void ConcreteAPI::freeMem(void* devPtr) {
+void ConcreteAPI::freeMem(void* devPtr, bool unified) {
   // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behaviour
   // contrast to C++/CUDA/HIP
   if (devPtr == nullptr) {
@@ -61,7 +61,11 @@ void ConcreteAPI::freeMem(void* devPtr) {
     return; // the std::throw is throwing some errors during the program finalization
   }
 
-  context->statistics.deallocatedMemBytes += map.at(devPtr);
+  const auto size = map.at(devPtr);
+  context->statistics.deallocatedMemBytes += size;
+  if (unified) {
+    context->statistics.allocatedUnifiedMemBytes -= size;
+  }
   map.erase(devPtr);
   auto& queue = context->queueBuffer.getDefaultQueue();
   sycl::free(devPtr, queue.get_context());
@@ -80,7 +84,7 @@ void ConcreteAPI::freeUnifiedMem(void* devPtr) {
   // NOTE: Freeing nullptr results in segfault in oneAPI. It is an opposite behavior
   // contrast to C++/CUDA/HIP
   if (devPtr != nullptr) {
-    this->freeMem(devPtr);
+    this->freeMem(devPtr, true);
   }
 }
 

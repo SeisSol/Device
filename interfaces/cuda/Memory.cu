@@ -76,7 +76,7 @@ void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
     prop.allocFlags.compressionType = CU_MEM_ALLOCATION_COMP_GENERIC;
 
     devPtr = driverAllocate(size, prop);
-    allocationProperties[devPtr] = reinterpret_cast<void*>(new CUmemAllocationProp(prop));
+    allocationProperties[devPtr] = prop;
   } else {
     APIWRAP(cudaMalloc(&devPtr, size));
   }
@@ -136,15 +136,34 @@ void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
   return devPtr;
 }
 
+size_t ConcreteAPI::forgetAllocation(void* devPtr) {
+  const auto entry = memToSizeMap.find(devPtr);
+  if (entry == memToSizeMap.end()) {
+    assert(false && "DEVICE: an attempt to delete mem. which has not been allocated. unknown "
+                    "pointer");
+    return 0;
+  }
+
+  const auto size = entry->second;
+  memToSizeMap.erase(entry);
+  statistics.deallocatedMemBytes += size;
+  return size;
+}
+
 void ConcreteAPI::freeGlobMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
-  assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
-         "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
-  if (allocationProperties.find(devPtr) != allocationProperties.end()) {
-    driverFree(devPtr,
-               memToSizeMap.at(devPtr),
-               *reinterpret_cast<CUmemAllocationProp*>(allocationProperties.at(devPtr)));
+  if (devPtr == nullptr) {
+    return;
+  }
+
+  const auto size = forgetAllocation(devPtr);
+
+  const auto properties = allocationProperties.find(devPtr);
+  if (properties != allocationProperties.end()) {
+    driverFree(devPtr, size, properties->second);
+    // the entry has to go with the allocation: the runtime is free to hand the same address out
+    // again, and a leftover entry would send that one down the driver path as well
+    allocationProperties.erase(properties);
   } else {
     APIWRAP(cudaFree(devPtr));
   }
@@ -152,17 +171,22 @@ void ConcreteAPI::freeGlobMem(void* devPtr) {
 
 void ConcreteAPI::freeUnifiedMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
-  assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
-         "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
+  if (devPtr == nullptr) {
+    return;
+  }
+
+  const auto size = forgetAllocation(devPtr);
+  statistics.allocatedUnifiedMemBytes -= size;
   APIWRAP(cudaFree(devPtr));
 }
 
 void ConcreteAPI::freePinnedMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
-  assert((memToSizeMap.find(devPtr) != memToSizeMap.end()) &&
-         "DEVICE: an attempt to delete mem. which has not been allocated. unknown pointer");
-  statistics.deallocatedMemBytes += memToSizeMap[devPtr];
+  if (devPtr == nullptr) {
+    return;
+  }
+
+  forgetAllocation(devPtr);
   APIWRAP(cudaFreeHost(devPtr));
 }
 
