@@ -18,11 +18,24 @@ namespace device {
 
 // very inconvenient, but AdaptiveCpp doesn't allow much freedom when constructing a property_list
 #if defined(DEVICE_USE_GRAPH_CAPTURING) && defined(SYCL_EXT_INTEL_QUEUE_IMMEDIATE_COMMAND_LIST)
-#define BASE_QUEUE_PROPERTIES                                                                      \
-  sycl::property::queue::in_order{}, sycl::ext::intel::property::queue::no_immediate_command_list {}
+#define IMMEDIATE_COMMAND_LIST_PROPERTY                                                            \
+  , sycl::ext::intel::property::queue::no_immediate_command_list {}
 #else
-#define BASE_QUEUE_PROPERTIES sycl::property::queue::in_order()
+#define IMMEDIATE_COMMAND_LIST_PROPERTY
 #endif
+
+// profiling is what makes the timings of AbstractAPI::timespanEvents available, and it costs on
+// every submission, so it follows the build option rather than being on by default
+#ifdef PROFILING_ENABLED
+#define PROFILING_PROPERTY                                                                         \
+  , sycl::property::queue::enable_profiling {}
+#else
+#define PROFILING_PROPERTY
+#endif
+
+#define BASE_QUEUE_PROPERTIES                                                                      \
+  sycl::property::queue::in_order {}                                                               \
+  IMMEDIATE_COMMAND_LIST_PROPERTY PROFILING_PROPERTY
 
 DeviceQueues::DeviceQueues(const sycl::device& dev,
                            const std::function<void(sycl::exception_list)>& handler)
