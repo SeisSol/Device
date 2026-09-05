@@ -14,6 +14,12 @@
 #include <memory>
 #include <vector>
 
+// Explicit graph nodes rest on cudaStreamBeginCaptureToGraph, which the runtime gained in CUDA
+// 12.3. Capturing whole streams works without it, so the two get their own macro.
+#if defined(DEVICE_USE_GRAPH_CAPTURING) && (CUDART_VERSION >= 12030)
+#define DEVICE_USE_GRAPH_NODES
+#endif
+
 using namespace device;
 
 /* Two ways of building a compute graph are offered.
@@ -71,16 +77,20 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 }
 
 bool ConcreteAPI::isCapableOfGraphNodes() {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
-  // requires cudaStreamBeginCaptureToGraph, i.e. CUDA >= 12.3
+#ifdef DEVICE_USE_GRAPH_NODES
   return true;
 #else
   return false;
 #endif
 }
 
-DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
+DeviceGraphHandle ConcreteAPI::streamBeginCapture(const std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
+  if (streamPtrs.empty()) {
+    logError() << "Graph capturing records streams, so it needs at least one.";
+    return DeviceGraphHandle();
+  }
+
   auto graphInstance = std::make_shared<DeviceGraph>();
   graphInstance->streamPtrs = streamPtrs;
 
@@ -97,6 +107,7 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING
   auto* graphInstance = handle.get();
   assert(graphInstance != nullptr && "a capture must be started before it can be ended");
+  assert(graphInstance->instance == nullptr && "a graph is instantiated once");
 
   APIWRAP(cudaStreamEndCapture(static_cast<cudaStream_t>(graphInstance->streamPtrs[0]),
                                &(graphInstance->graph)));
@@ -109,7 +120,7 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
 }
 
 DeviceGraphHandle ConcreteAPI::graphCreate() {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
+#ifdef DEVICE_USE_GRAPH_NODES
   auto graphInstance = std::make_shared<DeviceGraph>();
   APIWRAP(cudaGraphCreate(&(graphInstance->graph), 0));
   return DeviceGraphHandle(std::move(graphInstance));
@@ -119,7 +130,7 @@ DeviceGraphHandle ConcreteAPI::graphCreate() {
 }
 
 namespace {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
+#ifdef DEVICE_USE_GRAPH_NODES
 /**
  * Reads the capture frontier, i.e. the nodes a subsequently captured operation would depend on.
  * Has to be called while the capture is still open.
@@ -152,7 +163,7 @@ std::vector<cudaGraphNode_t> captureFrontier(cudaStream_t stream) {
 void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
                                  const std::vector<DeviceGraphNodeHandle>& dependencies,
                                  void* streamPtr) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
+#ifdef DEVICE_USE_GRAPH_NODES
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && "a graph must be created before nodes can be added");
   assert(!graphInstance->ready && "no nodes can be added to an instantiated graph");
@@ -175,7 +186,7 @@ void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
 
 DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHandle,
                                                 void* streamPtr) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
+#ifdef DEVICE_USE_GRAPH_NODES
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && "a node must be opened before it can be closed");
 
@@ -184,6 +195,7 @@ DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHa
 
   cudaGraph_t endedGraph{nullptr};
   APIWRAP(cudaStreamEndCapture(stream, &endedGraph));
+  assert(endedGraph == graphInstance->graph && "capturing into a graph hands that same graph back");
 
   graphInstance->nodes.emplace_back(std::move(produced));
   return DeviceGraphNodeHandle(graphInstance->nodes.size() - 1);
@@ -193,9 +205,10 @@ DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHa
 }
 
 void ConcreteAPI::graphInstantiate(const DeviceGraphHandle& graphHandle) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
+#ifdef DEVICE_USE_GRAPH_NODES
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && "a graph must be created before it is instantiated");
+  assert(graphInstance->instance == nullptr && "a graph is instantiated once");
 
   APIWRAP(
       cudaGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));

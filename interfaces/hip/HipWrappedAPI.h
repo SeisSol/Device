@@ -81,7 +81,7 @@ class ConcreteAPI : public AbstractAPI {
   void syncDefaultStreamWithHost() override;
 
   bool isCapableOfGraphCapturing() override;
-  DeviceGraphHandle streamBeginCapture(std::vector<void*>& streamPtrs) override;
+  DeviceGraphHandle streamBeginCapture(const std::vector<void*>& streamPtrs) override;
   void streamEndCapture(const DeviceGraphHandle& handle) override;
   void launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) override;
 

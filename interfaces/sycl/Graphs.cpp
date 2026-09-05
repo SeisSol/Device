@@ -70,8 +70,13 @@ bool ConcreteAPI::isCapableOfGraphNodes() {
 #endif
 }
 
-DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& streamPtrs) {
+DeviceGraphHandle ConcreteAPI::streamBeginCapture(const std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+  if (streamPtrs.empty()) {
+    logError() << "Graph capturing records queues, so it needs at least one.";
+    return DeviceGraphHandle();
+  }
+
   std::vector<sycl::queue> queues;
   queues.reserve(streamPtrs.size());
   for (auto* streamPtr : streamPtrs) {
@@ -92,6 +97,7 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   auto* graphInstance = handle.get();
   assert(graphInstance != nullptr && "a capture must be started before it can be ended");
+  assert(!graphInstance->instance.has_value() && "a graph is instantiated once");
 
   graphInstance->graph.end_recording();
   graphInstance->instance = std::optional<sycl::ext::oneapi::experimental::command_graph<
@@ -167,6 +173,7 @@ void ConcreteAPI::graphInstantiate(const DeviceGraphHandle& graphHandle) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && "a graph must be created before it is instantiated");
+  assert(!graphInstance->instance.has_value() && "a graph is instantiated once");
 
   graphInstance->graph.end_recording();
   graphInstance->instance = std::optional<sycl::ext::oneapi::experimental::command_graph<
