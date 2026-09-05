@@ -99,8 +99,14 @@ struct AbstractAPI {
    * and events.
    *
    * A single graph is built by one thread at a time. `recorder` receives a stream that is only a
-   * recording vehicle: the stream carries no ordering information beyond the extent of that one
-   * call, and the same stream may be reused for sibling nodes.
+   * recording vehicle: what it enqueues becomes the node, and the dependencies stated in the call
+   * are the ones the node is guaranteed to get.
+   *
+   * Nodes that are meant to run concurrently have to be recorded onto different streams. A stream
+   * can be reused for a later node, but a backend that expresses edges through the recorded
+   * stream rather than through node handles - the SYCL one does, since the graph extension has no
+   * node handles to hand out - adds an edge between two nodes that shared a stream, and those two
+   * then run one after the other.
    *
    * If `recorder` enqueues nothing, the returned handle refers to `dependencies` themselves, so
    * an empty recorder is a valid way to express a pure join node.
@@ -139,6 +145,11 @@ struct AbstractAPI {
   virtual void syncStreamWithEvent(void* streamPtr, void* eventPtr) = 0;
   virtual void streamHostFunction(void* streamPtr, const std::function<void()>& function) = 0;
 
+  /**
+   * Blocks the stream until the value at `location` has reached at least `value`. `location` has
+   * to be host memory that the device can read, i.e. an allocation from allocPinnedMem with
+   * Destination::CurrentDevice.
+   */
   virtual void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) = 0;
 
   virtual void* createEvent(bool withTiming = false) = 0;

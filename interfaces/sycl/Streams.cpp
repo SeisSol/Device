@@ -75,7 +75,9 @@ void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t
   volatile uint32_t* spinLocation = location;
   queuePtr->single_task([=]() {
     while (true) {
-      if (*spinLocation == value) {
+      // ">=", like the wait-value operations of the other backends: a counter that is written
+      // once per step is past the awaited value by the time this runs often enough
+      if (*spinLocation >= value) {
         return;
       }
 
