@@ -75,7 +75,7 @@ void ConcreteAPI::initialize() {
 
     usmDefault = properties[getDeviceId()].directManagedMemAccessFromHost != 0;
 
-    APIWRAP(cudaDeviceGetStreamPriorityRange(&priorityMin, &priorityMax));
+    APIWRAP(cudaDeviceGetStreamPriorityRange(&priorityLeast, &priorityGreatest));
 
     int canCompressProto = 0;
     DRVWRAP(cuDeviceGetAttribute(

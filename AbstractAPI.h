@@ -127,6 +127,11 @@ struct AbstractAPI {
     return graphEndNode(graphHandle, streamPtr);
   }
 
+  /**
+   * Creates a stream. `priority` runs from 0 for the lowest to 1 for the highest priority the
+   * device offers; NAN asks for the runtime default. Backends that only know a few priority
+   * classes round to the nearest one, and a device without priority support ignores the value.
+   */
   virtual void* createStream(double priority = NAN) = 0;
   virtual void destroyGenericStream(void* streamPtr) = 0;
   virtual void syncStreamWithHost(void* streamPtr) = 0;

@@ -28,8 +28,8 @@ void ConcreteAPI::syncDefaultStreamWithHost() {
 void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream;
-  const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
-  APIWRAP(hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, priority));
+  const auto truePriority = mapStreamPriority(priorityLeast, priorityGreatest, priority);
+  APIWRAP(hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, truePriority));
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);
 }

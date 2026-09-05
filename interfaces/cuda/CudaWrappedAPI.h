@@ -139,7 +139,8 @@ class ConcreteAPI : public AbstractAPI {
   Statistics statistics{};
   std::unordered_map<void*, size_t> memToSizeMap{{nullptr, 0}};
 
-  int priorityMin, priorityMax;
+  int priorityLeast{0};
+  int priorityGreatest{0};
 
   std::unordered_map<void*, void*> allocationProperties;
 };

@@ -29,7 +29,7 @@ void ConcreteAPI::syncDefaultStreamWithHost() {
 void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
   cudaStream_t stream;
-  const auto truePriority = mapPercentage(priorityMin, priorityMax, priority);
+  const auto truePriority = mapStreamPriority(priorityLeast, priorityGreatest, priority);
   APIWRAP(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking, truePriority));
   genericStreams.insert(stream);
   return reinterpret_cast<void*>(stream);

@@ -84,7 +84,7 @@ void ConcreteAPI::initialize() {
                    properties[getDeviceId()].pageableMemoryAccessUsesHostPageTables != 0;
     }
 
-    APIWRAP(hipDeviceGetStreamPriorityRange(&priorityMin, &priorityMax));
+    APIWRAP(hipDeviceGetStreamPriorityRange(&priorityLeast, &priorityGreatest));
   } else {
     logWarning() << "Device Interface has already been initialized";
   }
