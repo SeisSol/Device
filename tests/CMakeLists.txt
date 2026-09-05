@@ -8,8 +8,8 @@ project(examples)
 #set(CMAKE_CXX_CLANG_TIDY clang-tidy)
 
 set(SM "sm_60" CACHE STRING "model of Nvidia Streaming Multiprocessor")
-set(SM_OPTIONS "sm_50" "sm_60" "sm_70" "sm_71" "sm_75" "sm_80" "sm_86"
-      "gfx906" "gfx908 "
+set(SM_OPTIONS "sm_50" "sm_60" "sm_70" "sm_71" "sm_75" "sm_80" "sm_86" "sm_89" "sm_90"
+      "gfx906" "gfx908" "gfx90a" "gfx942"
       "dg1" "bdw" "skl" "Gen8" "Gen9" "Gen11" "Gen12LP")
 set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
 
