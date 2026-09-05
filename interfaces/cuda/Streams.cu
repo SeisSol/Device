@@ -81,13 +81,15 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
 }
 
 namespace {
+// Called once, so the copy goes away with the call.
 void streamCallbackEpheremal(void* data) {
   auto* function = reinterpret_cast<std::function<void()>*>(data);
   (*function)();
   delete function;
 }
 
-void streamCallbackPermanent(void* data) {
+// Called on every replay of the graph it was recorded into, which owns the copy.
+void streamCallbackRecorded(void* data) {
   auto* function = reinterpret_cast<std::function<void()>*>(data);
   (*function)();
 }
@@ -96,17 +98,23 @@ void streamCallbackPermanent(void* data) {
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
 
-  cudaStreamCaptureStatus status{};
-  APIWRAP(cudaStreamIsCapturing(stream, &status));
-
-  if (status != cudaStreamCaptureStatusInvalidated) {
-    auto* functionData = new std::function<void()>(function);
-    if (status == cudaStreamCaptureStatusActive) {
-      APIWRAP(cudaLaunchHostFunc(stream, &streamCallbackPermanent, functionData));
-    } else {
-      APIWRAP(cudaLaunchHostFunc(stream, &streamCallbackEpheremal, functionData));
-    }
+  const auto capture = internals::captureState(stream);
+  if (capture.status == cudaStreamCaptureStatusInvalidated) {
+    return;
   }
+
+  if (capture.status == cudaStreamCaptureStatusActive) {
+    auto* recorded = internals::adoptHostFunction(capture.graph, function);
+    if (recorded == nullptr) {
+      logError() << "A host function was recorded into a graph this backend does not know.";
+      return;
+    }
+    APIWRAP(cudaLaunchHostFunc(stream, &streamCallbackRecorded, recorded));
+    return;
+  }
+
+  APIWRAP(
+      cudaLaunchHostFunc(stream, &streamCallbackEpheremal, new std::function<void()>(function)));
 }
 
 namespace {

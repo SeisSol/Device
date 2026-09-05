@@ -12,6 +12,9 @@
 #include <driver_types.h>
 #include <functional>
 #include <memory>
+#include <mutex>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 // Explicit graph nodes rest on cudaStreamBeginCaptureToGraph, which the runtime gained in CUDA
@@ -38,6 +41,54 @@ using namespace device;
  *    launchGraph(graph, stream);                             // 5
  * */
 
+namespace {
+std::mutex hostFunctionMutex;
+std::unordered_map<cudaGraph_t, std::vector<std::unique_ptr<std::function<void()>>>>
+    capturedHostFunctions;
+} // namespace
+
+namespace device::internals {
+CaptureState captureState(cudaStream_t stream) {
+  CaptureState state{};
+  unsigned long long captureId{};
+  const cudaGraphNode_t* frontier{nullptr};
+  size_t frontierSize{0};
+
+  // The unversioned name resolves to different signatures depending on the toolkit: up to CUDA
+  // 12.x it is the six-argument form, from CUDA 13 on it is the one that also reports edge data.
+  // cudaStreamGetCaptureInfo_v2 is not an option, as CUDA 13 no longer declares it.
+#if CUDART_VERSION >= 13000
+  const cudaGraphEdgeData* edgeData{nullptr};
+  APIWRAP(cudaStreamGetCaptureInfo(
+      stream, &state.status, &captureId, &state.graph, &frontier, &edgeData, &frontierSize));
+#else
+  APIWRAP(cudaStreamGetCaptureInfo(
+      stream, &state.status, &captureId, &state.graph, &frontier, &frontierSize));
+#endif
+
+  if (frontier != nullptr) {
+    state.frontier.assign(frontier, frontier + frontierSize);
+  }
+  return state;
+}
+
+std::function<void()>* adoptHostFunction(cudaGraph_t graph, const std::function<void()>& function) {
+  if (graph == nullptr) {
+    return nullptr;
+  }
+
+  const std::lock_guard<std::mutex> lock(hostFunctionMutex);
+  auto& functions = capturedHostFunctions[graph];
+  functions.emplace_back(std::make_unique<std::function<void()>>(function));
+  return functions.back().get();
+}
+
+void forgetHostFunctions(cudaGraph_t graph) {
+  const std::lock_guard<std::mutex> lock(hostFunctionMutex);
+  capturedHostFunctions.erase(graph);
+}
+} // namespace device::internals
+
 namespace device {
 struct DeviceGraph {
   cudaGraph_t graph{nullptr};
@@ -56,6 +107,8 @@ struct DeviceGraph {
   DeviceGraph& operator=(const DeviceGraph&) = delete;
 
   ~DeviceGraph() {
+    internals::forgetHostFunctions(graph);
+
     // deliberately unchecked: the graph may outlive the device context during teardown, and a
     // failure here has nothing left to report to
     if (instance != nullptr) {
@@ -129,37 +182,6 @@ DeviceGraphHandle ConcreteAPI::graphCreate() {
 #endif
 }
 
-namespace {
-#ifdef DEVICE_USE_GRAPH_NODES
-/**
- * Reads the capture frontier, i.e. the nodes a subsequently captured operation would depend on.
- * Has to be called while the capture is still open.
- *
- * The unversioned name resolves to different signatures depending on the toolkit: up to CUDA
- * 12.x it is the six-argument form, from CUDA 13 on it is the one that also reports edge data.
- * cudaStreamGetCaptureInfo_v2 is not an option, as CUDA 13 no longer declares it.
- */
-std::vector<cudaGraphNode_t> captureFrontier(cudaStream_t stream) {
-  cudaStreamCaptureStatus captureStatus{};
-  unsigned long long captureId{};
-  cudaGraph_t capturedGraph{nullptr};
-  const cudaGraphNode_t* frontier{nullptr};
-  size_t frontierSize{0};
-
-#if CUDART_VERSION >= 13000
-  const cudaGraphEdgeData* edgeData{nullptr};
-  APIWRAP(cudaStreamGetCaptureInfo(
-      stream, &captureStatus, &captureId, &capturedGraph, &frontier, &edgeData, &frontierSize));
-#else
-  APIWRAP(cudaStreamGetCaptureInfo(
-      stream, &captureStatus, &captureId, &capturedGraph, &frontier, &frontierSize));
-#endif
-
-  return std::vector<cudaGraphNode_t>(frontier, frontier + frontierSize);
-}
-#endif
-} // namespace
-
 void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
                                  const std::vector<DeviceGraphNodeHandle>& dependencies,
                                  void* streamPtr) {
@@ -191,7 +213,7 @@ DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHa
   assert(graphInstance != nullptr && "a node must be opened before it can be closed");
 
   auto stream = static_cast<cudaStream_t>(streamPtr);
-  auto produced = captureFrontier(stream);
+  auto produced = internals::captureState(stream).frontier;
 
   cudaGraph_t endedGraph{nullptr};
   APIWRAP(cudaStreamEndCapture(stream, &endedGraph));

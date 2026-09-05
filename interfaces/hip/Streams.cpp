@@ -80,13 +80,14 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
 }
 
 namespace {
+// Called once, so the copy goes away with the call.
 void streamCallbackEpheremal(void* data) {
   auto* function = reinterpret_cast<std::function<void()>*>(data);
   (*function)();
   delete function;
 }
 
-void streamCallbackPermanent(void* data) {
+void streamCallbackRecorded(void* data) {
   auto* function = reinterpret_cast<std::function<void()>*>(data);
   (*function)();
 }
@@ -95,17 +96,22 @@ void streamCallbackPermanent(void* data) {
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
 
-  hipStreamCaptureStatus status{};
-  APIWRAP(hipStreamIsCapturing(stream, &status));
-
-  if (status != hipStreamCaptureStatusInvalidated) {
-    auto* functionData = new std::function<void()>(function);
-    if (status == hipStreamCaptureStatusActive) {
-      APIWRAP(hipLaunchHostFunc(stream, &streamCallbackPermanent, functionData));
-    } else {
-      APIWRAP(hipLaunchHostFunc(stream, &streamCallbackEpheremal, functionData));
-    }
+  const auto capture = internals::captureState(stream);
+  if (capture.status == hipStreamCaptureStatusInvalidated) {
+    return;
   }
+
+  if (capture.status == hipStreamCaptureStatusActive) {
+    auto* recorded = internals::adoptHostFunction(capture.graph, function);
+    if (recorded == nullptr) {
+      logError() << "A host function was recorded into a graph this backend does not know.";
+      return;
+    }
+    APIWRAP(hipLaunchHostFunc(stream, &streamCallbackRecorded, recorded));
+    return;
+  }
+
+  APIWRAP(hipLaunchHostFunc(stream, &streamCallbackEpheremal, new std::function<void()>(function)));
 }
 
 namespace {

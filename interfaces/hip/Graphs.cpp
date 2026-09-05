@@ -12,6 +12,9 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
 #include <memory>
+#include <mutex>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 // Explicit graph nodes rest on hipStreamBeginCaptureToGraph, which HIP gained in ROCm 6.3.
@@ -39,6 +42,45 @@ using namespace device;
  *    launchGraph(graph, stream);                             // 5
  * */
 
+namespace {
+std::mutex hostFunctionMutex;
+std::unordered_map<hipGraph_t, std::vector<std::unique_ptr<std::function<void()>>>>
+    capturedHostFunctions;
+} // namespace
+
+namespace device::internals {
+CaptureState captureState(hipStream_t stream) {
+  CaptureState state{};
+  unsigned long long captureId{};
+  const hipGraphNode_t* frontier{nullptr};
+  size_t frontierSize{0};
+
+  APIWRAP(hipStreamGetCaptureInfo_v2(
+      stream, &state.status, &captureId, &state.graph, &frontier, &frontierSize));
+
+  if (frontier != nullptr) {
+    state.frontier.assign(frontier, frontier + frontierSize);
+  }
+  return state;
+}
+
+std::function<void()>* adoptHostFunction(hipGraph_t graph, const std::function<void()>& function) {
+  if (graph == nullptr) {
+    return nullptr;
+  }
+
+  const std::lock_guard<std::mutex> lock(hostFunctionMutex);
+  auto& functions = capturedHostFunctions[graph];
+  functions.emplace_back(std::make_unique<std::function<void()>>(function));
+  return functions.back().get();
+}
+
+void forgetHostFunctions(hipGraph_t graph) {
+  const std::lock_guard<std::mutex> lock(hostFunctionMutex);
+  capturedHostFunctions.erase(graph);
+}
+} // namespace device::internals
+
 namespace device {
 struct DeviceGraph {
   hipGraph_t graph{nullptr};
@@ -57,6 +99,8 @@ struct DeviceGraph {
   DeviceGraph& operator=(const DeviceGraph&) = delete;
 
   ~DeviceGraph() {
+    internals::forgetHostFunctions(graph);
+
     // deliberately unchecked: the graph may outlive the device context during teardown, and a
     // failure here has nothing left to report to
     if (instance != nullptr) {
@@ -130,27 +174,6 @@ DeviceGraphHandle ConcreteAPI::graphCreate() {
 #endif
 }
 
-namespace {
-#ifdef DEVICE_USE_GRAPH_NODES
-/**
- * Reads the capture frontier, i.e. the nodes a subsequently captured operation would depend on.
- * Has to be called while the capture is still open.
- */
-std::vector<hipGraphNode_t> captureFrontier(hipStream_t stream) {
-  hipStreamCaptureStatus captureStatus{};
-  unsigned long long captureId{};
-  hipGraph_t capturedGraph{nullptr};
-  const hipGraphNode_t* frontier{nullptr};
-  size_t frontierSize{0};
-
-  APIWRAP(hipStreamGetCaptureInfo_v2(
-      stream, &captureStatus, &captureId, &capturedGraph, &frontier, &frontierSize));
-
-  return std::vector<hipGraphNode_t>(frontier, frontier + frontierSize);
-}
-#endif
-} // namespace
-
 void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
                                  const std::vector<DeviceGraphNodeHandle>& dependencies,
                                  void* streamPtr) {
@@ -183,7 +206,7 @@ DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHa
   assert(graphInstance != nullptr && "a node must be opened before it can be closed");
 
   auto stream = static_cast<hipStream_t>(streamPtr);
-  auto produced = captureFrontier(stream);
+  auto produced = internals::captureState(stream).frontier;
 
   hipGraph_t endedGraph{nullptr};
   APIWRAP(hipStreamEndCapture(stream, &endedGraph));

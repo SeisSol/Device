@@ -6,6 +6,8 @@
 #define SEISSOLDEVICE_INTERFACES_CUDA_INTERNALS_H_
 
 #include <cuda.h>
+#include <cuda_runtime_api.h>
+#include <functional>
 #include <initializer_list>
 #include <vector>
 
@@ -18,6 +20,26 @@
 
 namespace device::internals {
 using DeviceStreamT = cudaStream_t;
+
+/**
+ * What a stream is currently recording into: the capture status, the graph the operations end up
+ * in, and the nodes a subsequently recorded operation would depend on.
+ */
+struct CaptureState {
+  cudaStreamCaptureStatus status{};
+  cudaGraph_t graph{nullptr};
+  std::vector<cudaGraphNode_t> frontier;
+};
+
+CaptureState captureState(cudaStream_t stream);
+
+/**
+ * Hands a host function to the graph that is being recorded, which keeps it alive for as long as
+ * the graph can be replayed, and returns the copy to pass to the runtime. Returns nullptr if the
+ * graph is not one of ours.
+ */
+std::function<void()>* adoptHostFunction(cudaGraph_t graph, const std::function<void()>& function);
+void forgetHostFunctions(cudaGraph_t graph);
 
 constexpr static int DefaultBlockDim = 1024;
 
