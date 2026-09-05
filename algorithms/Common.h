@@ -9,8 +9,10 @@
 #include "Algorithms.h"
 #include "Internals.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <utility>
 
 #if defined(__ACPP__)
 #include <sycl/sycl.hpp>
@@ -58,14 +60,21 @@ DEVICE_DEVICEFUNC T ntload(const T* location) {
 
 template <typename F>
 int blockcount(F&& func, int blocksize) {
-  int device = 0;
-  int smCount = 0;
-  int blocksPerSM = 0;
-  APIWRAP(cudaGetDevice(&device));
-  APIWRAP(cudaDeviceGetAttribute(&smCount, cudaDevAttrMultiProcessorCount, device));
-  APIWRAP(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-      &blocksPerSM, std::forward<F>(func), blocksize, 0));
-  return smCount * blocksPerSM;
+  // The occupancy of a kernel does not change while the program runs, and this sits in front of
+  // every algorithm launch, so it is asked once per kernel. Every caller uses the default block
+  // size, and the devices of a node are the same model.
+  static const int count = [&]() {
+    int device = 0;
+    int smCount = 0;
+    int blocksPerSM = 0;
+    APIWRAP(cudaGetDevice(&device));
+    APIWRAP(cudaDeviceGetAttribute(&smCount, cudaDevAttrMultiProcessorCount, device));
+    APIWRAP(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        &blocksPerSM, std::forward<F>(func), blocksize, 0));
+    // a grid of zero blocks is not a valid launch configuration
+    return std::max(1, smCount * blocksPerSM);
+  }();
+  return count;
 }
 
 using LocalInt4 = int4;
@@ -84,14 +93,21 @@ DEVICE_DEVICEFUNC T ntload(const T* location) {
 
 template <typename F>
 int blockcount(F&& func, int blocksize) {
-  int device = 0;
-  int smCount = 0;
-  int blocksPerSM = 0;
-  APIWRAP(hipGetDevice(&device));
-  APIWRAP(hipDeviceGetAttribute(&smCount, hipDeviceAttributeMultiprocessorCount, device));
-  APIWRAP(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-      &blocksPerSM, std::forward<F>(func), blocksize, 0));
-  return smCount * blocksPerSM;
+  // The occupancy of a kernel does not change while the program runs, and this sits in front of
+  // every algorithm launch, so it is asked once per kernel. Every caller uses the default block
+  // size, and the devices of a node are the same model.
+  static const int count = [&]() {
+    int device = 0;
+    int smCount = 0;
+    int blocksPerSM = 0;
+    APIWRAP(hipGetDevice(&device));
+    APIWRAP(hipDeviceGetAttribute(&smCount, hipDeviceAttributeMultiprocessorCount, device));
+    APIWRAP(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+        &blocksPerSM, std::forward<F>(func), blocksize, 0));
+    // a grid of zero blocks is not a valid launch configuration
+    return std::max(1, smCount * blocksPerSM);
+  }();
+  return count;
 }
 
 using LocalInt4 = __attribute__((vector_size(16))) int;

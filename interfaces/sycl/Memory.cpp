@@ -17,7 +17,6 @@ void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
   auto* ptr = malloc_device(size, this->currentDefaultQueue());
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
-  waitCheck(this->currentDefaultQueue());
   return ptr;
 }
 
@@ -28,7 +27,6 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
   this->currentStatistics().allocatedUnifiedMemBytes += size;
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
-  waitCheck(this->currentDefaultQueue());
   return ptr;
 }
 
@@ -38,7 +36,6 @@ void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) 
   auto* ptr = malloc_host(size, this->currentDefaultQueue());
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
-  waitCheck(this->currentDefaultQueue());
   return ptr;
 }
 
@@ -76,9 +73,11 @@ void ConcreteAPI::freeMem(void* devPtr, bool unified) {
     context->statistics.allocatedUnifiedMemBytes -= size;
   }
   map.erase(devPtr);
+  // freeing memory that a queue may still be reading from is undefined, and the caller has no
+  // way to state that it is done, so the wait stays
   auto& queue = context->queueBuffer.getDefaultQueue();
-  sycl::free(devPtr, queue.get_context());
   queue.wait();
+  sycl::free(devPtr, queue.get_context());
 }
 
 void ConcreteAPI::freeGlobMem(void* devPtr) {
