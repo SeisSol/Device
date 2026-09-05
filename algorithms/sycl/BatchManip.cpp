@@ -168,11 +168,13 @@ void Algorithms::copyUniformToScatterI(const void* src,
       const void* srcElement =
           reinterpret_cast<const void*>(&reinterpret_cast<const char*>(src)[block * srcOffset]);
       void* dstElement = dst[block];
-      imemcpy(dstElement,
-              srcElement,
-              copySize,
-              item.get_local_id(0),
-              device::internals::DefaultBlockDim);
+      if (dstElement != nullptr) {
+        imemcpy(dstElement,
+                srcElement,
+                copySize,
+                item.get_local_id(0),
+                device::internals::DefaultBlockDim);
+      }
     });
   });
 }
@@ -196,11 +198,13 @@ void Algorithms::copyScatterToUniformI(const void** src,
       const auto block = item.get_group().get_group_id(0);
       const void* srcElement = src[block];
       void* dstElement = reinterpret_cast<void*>(&reinterpret_cast<char*>(dst)[block * dstOffset]);
-      imemcpy(dstElement,
-              srcElement,
-              copySize,
-              item.get_local_id(0),
-              device::internals::DefaultBlockDim);
+      if (srcElement != nullptr) {
+        imemcpy(dstElement,
+                srcElement,
+                copySize,
+                item.get_local_id(0),
+                device::internals::DefaultBlockDim);
+      }
     });
   });
 }
