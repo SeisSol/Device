@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <device.h>
+#include <limits>
 #include <math.h>
 
 namespace device {
@@ -21,7 +22,9 @@ struct Sum {
 
 template <typename T>
 struct Max {
-  T defaultValue{std::numeric_limits<T>::min()};
+  // lowest(), not min(): for floating point types min() is the smallest positive normal value,
+  // which is larger than every negative input
+  T defaultValue{std::numeric_limits<T>::lowest()};
   __device__ __forceinline__ T operator()(T op1, T op2) { return op1 > op2 ? op1 : op2; }
 };
 

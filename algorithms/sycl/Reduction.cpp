@@ -21,7 +21,9 @@ constexpr T neutral() {
     return T(0);
   }
   if constexpr (Type == ReductionType::Max) {
-    return std::numeric_limits<T>::min();
+    // lowest(), not min(): for floating point types min() is the smallest positive normal value,
+    // which is larger than every negative input
+    return std::numeric_limits<T>::lowest();
   }
   if constexpr (Type == ReductionType::Min) {
     return std::numeric_limits<T>::max();
