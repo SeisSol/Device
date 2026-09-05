@@ -12,6 +12,7 @@
 #include <cuda.h>
 #include <driver_types.h>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 
 using namespace device;
@@ -66,6 +67,7 @@ void driverFree(void* ptr, std::size_t size, const CUmemAllocationProp& prop) {
 
 void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   void* devPtr = nullptr;
   if (compress && canCompress) {
     CUmemAllocationProp prop = {};
@@ -87,6 +89,7 @@ void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
 
 void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   void* devPtr = nullptr;
   APIWRAP(cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal));
 
@@ -128,6 +131,7 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
 
 void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   void* devPtr = nullptr;
   const auto flag = hint == Destination::Host ? cudaHostAllocDefault : cudaHostAllocMapped;
   APIWRAP(cudaHostAlloc(&devPtr, size, flag));
@@ -152,6 +156,7 @@ size_t ConcreteAPI::forgetAllocation(void* devPtr) {
 
 void ConcreteAPI::freeGlobMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   if (devPtr == nullptr) {
     return;
   }
@@ -171,6 +176,7 @@ void ConcreteAPI::freeGlobMem(void* devPtr) {
 
 void ConcreteAPI::freeUnifiedMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   if (devPtr == nullptr) {
     return;
   }
@@ -182,6 +188,7 @@ void ConcreteAPI::freeUnifiedMem(void* devPtr) {
 
 void ConcreteAPI::freePinnedMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   if (devPtr == nullptr) {
     return;
   }
@@ -207,6 +214,7 @@ void ConcreteAPI::freeMemAsync(void* devPtr, void* streamPtr) {
 
 std::string ConcreteAPI::getMemLeaksReport() {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   std::ostringstream report{};
   report << "Memory Leaks, bytes: "
          << (statistics.allocatedMemBytes - statistics.deallocatedMemBytes) << '\n';
@@ -217,11 +225,13 @@ size_t ConcreteAPI::getMaxAvailableMem() { return properties[getDeviceId()].tota
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   return statistics.allocatedMemBytes;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   return statistics.allocatedUnifiedMemBytes;
 }
 

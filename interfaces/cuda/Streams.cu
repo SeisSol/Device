@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cassert>
 #include <functional>
+#include <mutex>
 #include <sstream>
 
 using namespace device;
@@ -28,6 +29,7 @@ void ConcreteAPI::syncDefaultStreamWithHost() {
 
 void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   cudaStream_t stream;
   const auto truePriority = mapStreamPriority(priorityLeast, priorityGreatest, priority);
   APIWRAP(cudaStreamCreateWithPriority(&stream, cudaStreamNonBlocking, truePriority));
@@ -37,6 +39,7 @@ void* ConcreteAPI::createStream(double priority) {
 
 void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   cudaStream_t stream = static_cast<cudaStream_t>(streamPtr);
 
   // The stream has to leave the set before it is destroyed, and a stream that is not in it is not

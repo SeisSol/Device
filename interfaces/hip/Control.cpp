@@ -6,6 +6,7 @@
 #include "utils/env.h"
 #include "utils/logger.h"
 
+#include <atomic>
 #include <iomanip>
 #include <iostream>
 #include <mutex>
@@ -49,6 +50,9 @@ ConcreteAPI::ConcreteAPI() {
 void ConcreteAPI::setDevice(int deviceId) {
 
   currentDeviceId = deviceId;
+#ifndef DEVICE_CONTEXT_GLOBAL
+  selectedDeviceId.store(deviceId, std::memory_order_relaxed);
+#endif
 
   APIWRAP(hipSetDevice(deviceId));
 
@@ -91,6 +95,7 @@ void ConcreteAPI::initialize() {
 }
 
 void ConcreteAPI::finalize() {
+  const std::lock_guard<std::mutex> lock(apiMutex);
   if (status[StatusID::InterfaceInitialized]) {
     CHECK_ERR;
 
@@ -116,6 +121,12 @@ int ConcreteAPI::getDeviceId() {
   if (!status[StatusID::DeviceSelected]) {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
+#ifndef DEVICE_CONTEXT_GLOBAL
+  if (currentDeviceId < 0) {
+    currentDeviceId = selectedDeviceId.load(std::memory_order_relaxed);
+    APIWRAP(hipSetDevice(currentDeviceId));
+  }
+#endif
   return currentDeviceId;
 }
 

@@ -33,6 +33,11 @@ enum class ProfilingColors : uint32_t {
 struct AbstractAPI {
   virtual ~AbstractAPI() = default;
 
+  /**
+   * Selects the device for the calling thread and makes it the choice of the process. Backends
+   * that keep the selected device per thread give a thread that has not called this the device
+   * the process selected, the first time that thread asks for the device id.
+   */
   virtual void setDevice(int deviceId) = 0;
   virtual int getDeviceId() = 0;
 

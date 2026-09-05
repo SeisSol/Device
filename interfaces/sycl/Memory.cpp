@@ -6,11 +6,14 @@
 #include "SyclWrappedAPI.h"
 
 #include <iostream>
+#include <mutex>
 
 using namespace device;
 using namespace device::internals;
 
 void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   auto* ptr = malloc_device(size, this->currentDefaultQueue());
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
@@ -19,6 +22,8 @@ void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
 }
 
 void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint) {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   auto* ptr = malloc_shared(size, this->currentDefaultQueue());
   this->currentStatistics().allocatedUnifiedMemBytes += size;
   this->currentStatistics().allocatedMemBytes += size;
@@ -28,6 +33,8 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
 }
 
 void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   auto* ptr = malloc_host(size, this->currentDefaultQueue());
   this->currentStatistics().allocatedMemBytes += size;
   this->currentMemoryToSizeMap().insert({ptr, size});
@@ -49,6 +56,8 @@ void ConcreteAPI::freeMem(void* devPtr, bool unified) {
   if (this->availableDevices.empty()) {
     return;
   }
+
+  const std::lock_guard<std::mutex> lock(apiMutex);
 
   // Use the first device context to free memory
   DeviceContext* context = this->availableDevices[getDeviceId()];
@@ -110,6 +119,8 @@ void ConcreteAPI::freeMemAsync(void* devPtr, void* streamPtr) {
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   std::ostringstream report{};
 
   report << "----MEMORY REPORT----\n";
@@ -128,10 +139,14 @@ size_t ConcreteAPI::getMaxAvailableMem() {
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   return this->currentStatistics().allocatedMemBytes;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
+  const std::lock_guard<std::mutex> lock(apiMutex);
+
   return this->currentStatistics().allocatedUnifiedMemBytes;
 }
 

@@ -6,6 +6,7 @@
 #define SEISSOLDEVICE_INTERFACES_SYCL_DEVICEQUEUES_H_
 
 #include <functional>
+#include <mutex>
 #include <sycl/sycl.hpp>
 #include <vector>
 
@@ -56,6 +57,8 @@ class DeviceQueues {
 
   private:
   sycl::queue defaultQueue;
+  // guards externalQueues, which callers add to and remove from while other threads walk it
+  std::mutex queueMutex;
   std::vector<sycl::queue*> externalQueues;
   sycl::device deviceReference;
   std::function<void(sycl::exception_list)> handlerReference;

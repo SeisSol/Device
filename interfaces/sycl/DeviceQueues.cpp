@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <mutex>
 #include <sycl/sycl.hpp>
 
 using namespace device::internals;
@@ -75,12 +76,15 @@ sycl::queue* DeviceQueues::newQueue(double priority) {
 #endif
 
   auto* queue = new sycl::queue{deviceReference, handlerReference, propertylist};
+
+  const std::lock_guard<std::mutex> lock(queueMutex);
   externalQueues.emplace_back(queue);
   return queue;
 }
 
 void DeviceQueues::deleteQueue(void* queue) {
   auto* queuePtr = static_cast<sycl::queue*>(queue);
+  const std::lock_guard<std::mutex> lock(queueMutex);
 
   // The queue has to leave the list before it is freed: syncAllQueuesWithHost walks that list,
   // so a stale entry turns into a use-after-free at the next device-wide synchronization, far
@@ -101,7 +105,15 @@ void DeviceQueues::syncQueueWithHost(sycl::queue* queuePtr) { waitCheck(*queuePt
 
 void DeviceQueues::syncAllQueuesWithHost() {
   waitCheck(defaultQueue);
-  for (auto* queue : this->externalQueues) {
+
+  // copied under the lock: waiting on a queue takes as long as the work on it, and holding the
+  // lock for that would block every thread that wants to create or destroy one
+  const auto queues = [this]() {
+    const std::lock_guard<std::mutex> lock(queueMutex);
+    return externalQueues;
+  }();
+
+  for (auto* queue : queues) {
     waitCheck(*queue);
   }
 }
@@ -110,6 +122,8 @@ bool DeviceQueues::exists(sycl::queue* queuePtr) {
   if (queuePtr == &defaultQueue) {
     return true;
   }
+
+  const std::lock_guard<std::mutex> lock(queueMutex);
   return std::find(externalQueues.begin(), externalQueues.end(), queuePtr) != externalQueues.end();
 }
 

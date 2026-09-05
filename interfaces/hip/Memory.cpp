@@ -9,12 +9,14 @@
 
 #include <assert.h>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 
 using namespace device;
 
 void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   void* devPtr;
   APIWRAP(hipMalloc(&devPtr, size));
   statistics.allocatedMemBytes += size;
@@ -24,6 +26,7 @@ void* ConcreteAPI::allocGlobMem(size_t size, bool compress) {
 
 void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   void* devPtr;
   APIWRAP(hipMallocManaged(&devPtr, size, hipMemAttachGlobal));
 
@@ -44,6 +47,7 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
 
 void* ConcreteAPI::allocPinnedMem(size_t size, bool compress, Destination hint) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   void* devPtr;
   const auto flag = hint == Destination::Host ? hipHostMallocDefault : hipHostMallocMapped;
   APIWRAP(hipHostMalloc(&devPtr, size, flag));
@@ -68,6 +72,7 @@ size_t ConcreteAPI::forgetAllocation(void* devPtr) {
 
 void ConcreteAPI::freeGlobMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   if (devPtr == nullptr) {
     return;
   }
@@ -78,6 +83,7 @@ void ConcreteAPI::freeGlobMem(void* devPtr) {
 
 void ConcreteAPI::freeUnifiedMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   if (devPtr == nullptr) {
     return;
   }
@@ -89,6 +95,7 @@ void ConcreteAPI::freeUnifiedMem(void* devPtr) {
 
 void ConcreteAPI::freePinnedMem(void* devPtr) {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   if (devPtr == nullptr) {
     return;
   }
@@ -114,6 +121,7 @@ void ConcreteAPI::freeMemAsync(void* devPtr, void* streamPtr) {
 
 std::string ConcreteAPI::getMemLeaksReport() {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   std::ostringstream report{};
   report << "Memory Leaks, bytes: "
          << (statistics.allocatedMemBytes - statistics.deallocatedMemBytes) << '\n';
@@ -124,11 +132,13 @@ size_t ConcreteAPI::getMaxAvailableMem() { return properties[getDeviceId()].tota
 
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   return statistics.allocatedMemBytes;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
   isFlagSet<DeviceSelected>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   return statistics.allocatedUnifiedMemBytes;
 }
 

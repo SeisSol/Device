@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <mutex>
 #include <sstream>
 
 using namespace device;
@@ -27,6 +28,7 @@ void ConcreteAPI::syncDefaultStreamWithHost() {
 
 void* ConcreteAPI::createStream(double priority) {
   isFlagSet<InterfaceInitialized>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   hipStream_t stream;
   const auto truePriority = mapStreamPriority(priorityLeast, priorityGreatest, priority);
   APIWRAP(hipStreamCreateWithPriority(&stream, hipStreamNonBlocking, truePriority));
@@ -36,6 +38,7 @@ void* ConcreteAPI::createStream(double priority) {
 
 void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
+  const std::lock_guard<std::mutex> lock(apiMutex);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
 
   // The stream has to leave the set before it is destroyed, and a stream that is not in it is not
