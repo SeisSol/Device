@@ -312,9 +312,9 @@ TEST_F(Graphs, droppedGraphsReleaseTheirResources) {
     GTEST_SKIP() << "the backend does not support explicit graph nodes";
   }
 
-  // Graphs used to be held in a container that never gave anything back, so a workload that keys
-  // its graphs on something that varies - a time step width, say - grew without bound. Building
-  // and dropping many of them has to stay flat.
+  // A workload that keys its graphs on something that varies - a time step width, say - builds
+  // and drops them all the time, and that has to stay flat rather than accumulate device-side
+  // resources.
   for (int i = 0; i < 256; ++i) {
     auto graph = device->api->graphCreate();
     device->api->graphAddNode(graph, {}, mainStream, [&](void* stream) {
@@ -327,5 +327,43 @@ TEST_F(Graphs, droppedGraphsReleaseTheirResources) {
 
   for (const auto value : download()) {
     ASSERT_EQ(255.0F, value);
+  }
+}
+
+TEST_F(Graphs, siblingNodesMayShareAStream) {
+  if (graphNodesUnavailable()) {
+    GTEST_SKIP() << "the backend does not support explicit graph nodes";
+  }
+
+  fill(-1);
+
+  // Two nodes with the same dependency and no edge between them, recorded onto one stream. They
+  // may end up ordered - a backend that expresses edges through the recorded stream orders them -
+  // but they write disjoint chunks, so the result is the same either way and neither may be lost.
+  auto graph = device->api->graphCreate();
+
+  const auto root = device->api->graphAddNode(graph, {}, mainStream, [&](void* stream) {
+    device->algorithms.fillArray(devArray, 0.0F, ArraySize, stream);
+  });
+
+  std::vector<DeviceGraphNodeHandle> siblings;
+  for (std::size_t i = 0; i < BranchCount; ++i) {
+    siblings.push_back(device->api->graphAddNode(graph, {root}, mainStream, [&, i](void* stream) {
+      device->algorithms.fillArray(
+          devArray + i * ChunkSize, static_cast<float>(i + 1), ChunkSize, stream);
+    }));
+  }
+
+  device->api->graphAddNode(graph, siblings, mainStream, [&](void* stream) {
+    device->algorithms.scaleArray(devArray, 10.0F, ArraySize, stream);
+  });
+
+  device->api->graphInstantiate(graph);
+  device->api->launchGraph(graph, mainStream);
+  device->api->syncStreamWithHost(mainStream);
+
+  const auto host = download();
+  for (std::size_t i = 0; i < BranchCount; ++i) {
+    expectChunk(host, i, 10.0F * static_cast<float>(i + 1));
   }
 }

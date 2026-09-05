@@ -131,3 +131,16 @@ TEST_F(ArrayManip, scale) {
 
   device->api->freeGlobMem(arr);
 }
+
+TEST_F(ArrayManip, anEmptyArrayIsNoWork) {
+  auto* devArray = static_cast<float*>(device->api->allocGlobMem(sizeof(float)));
+
+  device->algorithms.fillArray(devArray, 1.0F, 0, device->api->getDefaultStream());
+  device->algorithms.scaleArray(devArray, 2.0F, 0, device->api->getDefaultStream());
+  device->algorithms.touchMemory(devArray, 0, true, device->api->getDefaultStream());
+  device->api->syncDefaultStreamWithHost();
+
+  SUCCEED();
+
+  device->api->freeGlobMem(devArray);
+}

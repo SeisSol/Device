@@ -166,3 +166,63 @@ TEST_F(BatchTransfer, incrementalAddBuildsAStridedPointerTable) {
 
   device->api->freeUnifiedMem(table);
 }
+
+/**
+ * The copy routines step down from 16-byte accesses, and an element stride that is not a multiple
+ * of 16 bytes puts every second element off that boundary. 47 floats are 188 bytes, so entry 1
+ * starts 4-byte aligned and a 16-byte access to it faults.
+ */
+TEST_F(BatchTransfer, unalignedElementsAreCopied) {
+  constexpr std::size_t OddElementSize = 47;
+
+  auto* oddSrc =
+      static_cast<float*>(device->api->allocGlobMem(BatchSize * OddElementSize * sizeof(float)));
+  auto* oddDst =
+      static_cast<float*>(device->api->allocGlobMem(BatchSize * OddElementSize * sizeof(float)));
+  auto** oddSrcBatch =
+      static_cast<float**>(device->api->allocUnifiedMem(BatchSize * sizeof(float*)));
+  auto** oddDstBatch =
+      static_cast<float**>(device->api->allocUnifiedMem(BatchSize * sizeof(float*)));
+
+  std::vector<float> hostSrc(BatchSize * OddElementSize);
+  for (std::size_t i = 0; i < BatchSize; ++i) {
+    oddSrcBatch[i] = oddSrc + i * OddElementSize;
+    oddDstBatch[i] = oddDst + i * OddElementSize;
+    for (std::size_t j = 0; j < OddElementSize; ++j) {
+      hostSrc[i * OddElementSize + j] = static_cast<float>(i * OddElementSize + j);
+    }
+  }
+
+  const std::vector<float> zeroes(hostSrc.size(), 0.0F);
+  device->api->copyToAsync(oddSrc, hostSrc.data(), hostSrc.size() * sizeof(float), stream);
+  device->api->copyToAsync(oddDst, zeroes.data(), zeroes.size() * sizeof(float), stream);
+  device->api->syncStreamWithHost(stream);
+
+  device->algorithms.streamBatchedData(
+      const_cast<const float**>(oddSrcBatch), oddDstBatch, OddElementSize, BatchSize, stream);
+  device->api->syncStreamWithHost(stream);
+
+  std::vector<float> hostDst(hostSrc.size(), -1);
+  device->api->copyFromAsync(hostDst.data(), oddDst, hostDst.size() * sizeof(float), stream);
+  device->api->syncStreamWithHost(stream);
+
+  for (std::size_t i = 0; i < hostSrc.size(); ++i) {
+    ASSERT_EQ(hostSrc[i], hostDst[i]) << "at " << i;
+  }
+
+  device->api->freeUnifiedMem(oddDstBatch);
+  device->api->freeUnifiedMem(oddSrcBatch);
+  device->api->freeGlobMem(oddDst);
+  device->api->freeGlobMem(oddSrc);
+}
+
+TEST_F(BatchTransfer, anEmptyBatchIsNoWork) {
+  device->algorithms.streamBatchedData(
+      const_cast<const float**>(srcBatch), dstBatch, ElementSize, 0, stream);
+  device->algorithms.accumulateBatchedData(
+      const_cast<const float**>(srcBatch), dstBatch, ElementSize, 0, stream);
+  device->algorithms.touchBatchedMemory(dstBatch, ElementSize, 0, true, stream);
+  device->api->syncStreamWithHost(stream);
+
+  SUCCEED();
+}

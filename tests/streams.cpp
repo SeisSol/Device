@@ -187,3 +187,21 @@ TEST_F(Streams, workOnSeparateStreamsStaysSeparate) {
 
   device->api->freeGlobMem(other);
 }
+
+TEST_F(Streams, streamsCanBeGivenAPriority) {
+  // 0 is the lowest priority the device offers, 1 the highest, and the default is whatever the
+  // runtime picks; all three have to give a stream that works
+  for (const double priority : {0.0, 0.5, 1.0}) {
+    auto* stream = device->api->createStream(priority);
+    ASSERT_NE(nullptr, stream) << "at priority " << priority;
+
+    device->algorithms.fillArray(devArray, 6.0F, ArraySize, stream);
+    device->api->syncStreamWithHost(stream);
+
+    for (const auto value : download(stream)) {
+      ASSERT_EQ(6.0F, value) << "at priority " << priority;
+    }
+
+    device->api->destroyGenericStream(stream);
+  }
+}
