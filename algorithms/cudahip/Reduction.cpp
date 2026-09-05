@@ -220,6 +220,13 @@ void Algorithms::reduceVector(AccT* result,
     }
   }
 
+  // the result is set either way, but there is nothing to reduce into it, and a grid of zero
+  // blocks is not a valid launch configuration
+  if (size == 0) {
+    CHECK_ERR;
+    return;
+  }
+
   switch (type) {
   case ReductionType::Add: {
     kernel_reduce<<<numBlocks, BlockSize, 0, stream>>>(result, buffer, size, device::Sum<AccT>());

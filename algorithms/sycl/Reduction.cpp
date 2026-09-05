@@ -90,6 +90,11 @@ void launchReduction(AccT* result,
     });
   }
 
+  // the result is set either way, but there is nothing to reduce into it
+  if (size == 0) {
+    return;
+  }
+
   ((sycl::queue*)streamPtr)->submit([&](sycl::handler& cgh) {
     const size_t numWorkGroups =
         (size + (workGroupSize * itemsPerWorkItem) - 1) / (workGroupSize * itemsPerWorkItem);
