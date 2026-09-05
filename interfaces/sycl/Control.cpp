@@ -8,6 +8,7 @@
 #include "utils/logger.h"
 
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 
@@ -24,7 +25,7 @@ using namespace device;
 void ConcreteAPI::initDevices() {
 
   if (this->deviceInitialized) {
-    throw new std::invalid_argument("Cannot initialize the devices twice!");
+    throw std::invalid_argument("Cannot initialize the devices twice!");
   }
 
   for (const auto& platform : sycl::platform::get_platforms()) {
