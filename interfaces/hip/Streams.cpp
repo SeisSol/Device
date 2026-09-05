@@ -37,10 +37,18 @@ void* ConcreteAPI::createStream(double priority) {
 void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+
+  // The stream has to leave the set before it is destroyed, and a stream that is not in it is not
+  // this backend's to destroy - the default stream, for one, would take the whole interface with
+  // it.
   auto it = genericStreams.find(stream);
-  if (it != genericStreams.end()) {
-    genericStreams.erase(it);
+  if (it == genericStreams.end()) {
+    logWarning() << "Tried to destroy a stream that this device does not know about. It has "
+                    "either been destroyed already or was not created here; not destroying it.";
+    return;
   }
+
+  genericStreams.erase(it);
   APIWRAP(hipStreamDestroy(stream));
 }
 

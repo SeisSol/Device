@@ -92,19 +92,22 @@ void ConcreteAPI::initialize() {
 
 void ConcreteAPI::finalize() {
   if (status[StatusID::InterfaceInitialized]) {
-
     CHECK_ERR;
 
     APIWRAP(hipStreamDestroy(defaultStream));
+    defaultStream = nullptr;
+
     if (!genericStreams.empty()) {
       logInfo() << "DEVICE::WARNING:" << genericStreams.size()
                 << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
         APIWRAP(hipStreamDestroy(stream));
       }
+      genericStreams.clear();
     }
     status[StatusID::InterfaceInitialized] = false;
   }
+  m_isFinalized = true;
 }
 
 int ConcreteAPI::getNumDevices() { return properties.size(); }
