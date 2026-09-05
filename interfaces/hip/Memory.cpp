@@ -28,7 +28,7 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
   APIWRAP(hipMallocManaged(&devPtr, size, hipMemAttachGlobal));
 
   // make coarse-grained memory access behavior the default (match with allocGlobMem)
-  APIWRAP(hipMemAdvise(devPtr, size, hipMemAdviseSetCoarseGrain, 1));
+  APIWRAP(hipMemAdvise(devPtr, size, hipMemAdviseSetCoarseGrain, getDeviceId()));
 
   if (hint == Destination::Host) {
     APIWRAP(hipMemAdvise(devPtr, size, hipMemAdviseSetPreferredLocation, hipCpuDeviceId));

@@ -90,28 +90,35 @@ void* ConcreteAPI::allocUnifiedMem(size_t size, bool compress, Destination hint)
   void* devPtr = nullptr;
   APIWRAP(cudaMallocManaged(&devPtr, size, cudaMemAttachGlobal));
 
-  cudaMemLocation location{};
-  if (hint == Destination::Host) {
-    location.id = cudaCpuDeviceId;
+  // Naming the device as the preferred location needs concurrent managed access. Where that is
+  // missing there is no location to name instead, so the allocation keeps the driver default -
+  // passing a zeroed location would advise for device 0 up to CUDA 12 and be rejected from CUDA
+  // 13 on.
+  const bool hasPreferredLocation = (hint == Destination::Host) || allowedConcurrentManagedAccess;
+  if (hasPreferredLocation) {
+    cudaMemLocation location{};
+    if (hint == Destination::Host) {
+      location.id = cudaCpuDeviceId;
 #if CUDART_VERSION >= 13000
-    location.type = cudaMemLocationTypeHost;
+      location.type = cudaMemLocationTypeHost;
 #endif
-  } else if (allowedConcurrentManagedAccess) {
-    location.id = getDeviceId();
+    } else {
+      location.id = getDeviceId();
 #if CUDART_VERSION >= 13000
-    location.type = cudaMemLocationTypeDevice;
+      location.type = cudaMemLocationTypeDevice;
 #endif
-  }
+    }
 
-  APIWRAP(cudaMemAdvise(devPtr,
-                        size,
-                        cudaMemAdviseSetPreferredLocation,
+    APIWRAP(cudaMemAdvise(devPtr,
+                          size,
+                          cudaMemAdviseSetPreferredLocation,
 #if CUDART_VERSION >= 13000
-                        location
+                          location
 #else
-                        location.id
+                          location.id
 #endif
-                        ));
+                          ));
+  }
 
   statistics.allocatedMemBytes += size;
   statistics.allocatedUnifiedMemBytes += size;
