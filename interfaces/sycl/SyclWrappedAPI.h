@@ -162,7 +162,7 @@ class ConcreteAPI : public AbstractAPI {
 
   DeviceContext* currentContext() { return this->availableDevices[getDeviceId()]; }
   sycl::queue& currentDefaultQueue() { return this->currentQueueBuffer().getDefaultQueue(); }
-  DeviceCircularQueueBuffer& currentQueueBuffer() { return this->currentContext()->queueBuffer; }
+  DeviceQueues& currentQueueBuffer() { return this->currentContext()->queueBuffer; }
   Statistics& currentStatistics() { return this->currentContext()->statistics; }
   std::unordered_map<void*, size_t>& currentMemoryToSizeMap() {
     return this->currentContext()->memoryToSizeMap;

@@ -8,9 +8,8 @@
 #include "utils/logger.h"
 
 namespace device {
-DeviceContext::DeviceContext(const sycl::device& targetDevice, size_t concurrencyLevel)
-    : queueBuffer{DeviceCircularQueueBuffer{
-          targetDevice, [&](sycl::exception_list l) { onExceptionOccurred(l); }, concurrencyLevel}},
+DeviceContext::DeviceContext(const sycl::device& targetDevice)
+    : queueBuffer{targetDevice, [&](sycl::exception_list l) { onExceptionOccurred(l); }},
       statistics{Statistics{}} {}
 
 void DeviceContext::onExceptionOccurred(sycl::exception_list& exceptions) {

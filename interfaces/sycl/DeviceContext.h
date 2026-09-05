@@ -5,7 +5,7 @@
 #ifndef SEISSOLDEVICE_INTERFACES_SYCL_DEVICECONTEXT_H_
 #define SEISSOLDEVICE_INTERFACES_SYCL_DEVICECONTEXT_H_
 
-#include "DeviceCircularQueueBuffer.h"
+#include "DeviceQueues.h"
 #include "Statistics.h"
 
 #include <unordered_map>
@@ -17,9 +17,9 @@ namespace device {
  */
 class DeviceContext {
   public:
-  DeviceContext(const sycl::device& targetDevice, size_t concurrencyLevel);
+  explicit DeviceContext(const sycl::device& targetDevice);
   std::unordered_map<void*, size_t> memoryToSizeMap;
-  DeviceCircularQueueBuffer queueBuffer;
+  DeviceQueues queueBuffer;
   Statistics statistics;
 
   private:
