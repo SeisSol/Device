@@ -7,6 +7,7 @@
 #include "SyclWrappedAPI.h"
 #include "utils/logger.h"
 
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -48,12 +49,14 @@ void ConcreteAPI::initDevices() {
     }
   }
 
-  sort(this->availableDevices.begin(),
-       this->availableDevices.end(),
-       [&](DeviceContext* c1, DeviceContext* c2) {
-         return compare(c1->queueBuffer.getDefaultQueue().get_device(),
-                        c2->queueBuffer.getDefaultQueue().get_device());
-       });
+  // stable, so that devices the comparator sees as equal keep the order the platform reported
+  // them in and the device ids stay the same from run to run
+  std::stable_sort(this->availableDevices.begin(),
+                   this->availableDevices.end(),
+                   [](DeviceContext* c1, DeviceContext* c2) {
+                     return compare(c1->queueBuffer.getDefaultQueue().get_device(),
+                                    c2->queueBuffer.getDefaultQueue().get_device());
+                   });
 
   this->setDevice(0);
   this->deviceInitialized = true;
