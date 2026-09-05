@@ -91,8 +91,8 @@ int ConcreteAPI::getDeviceId() {
 }
 
 unsigned int ConcreteAPI::getGlobMemAlignment() {
-  auto device = this->currentDefaultQueue().get_device();
-  return 128; // ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
+  // ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
+  return 128;
 }
 
 void ConcreteAPI::syncDevice() { this->currentQueueBuffer().syncAllQueuesWithHost(); }

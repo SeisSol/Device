@@ -53,8 +53,8 @@ elseif((${DEVICE_BACKEND} STREQUAL "oneapi") OR (${DEVICE_BACKEND} STREQUAL "hip
     include(sycl.cmake)
 endif()
 
-# common options
-target_compile_features(device PRIVATE cxx_std_17)
+# common options; the public headers use C++17 as well, so consumers get it too
+target_compile_features(device PUBLIC cxx_std_17)
 
 if (USE_GRAPH_CAPTURING)
   target_compile_definitions(device PRIVATE DEVICE_USE_GRAPH_CAPTURING)

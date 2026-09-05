@@ -14,18 +14,13 @@
 using namespace device;
 using namespace ::testing;
 
-static bool setUp = false;
-
 class BaseTestSuite : public ::testing::Test {
   public:
-  DeviceInstance* device;
+  DeviceInstance* device{nullptr};
 
   BaseTestSuite() { randomEngine.seed(randomDevice()); }
 
-  void SetUp() {
-    device = &DeviceInstance::getInstance();
-    setUp = true;
-  }
+  void SetUp() override { device = &DeviceInstance::getInstance(); }
 
   protected:
   std::random_device randomDevice;

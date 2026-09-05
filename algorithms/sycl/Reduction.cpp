@@ -10,8 +10,6 @@
 #include <limits>
 #include <sycl/sycl.hpp>
 
-#if 1
-
 namespace {
 using namespace device;
 
@@ -154,58 +152,6 @@ void Algorithms::reduceVector(AccT* result,
   }
   }
 }
-
-#else
-
-namespace {
-template <typename AccT, typename VecT, typename S>
-void launchReduction(AccT* result, const VecT* buffer, size_t size, S reducer, void* streamPtr) {
-  ((sycl::queue*)streamPtr)->submit([&](sycl::handler& cgh) {
-    cgh.parallel_for(sycl::range<1>{size}, reducer, [=](sycl::id<1> idx, auto& redval) {
-      redval.combine(static_cast<AccT>(buffer[idx]));
-    });
-  });
-}
-} // namespace
-
-namespace device {
-template <typename AccT, typename VecT>
-void Algorithms::reduceVector(AccT* result,
-                              const VecT* buffer,
-                              bool overrideResult,
-                              size_t size,
-                              ReductionType type,
-                              void* streamPtr) {
-  auto properties = [&]() -> sycl::property_list {
-    if (overrideResult) {
-      return sycl::property_list{sycl::property::reduction::initialize_to_identity()};
-    } else {
-      return sycl::property_list{};
-    }
-  }();
-  switch (type) {
-  case ReductionType::Add: {
-    return launchReduction(
-        result, buffer, size, sycl::reduction(result, sycl::plus<AccT>(), properties), streamPtr);
-  }
-  case ReductionType::Max: {
-    return launchReduction(result,
-                           buffer,
-                           size,
-                           sycl::reduction(result, sycl::maximum<AccT>(), properties),
-                           streamPtr);
-  }
-  case ReductionType::Min: {
-    return launchReduction(result,
-                           buffer,
-                           size,
-                           sycl::reduction(result, sycl::minimum<AccT>(), properties),
-                           streamPtr);
-  }
-  }
-}
-
-#endif
 
 template void Algorithms::reduceVector(int* result,
                                        const int* buffer,

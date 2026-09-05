@@ -30,16 +30,6 @@ set_source_files_properties(device.cpp
 string(REPLACE "sm_" "" CUDA_DEVICE_ARCH "${DEVICE_ARCH}")
 set_target_properties(device PROPERTIES CUDA_ARCHITECTURES "${CUDA_DEVICE_ARCH}")
 
-target_compile_features(device PRIVATE cxx_std_17)
-
-target_compile_definitions(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
-        -DDEVICE_${BACKEND_UPPER_CASE}_LANG;
-        >)
-
-if (USE_GRAPH_CAPTURING)
-  target_compile_definitions(device PRIVATE DEVICE_USE_GRAPH_CAPTURING)
-endif()
-
 target_compile_options(device PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
         --expt-relaxed-constexpr;
         >)
