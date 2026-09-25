@@ -157,3 +157,20 @@ jobs:
           cd build
 
           ./tests
+
+      - id: example-basic
+        name: example-basic
+        if: ${{matrix.setup.backend == 'none'}}
+        run: |
+          cd examples/basic
+          mkdir build && cd build
+
+          export CC=${{matrix.setup.cc}}
+          export CXX=${{matrix.setup.cxx}}
+
+          cmake .. -GNinja \
+            -DDEVICE_BACKEND=${{matrix.setup.backend}} \
+            -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+
+          ninja
+          ./basic

@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "DataTypes.h"
+#include "common.h"
 #include "device.h"
 
+#include <cstdlib>
 #include <iostream>
-#include <stdlib.h>
 
 using namespace device;
 
@@ -14,6 +14,10 @@ int main(int argc, char* argv[]) {
   const size_t size = 1024;
   real* inputArray = new real[size];
   real* outputArray = new real[size];
+  for (size_t i = 0; i < size; ++i) {
+    inputArray[i] = static_cast<real>(i);
+    outputArray[i] = 0;
+  }
 
   DeviceInstance& device = DeviceInstance::instance();
 
@@ -31,8 +35,6 @@ int main(int argc, char* argv[]) {
 
   std::cout << "alignment: " << device.api().getGlobMemAlignment() << std::endl;
   std::cout << "max available mem: " << device.api().getMaxAvailableMem() << std::endl;
-  std::cout << "max shared mem: " << device.api().getMaxSharedMemSize() << std::endl;
-  std::cout << "max thread block size: " << device.api().getMaxThreadBlockSize() << std::endl;
 
   // allocate mem. on a device
   real* dInputArray = static_cast<real*>(device.api().allocGlobMem(sizeof(real) * size));
@@ -41,12 +43,20 @@ int main(int argc, char* argv[]) {
   // copy data into a device
   device.api().copyTo(dInputArray, inputArray, sizeof(real) * size);
 
-  // call a kernel
-  device.api().checkOffloading();
+  // copy data on the device
+  device.api().copyBetween(dOutputArray, dInputArray, sizeof(real) * size);
   device.api().syncDevice();
 
   // copy data from a device
   device.api().copyFrom(outputArray, dOutputArray, sizeof(real) * size);
+
+  size_t mismatches = 0;
+  for (size_t i = 0; i < size; ++i) {
+    if (outputArray[i] != inputArray[i]) {
+      ++mismatches;
+    }
+  }
+  std::cout << "mismatches after the round trip: " << mismatches << std::endl;
 
   // deallocate mem. on a device
   device.api().freeGlobMem(dInputArray);
@@ -58,4 +68,6 @@ int main(int argc, char* argv[]) {
 
   delete[] outputArray;
   delete[] inputArray;
+
+  return mismatches == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
