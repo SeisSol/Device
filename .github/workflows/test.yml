@@ -25,6 +25,15 @@ jobs:
           - Release
           - Debug
         setup:
+          - arch: none
+            backend: none
+            cc: gcc-13
+            cxx: g++-13
+            fc: gfortran-13
+            container: seissol/gha-cpu:davschneller-gpu-image
+            runner: ubuntu-24.04
+            pythonbreak: true
+            test: true
           - arch: sm_86
             backend: cuda
             cc: gcc-13
