@@ -4,6 +4,7 @@
 
 #include "AbstractAPI.h"
 #include "Internals.h"
+#include "algorithms/Instantiations.h"
 #include "utils/logger.h"
 
 #include <cassert>
@@ -46,13 +47,6 @@ void Algorithms::compareDataWithHost(const T* hostPtr,
   delete[] temp;
 };
 
-template void Algorithms::compareDataWithHost(const float* hostPtr,
-                                              const float* devPtr,
-                                              const size_t numElements,
-                                              const std::string& dataName);
-template void Algorithms::compareDataWithHost(const double* hostPtr,
-                                              const double* devPtr,
-                                              const size_t numElements,
-                                              const std::string& dataName);
+DEVICE_ALGORITHMS_FLOATING_TYPES(DEVICE_ALGORITHMS_INSTANTIATE_COMPARE_DATA_WITH_HOST)
 
 } // namespace device

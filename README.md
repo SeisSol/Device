@@ -98,7 +98,9 @@ the new folder but implement it regarding the new API
 * Compile and run the basic folder to get feedback if the basic concepts are working
 * Implement examples/jacobi/src/gpu/kernels for your new API
 * compile and run the jacobi benchmark
-* Now switch to the algorithms package and repeat the procedure
+* Now switch to the algorithms package and repeat the procedure;
+instantiate the member templates with the type lists
+from `algorithms/Instantiations.h`, as the other backends do
 * You can now compile and run the examples in the tests/ folder
 
 ## Add another SYCL compiler
