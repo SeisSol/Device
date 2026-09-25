@@ -16,7 +16,7 @@ set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
 set(DEVICE_ARCH ${SM})
 
 set(DEVICE_BACKEND "cuda" CACHE STRING "type of an interface")
-set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "cuda" "hip" "oneapi" "hipsycl")
+set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "none" "cuda" "hip" "oneapi" "hipsycl" "acpp")
 
 add_subdirectory(.. root)
 

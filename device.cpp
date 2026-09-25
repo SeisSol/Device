@@ -10,6 +10,8 @@
 #include "interfaces/hip/HipWrappedAPI.h"
 #elif DEVICE_LANG_SYCL
 #include "interfaces/sycl/SyclWrappedAPI.h"
+#elif DEVICE_LANG_HOST
+#include "interfaces/host/HostWrappedAPI.h"
 #else
 #error "Unknown interface for the device wrapper"
 #endif

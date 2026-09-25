@@ -22,11 +22,12 @@ resolve with `git submodule init` and `git submodule update`
 
 ## Current implementations
 
-Currently, there are three implementations available
+Currently, there are four implementations available
 
 * Nvidia C CUDA
 * AMD HIP
 * SYCL implemented by Intel oneAPI and [AdaptiveCpp](https://github.com/AdaptiveCpp/AdaptiveCpp)
+* the host, for builds without any GPU
 
 ## Setup and Build
 
@@ -39,6 +40,16 @@ for windows, see the belonging batch reference.
 * The device options are explained in the following
 
 If you want to run the examples, follow the instructions in the belonging package.
+
+### Device options for the host
+
+* use `-DDEVICE_BACKEND:STRING=none` to build without any GPU;
+the API is then implemented on the host
+* there is exactly one device, the host itself: device memory is host memory,
+and all work runs synchronously on the calling thread
+* `DEVICE_ARCH` is not needed
+* Complete example call:
+`cmake .. -DDEVICE_BACKEND:STRING=none`
 
 ### Device options for CUDA
 
