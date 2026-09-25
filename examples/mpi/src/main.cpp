@@ -10,8 +10,8 @@ using namespace device;
 
 void forkOther(int otherRank) {
 
-  DeviceInstance& device = DeviceInstance::getInstance();
-  auto* api = device.api;
+  DeviceInstance& device = DeviceInstance::instance();
+  auto* api = &device.api();
   api->setDevice(otherRank);
 
   auto* devPtr = (int*)api->allocGlobMem(sizeof(int));
@@ -24,8 +24,8 @@ void forkOther(int otherRank) {
 }
 
 void forkRoot(int rootRank) {
-  DeviceInstance& device = DeviceInstance::getInstance();
-  auto* api = device.api;
+  DeviceInstance& device = DeviceInstance::instance();
+  auto* api = &device.api();
   api->setDevice(rootRank);
 
   auto* devPtr = (int*)api->allocGlobMem(sizeof(int));
