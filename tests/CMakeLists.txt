@@ -31,5 +31,12 @@ if (DEVICE_BACKEND STREQUAL "hipsycl")
   target_link_libraries(tests PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
+if (DEVICE_BACKEND STREQUAL "none")
+  # the host backend guarantees more than the common API; these tests check that part
+  target_sources(tests PRIVATE host.cpp)
+  find_package(Threads REQUIRED)
+  target_link_libraries(tests PRIVATE Threads::Threads)
+endif()
+
 enable_testing()
 add_test(NAME all_tests COMMAND tests)
