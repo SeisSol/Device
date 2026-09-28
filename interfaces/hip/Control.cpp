@@ -27,7 +27,11 @@ namespace {
 #ifdef DEVICE_CONTEXT_GLOBAL
 int currentDeviceId = 0;
 #else
-thread_local int currentDeviceId = 0;
+// The runtime keeps the selected device per thread, so a thread that has not selected one works
+// on device 0 - which is the wrong card whenever the process picked another one. The device the
+// process selected is kept here and picked up on the first request from a thread that has none.
+std::atomic<int> selectedDeviceId{0};
+thread_local int currentDeviceId = -1;
 #endif
 } // namespace
 
