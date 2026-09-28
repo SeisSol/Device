@@ -22,11 +22,12 @@ resolve with `git submodule init` and `git submodule update`
 
 ## Current implementations
 
-Currently, there are three implementations available
+Currently, there are four implementations available
 
 * Nvidia C CUDA
 * AMD HIP
 * SYCL implemented by Intel oneAPI and [AdaptiveCpp](https://github.com/AdaptiveCpp/AdaptiveCpp)
+* the host, for builds without any GPU
 
 ## Setup and Build
 
@@ -39,6 +40,16 @@ for windows, see the belonging batch reference.
 * The device options are explained in the following
 
 If you want to run the examples, follow the instructions in the belonging package.
+
+### Device options for the host
+
+* use `-DDEVICE_BACKEND:STRING=none` to build without any GPU;
+the API is then implemented on the host
+* there is exactly one device, the host itself: device memory is host memory,
+and all work runs synchronously on the calling thread
+* `DEVICE_ARCH` is not needed
+* Complete example call:
+`cmake .. -DDEVICE_BACKEND:STRING=none`
 
 ### Device options for CUDA
 
@@ -98,7 +109,9 @@ the new folder but implement it regarding the new API
 * Compile and run the basic folder to get feedback if the basic concepts are working
 * Implement examples/jacobi/src/gpu/kernels for your new API
 * compile and run the jacobi benchmark
-* Now switch to the algorithms package and repeat the procedure
+* Now switch to the algorithms package and repeat the procedure;
+instantiate the member templates with the type lists
+from `algorithms/Instantiations.h`, as the other backends do
 * You can now compile and run the examples in the tests/ folder
 
 ## Add another SYCL compiler

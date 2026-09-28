@@ -25,6 +25,15 @@ jobs:
           - Release
           - Debug
         setup:
+          - arch: none
+            backend: none
+            cc: gcc-13
+            cxx: g++-13
+            fc: gfortran-13
+            container: seissol/gha-cpu:davschneller-gpu-image
+            runner: ubuntu-24.04
+            pythonbreak: true
+            test: true
           - arch: sm_86
             backend: cuda
             cc: gcc-13
@@ -148,3 +157,20 @@ jobs:
           cd build
 
           ./tests
+
+      - id: example-basic
+        name: example-basic
+        if: ${{matrix.setup.backend == 'none'}}
+        run: |
+          cd examples/basic
+          mkdir build && cd build
+
+          export CC=${{matrix.setup.cc}}
+          export CXX=${{matrix.setup.cxx}}
+
+          cmake .. -GNinja \
+            -DDEVICE_BACKEND=${{matrix.setup.backend}} \
+            -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+
+          ninja
+          ./basic

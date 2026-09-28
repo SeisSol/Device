@@ -106,8 +106,8 @@ class VectorAssembler {
                     recvCounts[0] * sizeof(real));
       }
     } else {
-      device::DeviceInstance& device = device::DeviceInstance::getInstance();
-      device.api->copyBetween(dest, src, recvCounts[0] * sizeof(real));
+      device::DeviceInstance& device = device::DeviceInstance::instance();
+      device.api().copyBetween(dest, src, recvCounts[0] * sizeof(real));
     }
 #endif
   }
