@@ -39,12 +39,14 @@ void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
 bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   auto* queuePtr = static_cast<sycl::queue*>(streamPtr);
 
-  // if we have the oneAPI extension available, only check for an empty queue here
+  // if we have an extension to query for an empty queue, only check that here
   // otherwise, synchronize
+  // (AdaptiveCpp's get_wait_list does not help here: for an in-order queue that it does not
+  // emulate, it always returns a newly submitted barrier, i.e. never an empty list)
 #ifdef SYCL_EXT_ONEAPI_QUEUE_EMPTY
   return queuePtr->ext_oneapi_empty();
-#elif defined(HIPSYCL_EXT_QUEUE_WAIT_LIST) || defined(ACPP_EXT_QUEUE_WAIT_LIST)
-  return queuePtr->get_wait_list().empty();
+#elif defined(SYCL_KHR_QUEUE_EMPTY_QUERY)
+  return queuePtr->khr_empty();
 #else
   this->currentQueueBuffer().syncQueueWithHost(queuePtr);
   return true;
