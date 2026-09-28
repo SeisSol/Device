@@ -7,6 +7,7 @@
 #include "Internals.h"
 #include "utils/logger.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
@@ -196,6 +197,12 @@ void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
     const auto& nodes = graphInstance->nodes.at(dependency.getNodeId());
     nativeDependencies.insert(nativeDependencies.end(), nodes.begin(), nodes.end());
   }
+
+  // a node that recorded nothing stands for its own dependencies, so several handles can name
+  // the same native node - and HIP rejects a dependency list that contains a node twice
+  std::sort(nativeDependencies.begin(), nativeDependencies.end());
+  nativeDependencies.erase(std::unique(nativeDependencies.begin(), nativeDependencies.end()),
+                           nativeDependencies.end());
 
   APIWRAP(cudaStreamBeginCaptureToGraph(static_cast<cudaStream_t>(streamPtr),
                                         graphInstance->graph,

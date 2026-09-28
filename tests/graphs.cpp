@@ -254,6 +254,50 @@ TEST_F(Graphs, anEmptyNodeJoinsItsDependencies) {
   }
 }
 
+TEST_F(Graphs, emptySiblingsJoinTheirSharedDependency) {
+  if (graphNodesUnavailable()) {
+    GTEST_SKIP() << "the backend does not support explicit graph nodes";
+  }
+
+  fill(-1);
+
+  auto graph = device->api->graphCreate();
+
+  const auto root = device->api->graphAddNode(graph, {}, mainStream, [&](void* stream) {
+    device->algorithms.fillArray(devArray, 1.0F, ArraySize, stream);
+  });
+
+  // every other branch records nothing and thus stands for the root; the join then depends on
+  // the root several times over, which must still name each native node only once. The other
+  // branches fill rather than scale, so that the final scale has to come after them
+  std::vector<DeviceGraphNodeHandle> branches;
+  for (std::size_t i = 0; i < BranchCount; ++i) {
+    branches.push_back(
+        device->api->graphAddNode(graph, {root}, branchStreams[i], [&, i](void* stream) {
+          if (i % 2 == 1) {
+            device->algorithms.fillArray(
+                devArray + i * ChunkSize, static_cast<float>(i + 1), ChunkSize, stream);
+          }
+        }));
+  }
+
+  const auto join = device->api->graphAddNode(graph, branches, mainStream, [](void*) {});
+
+  const auto last = device->api->graphAddNode(graph, {join}, mainStream, [&](void* stream) {
+    device->algorithms.scaleArray(devArray, 100.0F, ArraySize, stream);
+  });
+  ASSERT_TRUE(last.isInitialized());
+
+  device->api->graphInstantiate(graph);
+  device->api->launchGraph(graph, mainStream);
+  device->api->syncStreamWithHost(mainStream);
+
+  const auto host = download();
+  for (std::size_t i = 0; i < BranchCount; ++i) {
+    expectChunk(host, i, i % 2 == 1 ? 100.0F * static_cast<float>(i + 1) : 100.0F);
+  }
+}
+
 TEST_F(Graphs, aNodeGraphCanBeLaunchedRepeatedly) {
   if (graphNodesUnavailable()) {
     GTEST_SKIP() << "the backend does not support explicit graph nodes";
