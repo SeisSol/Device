@@ -55,7 +55,11 @@ void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()
   auto* queuePtr = static_cast<sycl::queue*>(streamPtr);
 
 #ifdef __ACPP__
-  queuePtr->DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...) { function(); });
+  // AdaptiveCpp has no host_task, and it evaluates a custom operation when it is submitted, not
+  // once the operations before it on the queue have completed (cf. its
+  // doc/enqueue-custom-operation.md). Hence, wait for them here and run the function right away.
+  this->currentQueueBuffer().syncQueueWithHost(queuePtr);
+  function();
 #else
   queuePtr->submit([&](sycl::handler& h) { h.host_task([=]() { function(); }); });
 #endif
