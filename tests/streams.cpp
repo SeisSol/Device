@@ -65,3 +65,13 @@ TEST_F(Streams, streamWorkIsDoneAfterSync) {
   device->api->freeGlobMem(buffer);
   device->api->freePinnedMem(source);
 }
+
+TEST_F(Streams, destroyedStreamIsNotSynchronized) {
+  void* stream = device->api->createStream();
+  device->api->syncStreamWithHost(stream);
+  device->api->destroyGenericStream(stream);
+
+  // synchronizes all streams the device knows of; a destroyed stream must not be among them
+  device->api->syncDevice();
+  SUCCEED();
+}

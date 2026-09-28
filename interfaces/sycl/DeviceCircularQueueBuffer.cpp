@@ -8,6 +8,7 @@
 #include "SyclWrappedAPI.h"
 #include "utils/logger.h"
 
+#include <algorithm>
 #include <sycl/sycl.hpp>
 
 using namespace device::internals;
@@ -101,6 +102,9 @@ sycl::queue* DeviceCircularQueueBuffer::newQueue(double priority) {
 
 void DeviceCircularQueueBuffer::deleteQueue(void* queue) {
   auto* queuePtr = static_cast<sycl::queue*>(queue);
+  // syncAllQueuesWithHost and exists walk the external queues; do not leave a dangling pointer
+  externalQueues.erase(std::remove(externalQueues.begin(), externalQueues.end(), queuePtr),
+                       externalQueues.end());
   delete queuePtr;
 }
 
