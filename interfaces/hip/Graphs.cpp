@@ -104,10 +104,10 @@ struct DeviceGraph {
     // deliberately unchecked: the graph may outlive the device context during teardown, and a
     // failure here has nothing left to report to
     if (instance != nullptr) {
-      hipGraphExecDestroy(instance);
+      static_cast<void>(hipGraphExecDestroy(instance));
     }
     if (graph != nullptr) {
-      hipGraphDestroy(graph);
+      static_cast<void>(hipGraphDestroy(graph));
     }
   }
 };
