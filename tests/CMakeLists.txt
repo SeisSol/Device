@@ -16,7 +16,7 @@ set_property(CACHE SM PROPERTY STRINGS ${SM_OPTIONS})
 set(DEVICE_ARCH ${SM})
 
 set(DEVICE_BACKEND "cuda" CACHE STRING "type of an interface")
-set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "cuda" "hip" "oneapi" "hipsycl")
+set_property(CACHE DEVICE_BACKEND PROPERTY STRINGS "none" "cuda" "hip" "oneapi" "hipsycl" "acpp")
 
 add_subdirectory(.. root)
 
@@ -37,6 +37,13 @@ target_include_directories(tests PRIVATE ${GTEST_INCLUDE_DIR})
 if (DEVICE_BACKEND STREQUAL "hipsycl")
   find_package(OpenMP REQUIRED)
   target_link_libraries(tests PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
+if (DEVICE_BACKEND STREQUAL "none")
+  # the host backend guarantees more than the common API; these tests check that part
+  target_sources(tests PRIVATE host.cpp)
+  find_package(Threads REQUIRED)
+  target_link_libraries(tests PRIVATE Threads::Threads)
 endif()
 
 enable_testing()

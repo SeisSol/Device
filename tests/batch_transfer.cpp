@@ -26,11 +26,11 @@ class BatchTransfer : public BaseTestSuite {
   public:
   void SetUp() override {
     BaseTestSuite::SetUp();
-    stream = device->api->createStream();
-    src = static_cast<float*>(device->api->allocGlobMem(BatchSize * ElementSize * sizeof(float)));
-    dst = static_cast<float*>(device->api->allocGlobMem(BatchSize * ElementSize * sizeof(float)));
-    srcBatch = static_cast<float**>(device->api->allocUnifiedMem(BatchSize * sizeof(float*)));
-    dstBatch = static_cast<float**>(device->api->allocUnifiedMem(BatchSize * sizeof(float*)));
+    stream = device->api().createStream();
+    src = static_cast<float*>(device->api().allocGlobMem(BatchSize * ElementSize * sizeof(float)));
+    dst = static_cast<float*>(device->api().allocGlobMem(BatchSize * ElementSize * sizeof(float)));
+    srcBatch = static_cast<float**>(device->api().allocUnifiedMem(BatchSize * sizeof(float*)));
+    dstBatch = static_cast<float**>(device->api().allocUnifiedMem(BatchSize * sizeof(float*)));
 
     for (std::size_t i = 0; i < BatchSize; ++i) {
       srcBatch[i] = src + i * ElementSize;
@@ -39,23 +39,23 @@ class BatchTransfer : public BaseTestSuite {
   }
 
   void TearDown() override {
-    device->api->freeUnifiedMem(dstBatch);
-    device->api->freeUnifiedMem(srcBatch);
-    device->api->freeGlobMem(dst);
-    device->api->freeGlobMem(src);
-    device->api->destroyGenericStream(stream);
+    device->api().freeUnifiedMem(dstBatch);
+    device->api().freeUnifiedMem(srcBatch);
+    device->api().freeGlobMem(dst);
+    device->api().freeGlobMem(src);
+    device->api().destroyGenericStream(stream);
   }
 
   protected:
   void upload(float* target, const std::vector<float>& host) {
-    device->api->copyToAsync(target, host.data(), host.size() * sizeof(float), stream);
-    device->api->syncStreamWithHost(stream);
+    device->api().copyToAsync(target, host.data(), host.size() * sizeof(float), stream);
+    device->api().syncStreamWithHost(stream);
   }
 
   std::vector<float> download(const float* source) {
     std::vector<float> host(BatchSize * ElementSize, -1);
-    device->api->copyFromAsync(host.data(), source, host.size() * sizeof(float), stream);
-    device->api->syncStreamWithHost(stream);
+    device->api().copyFromAsync(host.data(), source, host.size() * sizeof(float), stream);
+    device->api().syncStreamWithHost(stream);
     return host;
   }
 
@@ -81,9 +81,9 @@ TEST_F(BatchTransfer, streamBatchedDataCopiesEveryEntry) {
   upload(src, hostSrc);
   upload(dst, std::vector<float>(BatchSize * ElementSize, 0.0F));
 
-  device->algorithms.streamBatchedData(
+  device->algorithms().streamBatchedData(
       const_cast<const float**>(srcBatch), dstBatch, ElementSize, BatchSize, stream);
-  device->api->syncStreamWithHost(stream);
+  device->api().syncStreamWithHost(stream);
 
   const auto hostDst = download(dst);
   for (std::size_t i = 0; i < BatchSize; ++i) {
@@ -102,9 +102,9 @@ TEST_F(BatchTransfer, streamBatchedDataSkipsNullEntries) {
     srcBatch[i] = nullptr;
   }
 
-  device->algorithms.streamBatchedData(
+  device->algorithms().streamBatchedData(
       const_cast<const float**>(srcBatch), dstBatch, ElementSize, BatchSize, stream);
-  device->api->syncStreamWithHost(stream);
+  device->api().syncStreamWithHost(stream);
 
   const auto hostDst = download(dst);
   for (std::size_t i = 0; i < BatchSize; ++i) {
@@ -125,9 +125,9 @@ TEST_F(BatchTransfer, accumulateBatchedDataAdds) {
   upload(src, hostSrc);
   upload(dst, std::vector<float>(BatchSize * ElementSize, 5.0F));
 
-  device->algorithms.accumulateBatchedData(
+  device->algorithms().accumulateBatchedData(
       const_cast<const float**>(srcBatch), dstBatch, ElementSize, BatchSize, stream);
-  device->api->syncStreamWithHost(stream);
+  device->api().syncStreamWithHost(stream);
 
   const auto hostDst = download(dst);
   for (std::size_t i = 0; i < BatchSize; ++i) {
@@ -143,10 +143,10 @@ TEST_F(BatchTransfer, accumulateBatchedDataIsRepeatable) {
   upload(dst, std::vector<float>(BatchSize * ElementSize, 0.0F));
 
   for (int round = 0; round < 3; ++round) {
-    device->algorithms.accumulateBatchedData(
+    device->algorithms().accumulateBatchedData(
         const_cast<const float**>(srcBatch), dstBatch, ElementSize, BatchSize, stream);
   }
-  device->api->syncStreamWithHost(stream);
+  device->api().syncStreamWithHost(stream);
 
   for (const auto value : download(dst)) {
     ASSERT_EQ(6.0F, value);
@@ -154,17 +154,17 @@ TEST_F(BatchTransfer, accumulateBatchedDataIsRepeatable) {
 }
 
 TEST_F(BatchTransfer, incrementalAddBuildsAStridedPointerTable) {
-  auto** table = static_cast<float**>(device->api->allocUnifiedMem(BatchSize * sizeof(float*)));
+  auto** table = static_cast<float**>(device->api().allocUnifiedMem(BatchSize * sizeof(float*)));
 
-  device->algorithms.incrementalAdd(table, src, ElementSize, BatchSize, stream);
-  device->api->syncStreamWithHost(stream);
+  device->algorithms().incrementalAdd(table, src, ElementSize, BatchSize, stream);
+  device->api().syncStreamWithHost(stream);
 
   // the stride is given in elements, not bytes
   for (std::size_t i = 0; i < BatchSize; ++i) {
     ASSERT_EQ(src + i * ElementSize, table[i]) << "at entry " << i;
   }
 
-  device->api->freeUnifiedMem(table);
+  device->api().freeUnifiedMem(table);
 }
 
 /**
@@ -176,13 +176,13 @@ TEST_F(BatchTransfer, unalignedElementsAreCopied) {
   constexpr std::size_t OddElementSize = 47;
 
   auto* oddSrc =
-      static_cast<float*>(device->api->allocGlobMem(BatchSize * OddElementSize * sizeof(float)));
+      static_cast<float*>(device->api().allocGlobMem(BatchSize * OddElementSize * sizeof(float)));
   auto* oddDst =
-      static_cast<float*>(device->api->allocGlobMem(BatchSize * OddElementSize * sizeof(float)));
+      static_cast<float*>(device->api().allocGlobMem(BatchSize * OddElementSize * sizeof(float)));
   auto** oddSrcBatch =
-      static_cast<float**>(device->api->allocUnifiedMem(BatchSize * sizeof(float*)));
+      static_cast<float**>(device->api().allocUnifiedMem(BatchSize * sizeof(float*)));
   auto** oddDstBatch =
-      static_cast<float**>(device->api->allocUnifiedMem(BatchSize * sizeof(float*)));
+      static_cast<float**>(device->api().allocUnifiedMem(BatchSize * sizeof(float*)));
 
   std::vector<float> hostSrc(BatchSize * OddElementSize);
   for (std::size_t i = 0; i < BatchSize; ++i) {
@@ -194,35 +194,35 @@ TEST_F(BatchTransfer, unalignedElementsAreCopied) {
   }
 
   const std::vector<float> zeroes(hostSrc.size(), 0.0F);
-  device->api->copyToAsync(oddSrc, hostSrc.data(), hostSrc.size() * sizeof(float), stream);
-  device->api->copyToAsync(oddDst, zeroes.data(), zeroes.size() * sizeof(float), stream);
-  device->api->syncStreamWithHost(stream);
+  device->api().copyToAsync(oddSrc, hostSrc.data(), hostSrc.size() * sizeof(float), stream);
+  device->api().copyToAsync(oddDst, zeroes.data(), zeroes.size() * sizeof(float), stream);
+  device->api().syncStreamWithHost(stream);
 
-  device->algorithms.streamBatchedData(
+  device->algorithms().streamBatchedData(
       const_cast<const float**>(oddSrcBatch), oddDstBatch, OddElementSize, BatchSize, stream);
-  device->api->syncStreamWithHost(stream);
+  device->api().syncStreamWithHost(stream);
 
   std::vector<float> hostDst(hostSrc.size(), -1);
-  device->api->copyFromAsync(hostDst.data(), oddDst, hostDst.size() * sizeof(float), stream);
-  device->api->syncStreamWithHost(stream);
+  device->api().copyFromAsync(hostDst.data(), oddDst, hostDst.size() * sizeof(float), stream);
+  device->api().syncStreamWithHost(stream);
 
   for (std::size_t i = 0; i < hostSrc.size(); ++i) {
     ASSERT_EQ(hostSrc[i], hostDst[i]) << "at " << i;
   }
 
-  device->api->freeUnifiedMem(oddDstBatch);
-  device->api->freeUnifiedMem(oddSrcBatch);
-  device->api->freeGlobMem(oddDst);
-  device->api->freeGlobMem(oddSrc);
+  device->api().freeUnifiedMem(oddDstBatch);
+  device->api().freeUnifiedMem(oddSrcBatch);
+  device->api().freeGlobMem(oddDst);
+  device->api().freeGlobMem(oddSrc);
 }
 
 TEST_F(BatchTransfer, anEmptyBatchIsNoWork) {
-  device->algorithms.streamBatchedData(
+  device->algorithms().streamBatchedData(
       const_cast<const float**>(srcBatch), dstBatch, ElementSize, 0, stream);
-  device->algorithms.accumulateBatchedData(
+  device->algorithms().accumulateBatchedData(
       const_cast<const float**>(srcBatch), dstBatch, ElementSize, 0, stream);
-  device->algorithms.touchBatchedMemory(dstBatch, ElementSize, 0, true, stream);
-  device->api->syncStreamWithHost(stream);
+  device->algorithms().touchBatchedMemory(dstBatch, ElementSize, 0, true, stream);
+  device->api().syncStreamWithHost(stream);
 
   SUCCEED();
 }

@@ -4,6 +4,7 @@
 
 #include "Internals.h"
 #include "algorithms/Common.h"
+#include "algorithms/Instantiations.h"
 
 #include <cassert>
 #include <device.h>
@@ -247,95 +248,6 @@ void Algorithms::reduceVector(AccT* result,
   CHECK_ERR;
 }
 
-template void Algorithms::reduceVector(int* result,
-                                       const int* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(unsigned* result,
-                                       const unsigned* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(long* result,
-                                       const int* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(unsigned long* result,
-                                       const unsigned* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(long* result,
-                                       const long* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(unsigned long* result,
-                                       const unsigned long* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(long long* result,
-                                       const int* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(unsigned long long* result,
-                                       const unsigned* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(long long* result,
-                                       const long* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(unsigned long long* result,
-                                       const unsigned long* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(long long* result,
-                                       const long long* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(unsigned long long* result,
-                                       const unsigned long long* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(float* result,
-                                       const float* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(double* result,
-                                       const float* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
-template void Algorithms::reduceVector(double* result,
-                                       const double* buffer,
-                                       bool overrideResult,
-                                       size_t size,
-                                       ReductionType type,
-                                       void* streamPtr);
+DEVICE_ALGORITHMS_REDUCTION_TYPES(DEVICE_ALGORITHMS_INSTANTIATE_REDUCE_VECTOR)
 
 } // namespace device

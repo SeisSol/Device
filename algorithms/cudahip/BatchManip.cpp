@@ -5,6 +5,7 @@
 #include "AbstractAPI.h"
 #include "Internals.h"
 #include "algorithms/Common.h"
+#include "algorithms/Instantiations.h"
 
 #include <cassert>
 #include <device.h>
@@ -67,17 +68,7 @@ void Algorithms::accumulateBatchedData(
   CHECK_ERR;
 }
 
-template void Algorithms::accumulateBatchedData(const float** baseSrcPtr,
-                                                float** baseDstPtr,
-                                                size_t elementSize,
-                                                size_t numElements,
-                                                void* streamPtr);
-
-template void Algorithms::accumulateBatchedData(const double** baseSrcPtr,
-                                                double** baseDstPtr,
-                                                size_t elementSize,
-                                                size_t numElements,
-                                                void* streamPtr);
+DEVICE_ALGORITHMS_FLOATING_TYPES(DEVICE_ALGORITHMS_INSTANTIATE_ACCUMULATE_BATCHED_DATA)
 
 //--------------------------------------------------------------------------------------------------
 __global__ void
@@ -129,23 +120,7 @@ void Algorithms::setToValue(
   CHECK_ERR;
 }
 
-template void Algorithms::setToValue(
-    float** out, float value, size_t elementSize, size_t numElements, void* streamPtr);
-template void Algorithms::setToValue(
-    double** out, double value, size_t elementSize, size_t numElements, void* streamPtr);
-template void Algorithms::setToValue(
-    int** out, int value, size_t elementSize, size_t numElements, void* streamPtr);
-template void Algorithms::setToValue(
-    unsigned** out, unsigned value, size_t elementSize, size_t numElements, void* streamPtr);
-template void Algorithms::setToValue(
-    long** out, long value, size_t elementSize, size_t numElements, void* streamPtr);
-template void Algorithms::setToValue(unsigned long** out,
-                                     unsigned long value,
-                                     size_t elementSize,
-                                     size_t numElements,
-                                     void* streamPtr);
-template void Algorithms::setToValue(
-    char** out, char value, size_t elementSize, size_t numElements, void* streamPtr);
+DEVICE_ALGORITHMS_VALUE_TYPES(DEVICE_ALGORITHMS_INSTANTIATE_SET_TO_VALUE)
 
 //--------------------------------------------------------------------------------------------------
 __global__ void kernel_copyUniformToScatter(

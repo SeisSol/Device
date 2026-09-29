@@ -5,6 +5,7 @@
 #include "AbstractAPI.h"
 #include "Internals.h"
 #include "algorithms/Common.h"
+#include "algorithms/Instantiations.h"
 
 #include <cassert>
 #include <cstdint>
@@ -28,22 +29,7 @@ void Algorithms::scaleArray(T* devArray, T scalar, const size_t numElements, voi
   kernel_scaleArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
   CHECK_ERR;
 }
-template void Algorithms::scaleArray(float* devArray,
-                                     float scalar,
-                                     const size_t numElements,
-                                     void* streamPtr);
-template void Algorithms::scaleArray(double* devArray,
-                                     double scalar,
-                                     const size_t numElements,
-                                     void* streamPtr);
-template void
-    Algorithms::scaleArray(int* devArray, int scalar, const size_t numElements, void* streamPtr);
-template void Algorithms::scaleArray(unsigned* devArray,
-                                     unsigned scalar,
-                                     const size_t numElements,
-                                     void* streamPtr);
-template void
-    Algorithms::scaleArray(char* devArray, char scalar, const size_t numElements, void* streamPtr);
+DEVICE_ALGORITHMS_ARRAY_TYPES(DEVICE_ALGORITHMS_INSTANTIATE_SCALE_ARRAY)
 
 //--------------------------------------------------------------------------------------------------
 template <typename T>
@@ -63,20 +49,7 @@ void Algorithms::fillArray(T* devArray, const T scalar, const size_t numElements
   kernel_fillArray<<<grid, block, 0, stream>>>(devArray, scalar, numElements);
   CHECK_ERR;
 }
-template void
-    Algorithms::fillArray(float* devArray, float scalar, const size_t numElements, void* streamPtr);
-template void Algorithms::fillArray(double* devArray,
-                                    double scalar,
-                                    const size_t numElements,
-                                    void* streamPtr);
-template void
-    Algorithms::fillArray(int* devArray, int scalar, const size_t numElements, void* streamPtr);
-template void Algorithms::fillArray(unsigned* devArray,
-                                    unsigned scalar,
-                                    const size_t numElements,
-                                    void* streamPtr);
-template void
-    Algorithms::fillArray(char* devArray, char scalar, const size_t numElements, void* streamPtr);
+DEVICE_ALGORITHMS_ARRAY_TYPES(DEVICE_ALGORITHMS_INSTANTIATE_FILL_ARRAY)
 
 //--------------------------------------------------------------------------------------------------
 __global__ void kernel_touchMemory(void* ptr, size_t size, bool clean) {

@@ -6,6 +6,7 @@
 #include "device.h"
 
 #include "gtest/gtest.h"
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <vector>
@@ -26,22 +27,22 @@ class Streams : public BaseTestSuite {
   public:
   void SetUp() override {
     BaseTestSuite::SetUp();
-    devArray = static_cast<float*>(device->api->allocGlobMem(ArraySize * sizeof(float)));
-    streamA = device->api->createStream();
-    streamB = device->api->createStream();
+    devArray = static_cast<float*>(device->api().allocGlobMem(ArraySize * sizeof(float)));
+    streamA = device->api().createStream();
+    streamB = device->api().createStream();
   }
 
   void TearDown() override {
-    device->api->destroyGenericStream(streamB);
-    device->api->destroyGenericStream(streamA);
-    device->api->freeGlobMem(devArray);
+    device->api().destroyGenericStream(streamB);
+    device->api().destroyGenericStream(streamA);
+    device->api().freeGlobMem(devArray);
   }
 
   protected:
   std::vector<float> download(void* stream) {
     std::vector<float> host(ArraySize, -1);
-    device->api->copyFromAsync(host.data(), devArray, ArraySize * sizeof(float), stream);
-    device->api->syncStreamWithHost(stream);
+    device->api().copyFromAsync(host.data(), devArray, ArraySize * sizeof(float), stream);
+    device->api().syncStreamWithHost(stream);
     return host;
   }
 
@@ -51,39 +52,39 @@ class Streams : public BaseTestSuite {
 };
 
 TEST_F(Streams, anEventOrdersTwoStreams) {
-  auto* event = device->api->createEvent();
+  auto* event = device->api().createEvent();
 
   for (int i = 0; i < EnqueueDepth; ++i) {
-    device->algorithms.fillArray(devArray, 2.0F, ArraySize, streamA);
+    device->algorithms().fillArray(devArray, 2.0F, ArraySize, streamA);
   }
-  device->api->recordEventOnStream(event, streamA);
+  device->api().recordEventOnStream(event, streamA);
 
-  device->api->syncStreamWithEvent(streamB, event);
-  device->algorithms.scaleArray(devArray, 7.0F, ArraySize, streamB);
+  device->api().syncStreamWithEvent(streamB, event);
+  device->algorithms().scaleArray(devArray, 7.0F, ArraySize, streamB);
 
-  device->api->syncStreamWithHost(streamB);
+  device->api().syncStreamWithHost(streamB);
 
   // a 7 here means the scale read the array before the fills wrote it
   for (const auto value : download(streamB)) {
     ASSERT_EQ(14.0F, value);
   }
 
-  device->api->destroyEvent(event);
+  device->api().destroyEvent(event);
 }
 
 TEST_F(Streams, anEventCanBeRecordedAgain) {
   // the stream runtime hands the same event out repeatedly, so re-recording one that has already
   // been waited upon has to keep working
-  auto* event = device->api->createEvent();
+  auto* event = device->api().createEvent();
 
   for (int round = 1; round <= 4; ++round) {
     for (int i = 0; i < EnqueueDepth; ++i) {
-      device->algorithms.fillArray(devArray, static_cast<float>(round), ArraySize, streamA);
+      device->algorithms().fillArray(devArray, static_cast<float>(round), ArraySize, streamA);
     }
-    device->api->recordEventOnStream(event, streamA);
-    device->api->syncStreamWithEvent(streamB, event);
-    device->algorithms.scaleArray(devArray, 2.0F, ArraySize, streamB);
-    device->api->syncStreamWithHost(streamB);
+    device->api().recordEventOnStream(event, streamA);
+    device->api().syncStreamWithEvent(streamB, event);
+    device->algorithms().scaleArray(devArray, 2.0F, ArraySize, streamB);
+    device->api().syncStreamWithHost(streamB);
 
     // twice the previous round's value means the scale overtook this round's fills
     for (const auto value : download(streamB)) {
@@ -93,22 +94,22 @@ TEST_F(Streams, anEventCanBeRecordedAgain) {
     }
   }
 
-  device->api->destroyEvent(event);
+  device->api().destroyEvent(event);
 }
 
 TEST_F(Streams, anEventIsCompleteOnceItsStreamIs) {
-  auto* event = device->api->createEvent();
+  auto* event = device->api().createEvent();
 
-  device->algorithms.fillArray(devArray, 1.0F, ArraySize, streamA);
-  device->api->recordEventOnStream(event, streamA);
-  device->api->syncStreamWithHost(streamA);
+  device->algorithms().fillArray(devArray, 1.0F, ArraySize, streamA);
+  device->api().recordEventOnStream(event, streamA);
+  device->api().syncStreamWithHost(streamA);
 
   // only the direction after synchronizing is deterministic; whether the event is already
   // complete beforehand depends on timing
-  EXPECT_TRUE(device->api->isEventCompleted(event));
-  EXPECT_TRUE(device->api->isStreamWorkDone(streamA));
+  EXPECT_TRUE(device->api().isEventCompleted(event));
+  EXPECT_TRUE(device->api().isStreamWorkDone(streamA));
 
-  device->api->destroyEvent(event);
+  device->api().destroyEvent(event);
 }
 
 TEST_F(Streams, aHostFunctionRunsInStreamOrder) {
@@ -116,14 +117,14 @@ TEST_F(Streams, aHostFunctionRunsInStreamOrder) {
   std::atomic<bool> sawFilledData{false};
   std::atomic<bool> ran{false};
 
-  device->algorithms.fillArray(devArray, 9.0F, ArraySize, streamA);
-  device->api->copyFromAsync(staging.data(), devArray, ArraySize * sizeof(float), streamA);
-  device->api->streamHostFunction(streamA, [&]() {
+  device->algorithms().fillArray(devArray, 9.0F, ArraySize, streamA);
+  device->api().copyFromAsync(staging.data(), devArray, ArraySize * sizeof(float), streamA);
+  device->api().streamHostFunction(streamA, [&]() {
     ran = true;
     sawFilledData = (staging.front() == 9.0F) && (staging.back() == 9.0F);
   });
 
-  device->api->syncStreamWithHost(streamA);
+  device->api().syncStreamWithHost(streamA);
 
   EXPECT_TRUE(ran.load());
   // the callback must not observe the staging buffer before the copy that precedes it
@@ -132,17 +133,17 @@ TEST_F(Streams, aHostFunctionRunsInStreamOrder) {
 
 TEST_F(Streams, asyncAllocationsLiveOnTheStream) {
   auto* scratch =
-      static_cast<float*>(device->api->allocMemAsync(ArraySize * sizeof(float), streamA));
+      static_cast<float*>(device->api().allocMemAsync(ArraySize * sizeof(float), streamA));
   ASSERT_NE(nullptr, scratch);
 
-  device->algorithms.fillArray(scratch, 4.0F, ArraySize, streamA);
+  device->algorithms().fillArray(scratch, 4.0F, ArraySize, streamA);
 
   std::vector<float> host(ArraySize, -1);
-  device->api->copyFromAsync(host.data(), scratch, ArraySize * sizeof(float), streamA);
+  device->api().copyFromAsync(host.data(), scratch, ArraySize * sizeof(float), streamA);
 
   // the free is ordered behind the copy on the same stream
-  device->api->freeMemAsync(scratch, streamA);
-  device->api->syncStreamWithHost(streamA);
+  device->api().freeMemAsync(scratch, streamA);
+  device->api().syncStreamWithHost(streamA);
 
   for (const auto value : host) {
     ASSERT_EQ(4.0F, value);
@@ -153,12 +154,12 @@ TEST_F(Streams, aDestroyedStreamIsForgotten) {
   // A device-wide synchronization walks every stream the backend knows about. A stream that was
   // destroyed therefore has to be off that list, or the walk runs into freed memory - long after
   // the code that destroyed it, which is what makes this kind of fault hard to place.
-  auto* scratch = device->api->createStream();
-  device->algorithms.fillArray(devArray, 1.0F, ArraySize, scratch);
-  device->api->syncStreamWithHost(scratch);
-  device->api->destroyGenericStream(scratch);
+  auto* scratch = device->api().createStream();
+  device->algorithms().fillArray(devArray, 1.0F, ArraySize, scratch);
+  device->api().syncStreamWithHost(scratch);
+  device->api().destroyGenericStream(scratch);
 
-  device->api->syncDevice();
+  device->api().syncDevice();
 
   for (const auto value : download(streamA)) {
     ASSERT_EQ(1.0F, value);
@@ -166,17 +167,17 @@ TEST_F(Streams, aDestroyedStreamIsForgotten) {
 }
 
 TEST_F(Streams, workOnSeparateStreamsStaysSeparate) {
-  auto* other = static_cast<float*>(device->api->allocGlobMem(ArraySize * sizeof(float)));
+  auto* other = static_cast<float*>(device->api().allocGlobMem(ArraySize * sizeof(float)));
 
-  device->algorithms.fillArray(devArray, 1.0F, ArraySize, streamA);
-  device->algorithms.fillArray(other, 2.0F, ArraySize, streamB);
+  device->algorithms().fillArray(devArray, 1.0F, ArraySize, streamA);
+  device->algorithms().fillArray(other, 2.0F, ArraySize, streamB);
 
-  device->api->syncStreamWithHost(streamA);
-  device->api->syncStreamWithHost(streamB);
+  device->api().syncStreamWithHost(streamA);
+  device->api().syncStreamWithHost(streamB);
 
   std::vector<float> hostOther(ArraySize, -1);
-  device->api->copyFromAsync(hostOther.data(), other, ArraySize * sizeof(float), streamB);
-  device->api->syncStreamWithHost(streamB);
+  device->api().copyFromAsync(hostOther.data(), other, ArraySize * sizeof(float), streamB);
+  device->api().syncStreamWithHost(streamB);
 
   for (const auto value : download(streamA)) {
     ASSERT_EQ(1.0F, value);
@@ -185,23 +186,73 @@ TEST_F(Streams, workOnSeparateStreamsStaysSeparate) {
     ASSERT_EQ(2.0F, value);
   }
 
-  device->api->freeGlobMem(other);
+  device->api().freeGlobMem(other);
 }
 
 TEST_F(Streams, streamsCanBeGivenAPriority) {
   // 0 is the lowest priority the device offers, 1 the highest, and the default is whatever the
   // runtime picks; all three have to give a stream that works
   for (const double priority : {0.0, 0.5, 1.0}) {
-    auto* stream = device->api->createStream(priority);
+    auto* stream = device->api().createStream(priority);
     ASSERT_NE(nullptr, stream) << "at priority " << priority;
 
-    device->algorithms.fillArray(devArray, 6.0F, ArraySize, stream);
-    device->api->syncStreamWithHost(stream);
+    device->algorithms().fillArray(devArray, 6.0F, ArraySize, stream);
+    device->api().syncStreamWithHost(stream);
 
     for (const auto value : download(stream)) {
       ASSERT_EQ(6.0F, value) << "at priority " << priority;
     }
 
-    device->api->destroyGenericStream(stream);
+    device->api().destroyGenericStream(stream);
   }
+}
+
+TEST_F(Streams, hostFunctionRunsAfterPrecedingWork) {
+  // large enough that the copies are still running when the host function is enqueued
+  constexpr std::size_t Count = std::size_t{1} << 24;
+
+  auto* source = static_cast<int*>(device->api().allocPinnedMem(Count * sizeof(int)));
+  auto* target = static_cast<int*>(device->api().allocPinnedMem(Count * sizeof(int)));
+  auto* buffer = static_cast<int*>(device->api().allocGlobMem(Count * sizeof(int)));
+  std::fill(source, source + Count, 1904);
+  std::fill(target, target + Count, 0);
+
+  void* stream = device->api().createStream();
+  device->api().copyToAsync(buffer, source, Count * sizeof(int), stream);
+  device->api().copyFromAsync(target, buffer, Count * sizeof(int), stream);
+
+  int seen = 0;
+  device->api().streamHostFunction(stream, [&]() { seen = target[Count - 1]; });
+  device->api().syncStreamWithHost(stream);
+
+  EXPECT_EQ(1904, seen);
+
+  device->api().destroyGenericStream(stream);
+  device->api().freeGlobMem(buffer);
+  device->api().freePinnedMem(target);
+  device->api().freePinnedMem(source);
+}
+
+TEST_F(Streams, streamWorkIsDoneAfterSync) {
+  constexpr std::size_t Count = 1024;
+
+  auto* source = static_cast<int*>(device->api().allocPinnedMem(Count * sizeof(int)));
+  auto* buffer = static_cast<int*>(device->api().allocGlobMem(Count * sizeof(int)));
+  std::fill(source, source + Count, 1904);
+
+  void* stream = device->api().createStream();
+  device->api().copyToAsync(buffer, source, Count * sizeof(int), stream);
+  device->api().syncStreamWithHost(stream);
+
+  // a bounded number of polls, so that a stream that never reports as done fails the test instead
+  // of hanging it
+  bool done = false;
+  for (int poll = 0; poll < 1000 && !done; ++poll) {
+    done = device->api().isStreamWorkDone(stream);
+  }
+  EXPECT_TRUE(done);
+
+  device->api().destroyGenericStream(stream);
+  device->api().freeGlobMem(buffer);
+  device->api().freePinnedMem(source);
 }

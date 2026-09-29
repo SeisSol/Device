@@ -20,7 +20,7 @@ class BaseTestSuite : public ::testing::Test {
 
   BaseTestSuite() { randomEngine.seed(randomDevice()); }
 
-  void SetUp() override { device = &DeviceInstance::getInstance(); }
+  void SetUp() override { device = &DeviceInstance::instance(); }
 
   protected:
   std::random_device randomDevice;
