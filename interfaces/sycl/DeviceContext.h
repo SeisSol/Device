@@ -22,6 +22,9 @@ class DeviceContext {
   DeviceQueues queueBuffer;
   Statistics statistics;
 
+  // whether the device offers stream-ordered allocations (sycl_ext_oneapi_async_memory_alloc)
+  bool asyncMemoryAlloc{false};
+
   private:
   void onExceptionOccurred(sycl::exception_list& exceptions);
 };

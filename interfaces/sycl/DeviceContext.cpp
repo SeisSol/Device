@@ -10,7 +10,11 @@
 namespace device {
 DeviceContext::DeviceContext(const sycl::device& targetDevice)
     : queueBuffer{targetDevice, [&](sycl::exception_list l) { onExceptionOccurred(l); }},
-      statistics{Statistics{}} {}
+      statistics{Statistics{}} {
+#ifdef SYCL_EXT_ONEAPI_ASYNC_MEMORY_ALLOC
+  asyncMemoryAlloc = targetDevice.has(sycl::aspect::ext_oneapi_async_memory_alloc);
+#endif
+}
 
 void DeviceContext::onExceptionOccurred(sycl::exception_list& exceptions) {
   for (auto& excep : exceptions) {

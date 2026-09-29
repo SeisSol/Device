@@ -7,6 +7,11 @@
 
 #include <iostream>
 #include <mutex>
+#include <sycl/sycl.hpp>
+
+#ifdef SYCL_EXT_ONEAPI_ASYNC_MEMORY_ALLOC
+#include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
+#endif
 
 using namespace device;
 using namespace device::internals;
@@ -107,14 +112,34 @@ void ConcreteAPI::freePinnedMem(void* devPtr) {
 void* ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
   if (size == 0) {
     return nullptr;
-  } else {
-    return malloc_device(size, *static_cast<sycl::queue*>(streamPtr));
   }
+
+  auto& queue = *static_cast<sycl::queue*>(streamPtr);
+#ifdef SYCL_EXT_ONEAPI_ASYNC_MEMORY_ALLOC
+  if (this->currentContext()->asyncMemoryAlloc) {
+    return sycl::ext::oneapi::experimental::async_malloc(queue, sycl::usm::alloc::device, size);
+  }
+#endif
+  return malloc_device(size, queue);
 }
+
 void ConcreteAPI::freeMemAsync(void* devPtr, void* streamPtr) {
-  if (devPtr != nullptr) {
-    free(devPtr, *static_cast<sycl::queue*>(streamPtr));
+  if (devPtr == nullptr) {
+    return;
   }
+
+  auto& queue = *static_cast<sycl::queue*>(streamPtr);
+#ifdef SYCL_EXT_ONEAPI_ASYNC_MEMORY_ALLOC
+  if (this->currentContext()->asyncMemoryAlloc) {
+    sycl::ext::oneapi::experimental::async_free(queue, devPtr);
+    return;
+  }
+#endif
+  // Without a stream-ordered free, sycl::free releases the memory right away, while the work
+  // enqueued before may still use it - with AdaptiveCpp, that work may not even have been
+  // submitted yet. Hence, wait for it first.
+  this->currentQueueBuffer().syncQueueWithHost(&queue);
+  free(devPtr, queue);
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {

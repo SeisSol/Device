@@ -136,7 +136,10 @@ TEST_F(Streams, asyncAllocationsLiveOnTheStream) {
       static_cast<float*>(device->api().allocMemAsync(ArraySize * sizeof(float), streamA));
   ASSERT_NE(nullptr, scratch);
 
-  device->algorithms().fillArray(scratch, 4.0F, ArraySize, streamA);
+  // enough queued work that the free is issued while the stream still uses the memory
+  for (int i = 0; i < EnqueueDepth; ++i) {
+    device->algorithms().fillArray(scratch, 4.0F, ArraySize, streamA);
+  }
 
   std::vector<float> host(ArraySize, -1);
   device->api().copyFromAsync(host.data(), scratch, ArraySize * sizeof(float), streamA);
