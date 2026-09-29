@@ -130,7 +130,9 @@ class SignedReductions : public BaseTestSuite {
   }
 };
 
-using SignedTypes = ::testing::Types<int, long, float, double>;
+// no double: some devices (also in the CI) do not support it, and float covers the floating point
+// neutral elements just as well
+using SignedTypes = ::testing::Types<int, long, float>;
 TYPED_TEST_SUITE(SignedReductions, SignedTypes);
 
 TYPED_TEST(SignedReductions, maxOverNegativeValues) {
