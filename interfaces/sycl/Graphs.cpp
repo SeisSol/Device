@@ -54,9 +54,13 @@ struct DeviceGraph {
 };
 } // namespace device
 
+// Graphs are only offered where allocations are stream-ordered as well. Recorded work usually
+// takes scratch memory through allocMemAsync/freeMemAsync; without the async allocation
+// extension, freeMemAsync has to wait for the queue - which is an error while it records - and
+// freeing right away would leave the graph with memory that is gone by the time it runs.
 bool ConcreteAPI::isCapableOfGraphCapturing() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  return true;
+  return this->currentContext()->asyncMemoryAlloc;
 #else
   return false;
 #endif
@@ -64,7 +68,7 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 
 bool ConcreteAPI::isCapableOfGraphNodes() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  return true;
+  return this->currentContext()->asyncMemoryAlloc;
 #else
   return false;
 #endif
@@ -72,6 +76,11 @@ bool ConcreteAPI::isCapableOfGraphNodes() {
 
 DeviceGraphHandle ConcreteAPI::streamBeginCapture(const std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+  if (!isCapableOfGraphCapturing()) {
+    // like the other backends without graph support: nothing is recorded, and the work runs
+    return DeviceGraphHandle();
+  }
+
   if (streamPtrs.empty()) {
     logError() << "Graph capturing records queues, so it needs at least one.";
     return DeviceGraphHandle();
@@ -109,6 +118,10 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
 
 DeviceGraphHandle ConcreteAPI::graphCreate() {
 #ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
+  if (!isCapableOfGraphNodes()) {
+    return DeviceGraphHandle();
+  }
+
   auto& queue = this->currentDefaultQueue();
   return DeviceGraphHandle(std::make_shared<DeviceGraph>(queue.get_context(), queue.get_device()));
 #else
