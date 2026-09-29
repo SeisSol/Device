@@ -42,7 +42,7 @@
 #define DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(handle, event)                                      \
   handle.depends_on(event);                                                                        \
   handle.DEVICE_SYCL_DIRECT_OPERATION_NAME([=](...) {});
-#elif defined(SYCL_EXT_ONEAPI_ENQUEUE_BARRIER) && !defined(DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT)
+#elif defined(SYCL_EXT_ONEAPI_ENQUEUE_BARRIER)
 #define DEVICE_SYCL_EMPTY_OPERATION(handle) handle.ext_oneapi_barrier();
 #define DEVICE_SYCL_EMPTY_OPERATION_WITH_EVENT(handle, event) handle.ext_oneapi_barrier({event});
 #else
@@ -117,9 +117,18 @@ class ConcreteAPI : public AbstractAPI {
   void syncDefaultStreamWithHost() override;
 
   bool isCapableOfGraphCapturing() override;
-  DeviceGraphHandle streamBeginCapture(std::vector<void*>& streamPtrs) override;
-  void streamEndCapture(DeviceGraphHandle handle) override;
-  void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
+  DeviceGraphHandle streamBeginCapture(const std::vector<void*>& streamPtrs) override;
+  void streamEndCapture(const DeviceGraphHandle& handle) override;
+  void launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) override;
+
+  bool isCapableOfGraphNodes() override;
+  DeviceGraphHandle graphCreate() override;
+  void graphBeginNode(const DeviceGraphHandle& graphHandle,
+                      const std::vector<DeviceGraphNodeHandle>& dependencies,
+                      void* streamPtr) override;
+  DeviceGraphNodeHandle graphEndNode(const DeviceGraphHandle& graphHandle,
+                                     void* streamPtr) override;
+  void graphInstantiate(const DeviceGraphHandle& graphHandle) override;
 
   void* createStream(double priority) override;
   void destroyGenericStream(void* streamPtr) override;
@@ -153,31 +162,13 @@ class ConcreteAPI : public AbstractAPI {
 
   DeviceContext* currentContext() { return this->availableDevices[getDeviceId()]; }
   sycl::queue& currentDefaultQueue() { return this->currentQueueBuffer().getDefaultQueue(); }
-  DeviceCircularQueueBuffer& currentQueueBuffer() { return this->currentContext()->queueBuffer; }
+  DeviceQueues& currentQueueBuffer() { return this->currentContext()->queueBuffer; }
   Statistics& currentStatistics() { return this->currentContext()->statistics; }
   std::unordered_map<void*, size_t>& currentMemoryToSizeMap() {
     return this->currentContext()->memoryToSizeMap;
   }
 
-#ifdef DEVICE_USE_GRAPH_CAPTURING_ONEAPI_EXT
-  struct GraphDetails {
-    std::optional<sycl::ext::oneapi::experimental::command_graph<
-        sycl::ext::oneapi::experimental::graph_state::executable>>
-        instance;
-    sycl::ext::oneapi::experimental::command_graph<
-        sycl::ext::oneapi::experimental::graph_state::modifiable>
-        graph;
-    bool ready{false};
-  };
-#else
-  struct GraphDetails {
-    bool ready{false};
-  };
-#endif
-
-  std::vector<GraphDetails> graphs;
-
-  void freeMem(void* devPtr);
+  void freeMem(void* devPtr, bool unified = false);
 
   void initDevices();
 

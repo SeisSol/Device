@@ -6,6 +6,7 @@
 #include "utils/env.h"
 #include "utils/logger.h"
 
+#include <atomic>
 #include <iomanip>
 #include <iostream>
 #include <mutex>
@@ -26,7 +27,11 @@ namespace {
 #ifdef DEVICE_CONTEXT_GLOBAL
 int currentDeviceId = 0;
 #else
-thread_local int currentDeviceId = 0;
+// The runtime keeps the selected device per thread, so a thread that has not selected one works
+// on device 0 - which is the wrong card whenever the process picked another one. The device the
+// process selected is kept here and picked up on the first request from a thread that has none.
+std::atomic<int> selectedDeviceId{0};
+thread_local int currentDeviceId = -1;
 #endif
 } // namespace
 
@@ -49,6 +54,9 @@ ConcreteAPI::ConcreteAPI() {
 void ConcreteAPI::setDevice(int deviceId) {
 
   currentDeviceId = deviceId;
+#ifndef DEVICE_CONTEXT_GLOBAL
+  selectedDeviceId.store(deviceId, std::memory_order_relaxed);
+#endif
 
   APIWRAP(hipSetDevice(deviceId));
 
@@ -84,27 +92,31 @@ void ConcreteAPI::initialize() {
                    properties[getDeviceId()].pageableMemoryAccessUsesHostPageTables != 0;
     }
 
-    APIWRAP(hipDeviceGetStreamPriorityRange(&priorityMin, &priorityMax));
+    APIWRAP(hipDeviceGetStreamPriorityRange(&priorityLeast, &priorityGreatest));
   } else {
     logWarning() << "Device Interface has already been initialized";
   }
 }
 
 void ConcreteAPI::finalize() {
+  const std::lock_guard<std::mutex> lock(apiMutex);
   if (status[StatusID::InterfaceInitialized]) {
-
     CHECK_ERR;
 
     APIWRAP(hipStreamDestroy(defaultStream));
+    defaultStream = nullptr;
+
     if (!genericStreams.empty()) {
       logInfo() << "DEVICE::WARNING:" << genericStreams.size()
                 << "device generic stream(s) were not deleted.";
       for (auto stream : genericStreams) {
         APIWRAP(hipStreamDestroy(stream));
       }
+      genericStreams.clear();
     }
     status[StatusID::InterfaceInitialized] = false;
   }
+  m_isFinalized = true;
 }
 
 int ConcreteAPI::getNumDevices() { return properties.size(); }
@@ -113,6 +125,12 @@ int ConcreteAPI::getDeviceId() {
   if (!status[StatusID::DeviceSelected]) {
     logError() << "Device has not been selected. Please, select device before requesting device Id";
   }
+#ifndef DEVICE_CONTEXT_GLOBAL
+  if (currentDeviceId < 0) {
+    currentDeviceId = selectedDeviceId.load(std::memory_order_relaxed);
+    APIWRAP(hipSetDevice(currentDeviceId));
+  }
+#endif
   return currentDeviceId;
 }
 

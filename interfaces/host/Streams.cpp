@@ -64,15 +64,34 @@ void ConcreteAPI::streamWaitMemory(void* /*streamPtr*/, uint32_t* location, uint
   }
 }
 
+// There are no graphs on the host: all work has run by the time it is enqueued, so there is
+// nothing to record. As on the backends without graph support, capturing hands back an empty
+// handle, and the node API reports itself as unavailable.
+
 bool ConcreteAPI::isCapableOfGraphCapturing() { return false; }
 
-DeviceGraphHandle ConcreteAPI::streamBeginCapture(std::vector<void*>& /*streamPtrs*/) {
+DeviceGraphHandle ConcreteAPI::streamBeginCapture(const std::vector<void*>& /*streamPtrs*/) {
   return DeviceGraphHandle();
 }
 
-void ConcreteAPI::streamEndCapture(DeviceGraphHandle /*handle*/) {}
+void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& /*handle*/) {}
 
-void ConcreteAPI::launchGraph(DeviceGraphHandle /*graphHandle*/, void* /*streamPtr*/) {}
+void ConcreteAPI::launchGraph(const DeviceGraphHandle& /*graphHandle*/, void* /*streamPtr*/) {}
+
+bool ConcreteAPI::isCapableOfGraphNodes() { return false; }
+
+DeviceGraphHandle ConcreteAPI::graphCreate() { return DeviceGraphHandle(); }
+
+void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& /*graphHandle*/,
+                                 const std::vector<DeviceGraphNodeHandle>& /*dependencies*/,
+                                 void* /*streamPtr*/) {}
+
+DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& /*graphHandle*/,
+                                                void* /*streamPtr*/) {
+  return DeviceGraphNodeHandle();
+}
+
+void ConcreteAPI::graphInstantiate(const DeviceGraphHandle& /*graphHandle*/) {}
 
 void* ConcreteAPI::createEvent(bool /*withTiming*/) { return new Event(); }
 

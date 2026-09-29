@@ -10,7 +10,7 @@ set(DEVICE_SOURCE_FILES device.cpp
         interfaces/sycl/Memory.cpp
         interfaces/sycl/Streams.cpp
         interfaces/sycl/DeviceContext.cpp
-        interfaces/sycl/DeviceCircularQueueBuffer.cpp
+        interfaces/sycl/DeviceQueues.cpp
         interfaces/sycl/DeviceType.cpp
         algorithms/sycl/ArrayManip.cpp
         algorithms/sycl/BatchManip.cpp

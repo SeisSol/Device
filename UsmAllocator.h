@@ -44,7 +44,7 @@ class UsmAllocator {
 
   void deallocate(T* ptr, std::size_t) {
     if (ptr) {
-      api->freeGlobMem(ptr);
+      api->freeUnifiedMem(ptr);
     }
   }
 

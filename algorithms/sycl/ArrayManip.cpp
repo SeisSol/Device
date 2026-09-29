@@ -15,6 +15,11 @@ using namespace device::internals;
 namespace device {
 template <typename T>
 void Algorithms::scaleArray(T* devArray, T scalar, size_t numElements, void* streamPtr) {
+  // an empty range is not a valid launch configuration
+  if (numElements == 0) {
+    return;
+  }
+
   auto rng = computeExecutionRange1D(device::internals::DefaultBlockDim, numElements);
 
   ((sycl::queue*)streamPtr)->submit([&](sycl::handler& cgh) {
@@ -30,6 +35,11 @@ DEVICE_ALGORITHMS_ARRAY_TYPES(DEVICE_ALGORITHMS_INSTANTIATE_SCALE_ARRAY)
 
 template <typename T>
 void Algorithms::fillArray(T* devArray, const T scalar, const size_t numElements, void* streamPtr) {
+  // an empty range is not a valid launch configuration
+  if (numElements == 0) {
+    return;
+  }
+
   auto rng = computeExecutionRange1D(device::internals::DefaultBlockDim, numElements);
 
   ((sycl::queue*)streamPtr)->submit([&](sycl::handler& cgh) {
@@ -45,6 +55,11 @@ void Algorithms::fillArray(T* devArray, const T scalar, const size_t numElements
 DEVICE_ALGORITHMS_ARRAY_TYPES(DEVICE_ALGORITHMS_INSTANTIATE_FILL_ARRAY)
 
 void Algorithms::touchMemoryI(void* ptr, size_t size, bool clean, void* streamPtr) {
+  // an empty range is not a valid launch configuration
+  if (size == 0) {
+    return;
+  }
+
   auto rng = computeExecutionRange1D(device::internals::DefaultBlockDim, size);
 
   ((sycl::queue*)streamPtr)->submit([&](sycl::handler& cgh) {
@@ -66,6 +81,11 @@ void Algorithms::incrementalAddI(
 
   uintptr_t* oout = reinterpret_cast<uintptr_t*>(out);
   uintptr_t obase = reinterpret_cast<uintptr_t>(base);
+
+  // an empty range is not a valid launch configuration
+  if (numElements == 0) {
+    return;
+  }
 
   auto rng = computeExecutionRange1D(device::internals::DefaultBlockDim, numElements);
 

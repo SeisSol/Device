@@ -33,6 +33,11 @@ enum class ProfilingColors : uint32_t {
 struct AbstractAPI {
   virtual ~AbstractAPI() = default;
 
+  /**
+   * Selects the device for the calling thread and makes it the choice of the process. Backends
+   * that keep the selected device per thread give a thread that has not called this the device
+   * the process selected, the first time that thread asks for the device id.
+   */
   virtual void setDevice(int deviceId) = 0;
   virtual int getDeviceId() = 0;
 
@@ -85,10 +90,59 @@ struct AbstractAPI {
   virtual void syncDefaultStreamWithHost() = 0;
 
   virtual bool isCapableOfGraphCapturing() = 0;
-  virtual DeviceGraphHandle streamBeginCapture(std::vector<void*>& streamPtrs) = 0;
-  virtual void streamEndCapture(DeviceGraphHandle handle) = 0;
-  virtual void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) = 0;
+  virtual DeviceGraphHandle streamBeginCapture(const std::vector<void*>& streamPtrs) = 0;
+  virtual void streamEndCapture(const DeviceGraphHandle& handle) = 0;
+  virtual void launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) = 0;
 
+  /**
+   * Explicit graph construction.
+   *
+   * Instead of recording a whole stream and letting the backend infer the dependency structure
+   * from events, the caller states the structure directly: every graphAddNode call contributes
+   * the work recorded by `recorder` and makes it depend on exactly `dependencies`. Fork/join is
+   * then a property of the graph rather than something that has to be expressed through streams
+   * and events.
+   *
+   * A single graph is built by one thread at a time. `recorder` receives a stream that is only a
+   * recording vehicle: what it enqueues becomes the node, and the dependencies stated in the call
+   * are the ones the node is guaranteed to get.
+   *
+   * Nodes that are meant to run concurrently have to be recorded onto different streams. A stream
+   * can be reused for a later node, but a backend that expresses edges through the recorded
+   * stream rather than through node handles - the SYCL one does, since the graph extension has no
+   * node handles to hand out - adds an edge between two nodes that shared a stream, and those two
+   * then run one after the other.
+   *
+   * If `recorder` enqueues nothing, the returned handle refers to `dependencies` themselves, so
+   * an empty recorder is a valid way to express a pure join node.
+   *
+   * graphBeginNode and graphEndNode are the same thing split in two, for callers that cannot
+   * wrap the recorded work in a callback and instead have to leave a node open across code they
+   * do not control. Only one node per stream may be open at a time.
+   */
+  virtual bool isCapableOfGraphNodes() = 0;
+  virtual DeviceGraphHandle graphCreate() = 0;
+  virtual void graphBeginNode(const DeviceGraphHandle& graphHandle,
+                              const std::vector<DeviceGraphNodeHandle>& dependencies,
+                              void* streamPtr) = 0;
+  virtual DeviceGraphNodeHandle graphEndNode(const DeviceGraphHandle& graphHandle,
+                                             void* streamPtr) = 0;
+  virtual void graphInstantiate(const DeviceGraphHandle& graphHandle) = 0;
+
+  DeviceGraphNodeHandle graphAddNode(const DeviceGraphHandle& graphHandle,
+                                     const std::vector<DeviceGraphNodeHandle>& dependencies,
+                                     void* streamPtr,
+                                     const std::function<void(void*)>& recorder) {
+    graphBeginNode(graphHandle, dependencies, streamPtr);
+    recorder(streamPtr);
+    return graphEndNode(graphHandle, streamPtr);
+  }
+
+  /**
+   * Creates a stream. `priority` runs from 0 for the lowest to 1 for the highest priority the
+   * device offers; NAN asks for the runtime default. Backends that only know a few priority
+   * classes round to the nearest one, and a device without priority support ignores the value.
+   */
   virtual void* createStream(double priority = NAN) = 0;
   virtual void destroyGenericStream(void* streamPtr) = 0;
   virtual void syncStreamWithHost(void* streamPtr) = 0;
@@ -96,6 +150,11 @@ struct AbstractAPI {
   virtual void syncStreamWithEvent(void* streamPtr, void* eventPtr) = 0;
   virtual void streamHostFunction(void* streamPtr, const std::function<void()>& function) = 0;
 
+  /**
+   * Blocks the stream until the value at `location` has reached at least `value`. `location` has
+   * to be host memory that the device can read, i.e. an allocation from allocPinnedMem with
+   * Destination::CurrentDevice.
+   */
   virtual void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) = 0;
 
   virtual void* createEvent(bool withTiming = false) = 0;

@@ -19,14 +19,27 @@ using namespace device::internals;
 namespace {
 struct Event {
   std::optional<sycl::event> syclEvent;
+  bool withTiming{false};
 };
 } // namespace
 
-void* ConcreteAPI::createEvent(bool withTiming) { return new Event(); }
+void* ConcreteAPI::createEvent(bool withTiming) { return new Event{std::nullopt, withTiming}; }
 
 double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
+#ifndef PROFILING_ENABLED
+  // Profiling information is only there when the queue carries the enable_profiling property, and
+  // asking an event without it throws from deep inside the runtime.
+  logError() << "The SYCL backend can only time events when it is built with "
+                "ENABLE_PROFILING_MARKERS=ON.";
+  return 0.0;
+#else
   auto* start = static_cast<Event*>(eventPtrStart);
   auto* end = static_cast<Event*>(eventPtrEnd);
+
+  if (!(start->withTiming && end->withTiming)) {
+    logError() << "Timing was not requested for at least one of the events given for timing "
+                  "calculation.";
+  }
 
   if (!(start->syclEvent.has_value() && end->syclEvent.has_value())) {
     logError() << "Invalid events given for timing calculation.";
@@ -40,6 +53,7 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
   // cf. https://oneapi-src.github.io/SYCLomatic/dev_guide/reference/diagnostic_ref/dpct1012.html
 
   return static_cast<double>(endTime - startTime) / 1'000'000'000.0;
+#endif
 }
 
 void ConcreteAPI::destroyEvent(void* eventPtr) {

@@ -82,9 +82,18 @@ class ConcreteAPI : public AbstractAPI {
   void syncDefaultStreamWithHost() override;
 
   bool isCapableOfGraphCapturing() override;
-  DeviceGraphHandle streamBeginCapture(std::vector<void*>& streamPtrs) override;
-  void streamEndCapture(DeviceGraphHandle handle) override;
-  void launchGraph(DeviceGraphHandle graphHandle, void* streamPtr) override;
+  DeviceGraphHandle streamBeginCapture(const std::vector<void*>& streamPtrs) override;
+  void streamEndCapture(const DeviceGraphHandle& handle) override;
+  void launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) override;
+
+  bool isCapableOfGraphNodes() override;
+  DeviceGraphHandle graphCreate() override;
+  void graphBeginNode(const DeviceGraphHandle& graphHandle,
+                      const std::vector<DeviceGraphNodeHandle>& dependencies,
+                      void* streamPtr) override;
+  DeviceGraphNodeHandle graphEndNode(const DeviceGraphHandle& graphHandle,
+                                     void* streamPtr) override;
+  void graphInstantiate(const DeviceGraphHandle& graphHandle) override;
 
   void* createStream(double priority) override;
   void destroyGenericStream(void* streamPtr) override;
@@ -114,6 +123,9 @@ class ConcreteAPI : public AbstractAPI {
   void setupPrinting(int rank) override;
 
   private:
+  // Drops the allocation from the bookkeeping and returns its size.
+  size_t forgetAllocation(void* devPtr);
+
   device::StatusT status{false};
 
   std::vector<cudaDeviceProp> properties;
@@ -127,20 +139,13 @@ class ConcreteAPI : public AbstractAPI {
 
   std::unordered_set<cudaStream_t> genericStreams{};
 
-  struct GraphDetails {
-    cudaGraph_t graph;
-    cudaGraphExec_t instance;
-    std::vector<void*> streamPtrs;
-    bool ready{false};
-  };
-  std::vector<GraphDetails> graphs;
-
   Statistics statistics{};
-  std::unordered_map<void*, size_t> memToSizeMap{{nullptr, 0}};
+  std::unordered_map<void*, size_t> memToSizeMap;
 
-  int priorityMin, priorityMax;
+  int priorityLeast{0};
+  int priorityGreatest{0};
 
-  std::unordered_map<void*, void*> allocationProperties;
+  std::unordered_map<void*, CUmemAllocationProp> allocationProperties;
 };
 } // namespace device
 

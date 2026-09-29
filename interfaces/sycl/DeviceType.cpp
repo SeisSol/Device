@@ -7,6 +7,8 @@
 #include "utils/env.h"
 
 #include <iostream>
+#include <string>
+#include <utility>
 
 namespace device {
 
@@ -26,26 +28,21 @@ DeviceType fromSyclType(sycl::info::device_type type) {
   return DeviceType::OTHERS;
 }
 
-bool compare(sycl::device devA, sycl::device devB) {
-  std::string env;
-  env += utils::Env("").get("PREFERRED_DEVICE_TYPE", "");
+bool compare(const sycl::device& devA, const sycl::device& devB) {
+  std::string preferred;
+  preferred += utils::Env("").get("PREFERRED_DEVICE_TYPE", "");
 
-  auto typeA = devA.get_info<sycl::info::device::device_type>();
-  auto typeB = devB.get_info<sycl::info::device::device_type>();
+  // A device of the preferred type sorts ahead of every other device, and the rest follow the
+  // order of the DeviceType enum. Deciding the two directions independently - as in "A wins if it
+  // matches, B wins if it matches" - makes both compare(a, b) and compare(b, a) true for two
+  // devices of the preferred type, and sorting on such a comparator is undefined.
+  const auto rank = [&preferred](const sycl::device& device) {
+    const auto type = device.get_info<sycl::info::device::device_type>();
+    const auto matchesPreference = convertToString(type) == preferred ? 0 : 1;
+    return std::make_pair(matchesPreference, static_cast<int>(fromSyclType(type)));
+  };
 
-  if (convertToString(typeA).compare(env) == 0) {
-    return true;
-  }
-  if (convertToString(typeB).compare(env) == 0) {
-    return false;
-  }
-
-  // devices of same type are sorted by their cl::deviceid
-  if (typeA == typeB) {
-    // return devA.get() < devB.get();
-  }
-
-  return fromSyclType(typeA) < fromSyclType(typeB);
+  return rank(devA) < rank(devB);
 }
 
 std::string convertToString(sycl::info::device_type type) {

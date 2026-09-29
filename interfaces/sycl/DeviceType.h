@@ -13,7 +13,7 @@ enum class DeviceType { GPU = 0, CPU = 1, FPGA = 2, HOST = 3, OTHERS = 4 };
 
 std::string convertToString(sycl::info::device_type type);
 DeviceType fromSyclType(sycl::info::device_type type);
-bool compare(sycl::device devA, sycl::device devB);
+bool compare(const sycl::device& devA, const sycl::device& devB);
 
 } // namespace device
 

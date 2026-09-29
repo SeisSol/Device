@@ -7,7 +7,9 @@
 #include "SyclWrappedAPI.h"
 #include "utils/logger.h"
 
+#include <algorithm>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 
@@ -24,7 +26,7 @@ using namespace device;
 void ConcreteAPI::initDevices() {
 
   if (this->deviceInitialized) {
-    throw new std::invalid_argument("Cannot initialize the devices twice!");
+    throw std::invalid_argument("Cannot initialize the devices twice!");
   }
 
   for (const auto& platform : sycl::platform::get_platforms()) {
@@ -42,17 +44,19 @@ void ConcreteAPI::initDevices() {
         }
       }
 
-      DeviceContext* context = new DeviceContext{device, 1};
+      DeviceContext* context = new DeviceContext{device};
       this->availableDevices.push_back(context);
     }
   }
 
-  sort(this->availableDevices.begin(),
-       this->availableDevices.end(),
-       [&](DeviceContext* c1, DeviceContext* c2) {
-         return compare(c1->queueBuffer.getDefaultQueue().get_device(),
-                        c2->queueBuffer.getDefaultQueue().get_device());
-       });
+  // stable, so that devices the comparator sees as equal keep the order the platform reported
+  // them in and the device ids stay the same from run to run
+  std::stable_sort(this->availableDevices.begin(),
+                   this->availableDevices.end(),
+                   [](DeviceContext* c1, DeviceContext* c2) {
+                     return compare(c1->queueBuffer.getDefaultQueue().get_device(),
+                                    c2->queueBuffer.getDefaultQueue().get_device());
+                   });
 
   this->setDevice(0);
   this->deviceInitialized = true;
@@ -73,8 +77,6 @@ void ConcreteAPI::finalize() {
   this->availableDevices.clear();
   this->availableDevices.shrink_to_fit();
 
-  this->graphs.clear();
-
   this->m_isFinalized = true;
   this->deviceInitialized = false;
 }
@@ -89,8 +91,8 @@ int ConcreteAPI::getDeviceId() {
 }
 
 unsigned int ConcreteAPI::getGlobMemAlignment() {
-  auto device = this->currentDefaultQueue().get_device();
-  return 128; // ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
+  // ToDo: find attribute; not: device.get_info<info::device::mem_base_addr_align>();
+  return 128;
 }
 
 void ConcreteAPI::syncDevice() { this->currentQueueBuffer().syncAllQueuesWithHost(); }
