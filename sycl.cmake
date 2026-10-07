@@ -41,6 +41,10 @@ if ((${DEVICE_BACKEND} STREQUAL "acpp") OR (${DEVICE_BACKEND} STREQUAL "hipsycl"
     elseif(DEVICE_ARCH MATCHES "gfx*")
         set(HIPSYCL_TARGETS "hip:${DEVICE_ARCH}" CACHE STRING "" FORCE)
         set(ACPP_TARGETS "hip:${DEVICE_ARCH}" CACHE STRING "" FORCE)
+    elseif(DEVICE_ARCH STREQUAL "generic")
+        # one binary for any device; AdaptiveCpp compiles the kernels for it when they first run
+        set(HIPSYCL_TARGETS "generic" CACHE STRING "" FORCE)
+        set(ACPP_TARGETS "generic" CACHE STRING "" FORCE)
     else()
         set(HIPSYCL_TARGETS "${DEVICE_BACKEND}:${DEVICE_ARCH}" CACHE STRING "" FORCE)
         set(ACPP_TARGETS "${DEVICE_BACKEND}:${DEVICE_ARCH}" CACHE STRING "" FORCE)
