@@ -411,3 +411,102 @@ TEST_F(Graphs, siblingNodesMayShareAStream) {
     expectChunk(host, i, 10.0F * static_cast<float>(i + 1));
   }
 }
+
+namespace {
+// enough work in front of a graph that the graph gets launched while the work still runs
+constexpr std::size_t LargeSize = std::size_t{1} << 24;
+constexpr std::size_t LargeChunkSize = LargeSize / BranchCount;
+constexpr int PrecedingFills = 32;
+constexpr int Rounds = 4;
+} // namespace
+
+/**
+ * A graph whose branches start right at its beginning has several root nodes. All of them have to
+ * wait for the work enqueued on the launch stream before the graph, like a single kernel would.
+ * Each root scales the chunk that the work before it fills; a root that overtakes the fills gets
+ * overwritten by them afterwards.
+ */
+class GraphRoots : public Graphs {
+  public:
+  void SetUp() override {
+    Graphs::SetUp();
+    large = static_cast<float*>(device->api().allocGlobMem(LargeSize * sizeof(float)));
+  }
+
+  void TearDown() override {
+    device->api().freeGlobMem(large);
+    Graphs::TearDown();
+  }
+
+  protected:
+  void scaleChunk(std::size_t chunk, void* stream) {
+    device->algorithms().scaleArray(large + chunk * LargeChunkSize, 10.0F, LargeChunkSize, stream);
+  }
+
+  void launchAfterFills(DeviceGraphHandle& graph) {
+    for (int round = 0; round < Rounds; ++round) {
+      for (int fill = 1; fill <= PrecedingFills; ++fill) {
+        device->algorithms().fillArray(large, static_cast<float>(fill), LargeSize, mainStream);
+      }
+      device->api().launchGraph(graph, mainStream);
+      device->api().syncStreamWithHost(mainStream);
+
+      std::vector<float> host(LargeSize, -1);
+      device->api().copyFromAsync(host.data(), large, LargeSize * sizeof(float), mainStream);
+      device->api().syncStreamWithHost(mainStream);
+      for (std::size_t i = 0; i < LargeSize; ++i) {
+        ASSERT_EQ(10.0F * PrecedingFills, host[i])
+            << "at index " << i << " of chunk " << i / LargeChunkSize << " in round " << round;
+      }
+    }
+  }
+
+  float* large{nullptr};
+};
+
+TEST_F(GraphRoots, independentNodesWaitForTheWorkBeforeTheLaunch) {
+  if (graphNodesUnavailable()) {
+    GTEST_SKIP() << "the backend does not support explicit graph nodes";
+  }
+
+  auto graph = device->api().graphCreate();
+  for (std::size_t i = 0; i < BranchCount; ++i) {
+    device->api().graphAddNode(
+        graph, {}, branchStreams[i], [&, i](void* stream) { scaleChunk(i, stream); });
+  }
+  device->api().graphInstantiate(graph);
+
+  launchAfterFills(graph);
+}
+
+TEST_F(GraphRoots, aCaptureThatForksRightAwayWaitsForTheWorkBeforeTheLaunch) {
+  if (graphCapturingUnavailable()) {
+    GTEST_SKIP() << "the backend does not support graph capturing";
+  }
+
+  auto* forkEvent = device->api().createEvent();
+  std::array<void*, BranchCount> joinEvents{};
+  for (auto& event : joinEvents) {
+    event = device->api().createEvent();
+  }
+
+  std::vector<void*> streams{mainStream};
+  streams.insert(streams.end(), branchStreams.begin(), branchStreams.end());
+  auto graph = device->api().streamBeginCapture(streams);
+  device->api().recordEventOnStream(forkEvent, mainStream);
+  for (std::size_t i = 0; i < BranchCount; ++i) {
+    device->api().syncStreamWithEvent(branchStreams[i], forkEvent);
+    scaleChunk(i, branchStreams[i]);
+    device->api().recordEventOnStream(joinEvents[i], branchStreams[i]);
+    device->api().syncStreamWithEvent(mainStream, joinEvents[i]);
+  }
+  device->api().streamEndCapture(graph);
+  ASSERT_TRUE(graph.isInitialized());
+
+  launchAfterFills(graph);
+
+  for (auto* event : joinEvents) {
+    device->api().destroyEvent(event);
+  }
+  device->api().destroyEvent(forkEvent);
+}

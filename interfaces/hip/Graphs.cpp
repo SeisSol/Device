@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <functional>
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
@@ -47,6 +48,26 @@ namespace {
 std::mutex hostFunctionMutex;
 std::unordered_map<hipGraph_t, std::vector<std::unique_ptr<std::function<void()>>>>
     capturedHostFunctions;
+
+/**
+ * HIP (seen with ROCm 7.2) does not order all root nodes of a graph after the work that was
+ * enqueued on the launch stream before the graph: only one of them waits for it, the others may
+ * start right away, and read data that is not there yet. A graph whose branches start right at
+ * its beginning has several roots - an explicit node without dependencies, or a capture that forks
+ * into other streams first. A single empty node in front of all roots restores the stream order.
+ */
+void orderRootsAfterTheLaunchStream(hipGraph_t graph) {
+  std::size_t count = 0;
+  APIWRAP(hipGraphGetRootNodes(graph, nullptr, &count));
+  if (count > 1) {
+    std::vector<hipGraphNode_t> roots(count);
+    APIWRAP(hipGraphGetRootNodes(graph, roots.data(), &count));
+    hipGraphNode_t first{nullptr};
+    APIWRAP(hipGraphAddEmptyNode(&first, graph, nullptr, 0));
+    const std::vector<hipGraphNode_t> from(count, first);
+    APIWRAP(hipGraphAddDependencies(graph, from.data(), roots.data(), count));
+  }
+}
 } // namespace
 
 namespace device::internals {
@@ -158,6 +179,7 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
   APIWRAP(hipStreamEndCapture(static_cast<hipStream_t>(graphInstance->streamPtrs[0]),
                               &(graphInstance->graph)));
 
+  orderRootsAfterTheLaunchStream(graphInstance->graph);
   APIWRAP(
       hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
 
@@ -232,6 +254,7 @@ void ConcreteAPI::graphInstantiate(const DeviceGraphHandle& graphHandle) {
   assert(graphInstance != nullptr && "a graph must be created before it is instantiated");
   assert(graphInstance->instance == nullptr && "a graph is instantiated once");
 
+  orderRootsAfterTheLaunchStream(graphInstance->graph);
   APIWRAP(
       hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
 
