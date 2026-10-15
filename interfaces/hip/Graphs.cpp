@@ -49,6 +49,14 @@ std::mutex hostFunctionMutex;
 std::unordered_map<hipGraph_t, std::vector<std::unique_ptr<std::function<void()>>>>
     capturedHostFunctions;
 
+// the events recorded during a capture, with the graph and the nodes they stand for
+struct CapturedEvent {
+  hipGraph_t graph{nullptr};
+  std::vector<hipGraphNode_t> nodes;
+};
+std::mutex capturedEventMutex;
+std::unordered_map<hipEvent_t, CapturedEvent> capturedEvents;
+
 /**
  * HIP (seen with ROCm 7.2) does not order all root nodes of a graph after the work that was
  * enqueued on the launch stream before the graph: only one of them waits for it, the others may
@@ -100,6 +108,42 @@ std::function<void()>* adoptHostFunction(hipGraph_t graph, const std::function<v
 void forgetHostFunctions(hipGraph_t graph) {
   const std::lock_guard<std::mutex> lock(hostFunctionMutex);
   capturedHostFunctions.erase(graph);
+}
+
+void noteRecordedEvent(hipEvent_t event, hipStream_t stream) {
+  auto state = captureState(stream);
+  const std::lock_guard<std::mutex> lock(capturedEventMutex);
+  if (state.status == hipStreamCaptureStatusActive) {
+    capturedEvents[event] = CapturedEvent{state.graph, std::move(state.frontier)};
+  } else {
+    capturedEvents.erase(event);
+  }
+}
+
+bool dependOnCapturedEvent(hipStream_t stream, hipEvent_t event) {
+  const auto state = captureState(stream);
+  if (state.status != hipStreamCaptureStatusActive) {
+    return false;
+  }
+  std::vector<hipGraphNode_t> nodes;
+  {
+    const std::lock_guard<std::mutex> lock(capturedEventMutex);
+    const auto it = capturedEvents.find(event);
+    if (it == capturedEvents.end() || it->second.graph != state.graph) {
+      return false;
+    }
+    nodes = it->second.nodes;
+  }
+  if (!nodes.empty()) {
+    APIWRAP(hipStreamUpdateCaptureDependencies(
+        stream, nodes.data(), nodes.size(), hipStreamAddCaptureDependencies));
+  }
+  return true;
+}
+
+void forgetEvent(hipEvent_t event) {
+  const std::lock_guard<std::mutex> lock(capturedEventMutex);
+  capturedEvents.erase(event);
 }
 } // namespace device::internals
 

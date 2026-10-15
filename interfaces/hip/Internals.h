@@ -34,6 +34,25 @@ struct CaptureState {
 CaptureState captureState(hipStream_t stream);
 
 /**
+ * During a capture, HIP makes a stream that waits for an event of another capturing stream a
+ * branch of that stream, also when the waiting stream takes part in the capture already. Streams
+ * that wait for each other in turn thus end up as branches of each other, and ending the capture
+ * then recurses through that cycle without end (seen with ROCm 7.2). Hence, an event recorded
+ * during a capture remembers the nodes it stands for; a stream that takes part in the same capture
+ * already adds them to its dependencies instead of waiting for the event, which is what the wait
+ * does besides making it a branch.
+ */
+void noteRecordedEvent(hipEvent_t event, hipStream_t stream);
+
+/**
+ * Makes the stream depend on what the event stands for, if both take part in the same capture.
+ * Returns whether it did; otherwise, the stream still has to wait for the event.
+ */
+bool dependOnCapturedEvent(hipStream_t stream, hipEvent_t event);
+
+void forgetEvent(hipEvent_t event);
+
+/**
  * Hands a host function to the graph that is being recorded, which keeps it alive for as long as
  * the graph can be replayed, and returns the copy to pass to the runtime. Returns nullptr if the
  * graph is not one of ours.

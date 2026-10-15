@@ -34,6 +34,7 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
 
 void ConcreteAPI::destroyEvent(void* eventPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
+  internals::forgetEvent(event);
   APIWRAP(hipEventDestroy(event));
 }
 
@@ -53,6 +54,7 @@ bool ConcreteAPI::isEventCompleted(void* eventPtr) {
 
 void ConcreteAPI::recordEventOnHost(void* eventPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
+  internals::forgetEvent(event);
   APIWRAP(hipEventRecord(event));
 }
 
@@ -60,4 +62,5 @@ void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   APIWRAP(hipEventRecord(event, stream));
+  internals::noteRecordedEvent(event, stream);
 }

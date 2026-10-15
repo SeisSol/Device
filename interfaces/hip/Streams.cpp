@@ -76,7 +76,9 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   isFlagSet<InterfaceInitialized>(status);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
-  APIWRAP(hipStreamWaitEvent(stream, event, 0));
+  if (!internals::dependOnCapturedEvent(stream, event)) {
+    APIWRAP(hipStreamWaitEvent(stream, event, 0));
+  }
 }
 
 namespace {
