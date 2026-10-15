@@ -510,3 +510,63 @@ TEST_F(GraphRoots, aCaptureThatForksRightAwayWaitsForTheWorkBeforeTheLaunch) {
   }
   device->api().destroyEvent(forkEvent);
 }
+
+TEST_F(Graphs, captureOfStreamsWaitingForEachOtherInTurn) {
+  if (graphCapturingUnavailable()) {
+    GTEST_SKIP() << "the backend does not support graph capturing";
+  }
+
+  fill(-1);
+
+  // The branches wait for each other in a cycle - the first for the last - after they have joined
+  // the capture, as clusters that wait for their neighbors do. Ending the capture must not trip
+  // over that, and the graph has to keep the order of all the waits.
+  constexpr std::size_t Branches = 3;
+  auto* forkEvent = device->api().createEvent();
+  std::array<void*, Branches + 1> handOver{};
+  std::array<void*, Branches> joinEvents{};
+  for (auto& event : handOver) {
+    event = device->api().createEvent();
+  }
+  for (auto& event : joinEvents) {
+    event = device->api().createEvent();
+  }
+
+  std::vector<void*> streams{mainStream};
+  streams.insert(streams.end(), branchStreams.begin(), branchStreams.begin() + Branches);
+  auto graph = device->api().streamBeginCapture(streams);
+  device->api().recordEventOnStream(forkEvent, mainStream);
+  for (std::size_t i = 0; i < Branches; ++i) {
+    device->api().syncStreamWithEvent(branchStreams[i], forkEvent);
+  }
+  device->algorithms().fillArray(devArray, 1.0F, ArraySize, branchStreams[0]);
+  device->api().recordEventOnStream(handOver[0], branchStreams[0]);
+  for (std::size_t i = 1; i < Branches; ++i) {
+    device->api().syncStreamWithEvent(branchStreams[i], handOver[i - 1]);
+    device->algorithms().scaleArray(
+        devArray, static_cast<float>(i + 1), ArraySize, branchStreams[i]);
+    device->api().recordEventOnStream(handOver[i], branchStreams[i]);
+  }
+  device->api().syncStreamWithEvent(branchStreams[0], handOver[Branches - 1]);
+  device->algorithms().scaleArray(devArray, 5.0F, ArraySize, branchStreams[0]);
+  for (std::size_t i = 0; i < Branches; ++i) {
+    device->api().recordEventOnStream(joinEvents[i], branchStreams[i]);
+    device->api().syncStreamWithEvent(mainStream, joinEvents[i]);
+  }
+  device->api().streamEndCapture(graph);
+  ASSERT_TRUE(graph.isInitialized());
+
+  device->api().launchGraph(graph, mainStream);
+  device->api().syncStreamWithHost(mainStream);
+  for (const auto value : download()) {
+    ASSERT_EQ(30.0F, value);
+  }
+
+  for (auto* event : joinEvents) {
+    device->api().destroyEvent(event);
+  }
+  for (auto* event : handOver) {
+    device->api().destroyEvent(event);
+  }
+  device->api().destroyEvent(forkEvent);
+}
