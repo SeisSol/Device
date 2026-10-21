@@ -113,3 +113,5 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
   const auto span = toEvent(eventPtrEnd)->recorded - toEvent(eventPtrStart)->recorded;
   return std::chrono::duration<double>(span).count();
 }
+
+bool ConcreteAPI::isCapableOfEventTiming() { return true; }

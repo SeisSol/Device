@@ -25,6 +25,10 @@ class DeviceContext {
   // whether the device offers stream-ordered allocations (sycl_ext_oneapi_async_memory_alloc)
   bool asyncMemoryAlloc{false};
 
+  // whether the device takes the time of profiling tags on queues without profiling
+  // (sycl_ext_oneapi_profiling_tag)
+  bool profilingTags{false};
+
   private:
   void onExceptionOccurred(sycl::exception_list& exceptions);
 };

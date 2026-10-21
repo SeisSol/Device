@@ -32,6 +32,8 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
   return static_cast<double>(time) / 1000.0;
 }
 
+bool ConcreteAPI::isCapableOfEventTiming() { return true; }
+
 void ConcreteAPI::destroyEvent(void* eventPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   internals::forgetEvent(event);

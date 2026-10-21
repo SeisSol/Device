@@ -116,6 +116,7 @@ class ConcreteAPI : public AbstractAPI {
   void recordEventOnHost(void* eventPtr) override;
   void recordEventOnStream(void* eventPtr, void* streamPtr) override;
   double timespanEvents(void* eventPtrStart, void* eventPtrEnd) override;
+  bool isCapableOfEventTiming() override;
 
   bool isUnifiedMemoryDefault() override;
 

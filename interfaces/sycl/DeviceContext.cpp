@@ -14,6 +14,9 @@ DeviceContext::DeviceContext(const sycl::device& targetDevice)
 #ifdef SYCL_EXT_ONEAPI_ASYNC_MEMORY_ALLOC
   asyncMemoryAlloc = targetDevice.has(sycl::aspect::ext_oneapi_async_memory_alloc);
 #endif
+#ifdef SYCL_EXT_ONEAPI_PROFILING_TAG
+  profilingTags = targetDevice.has(sycl::aspect::ext_oneapi_queue_profiling_tag);
+#endif
 }
 
 void DeviceContext::onExceptionOccurred(sycl::exception_list& exceptions) {

@@ -165,6 +165,13 @@ struct AbstractAPI {
   virtual void recordEventOnStream(void* eventPtr, void* streamPtr) = 0;
   virtual double timespanEvents(void* eventPtrStart, void* eventPtrEnd) = 0;
 
+  /**
+   * Whether timespanEvents() can time events that were created with timing and recorded on
+   * streams. The SYCL backend needs either profiling on its queues (ENABLE_PROFILING_MARKERS=ON),
+   * or a device with profiling tags (sycl_ext_oneapi_profiling_tag) for that.
+   */
+  virtual bool isCapableOfEventTiming() = 0;
+
   virtual bool isUnifiedMemoryDefault() = 0;
 
   virtual void initialize() = 0;
