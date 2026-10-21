@@ -63,6 +63,9 @@ and all work runs synchronously on the calling thread
 ### Device options for HIP
 
 * use `-DDEVICE_BACKEND:STRING=hip` to build the HIP implementation
+* graphs (`USE_GRAPH_CAPTURING`) need ROCm 6.3 or newer;
+with older ROCm, the backend offers none, as HIP before 6.3 does not keep
+the dependencies within a graph that gets launched again soon
 * Complete example call:
 `cmake .. -DDEVICE_BACKEND:STRING=hip -DDEVICE_ARCH=gfx906`
 

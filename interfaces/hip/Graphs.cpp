@@ -19,11 +19,13 @@
 #include <utility>
 #include <vector>
 
-// Explicit graph nodes rest on hipStreamBeginCaptureToGraph, which HIP gained in ROCm 6.3.
-// Capturing whole streams works without it, so the two get their own macro.
+// Graphs need ROCm 6.3 or newer. Before (seen with ROCm 6.2.4), HIP runs the branches of a graph
+// that forks after its first node too early when the graph gets launched again soon after a launch
+// before: they do not wait for the nodes they depend on, also within the graph. Explicit graph
+// nodes rest on hipStreamBeginCaptureToGraph, which HIP gained in ROCm 6.3 as well.
 #if defined(DEVICE_USE_GRAPH_CAPTURING) &&                                                         \
     (HIP_VERSION_MAJOR > 6 || (HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR >= 3))
-#define DEVICE_USE_GRAPH_NODES
+#define DEVICE_USE_HIP_GRAPHS
 #endif
 
 using namespace device;
@@ -190,7 +192,7 @@ struct DeviceGraph {
 } // namespace device
 
 bool ConcreteAPI::isCapableOfGraphCapturing() {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
+#ifdef DEVICE_USE_HIP_GRAPHS
   return true;
 #else
   return false;
@@ -198,7 +200,7 @@ bool ConcreteAPI::isCapableOfGraphCapturing() {
 }
 
 bool ConcreteAPI::isCapableOfGraphNodes() {
-#ifdef DEVICE_USE_GRAPH_NODES
+#ifdef DEVICE_USE_HIP_GRAPHS
   return true;
 #else
   return false;
@@ -206,7 +208,7 @@ bool ConcreteAPI::isCapableOfGraphNodes() {
 }
 
 DeviceGraphHandle ConcreteAPI::streamBeginCapture(const std::vector<void*>& streamPtrs) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
+#ifdef DEVICE_USE_HIP_GRAPHS
   if (streamPtrs.empty()) {
     logError() << "Graph capturing records streams, so it needs at least one.";
     return DeviceGraphHandle();
@@ -225,7 +227,7 @@ DeviceGraphHandle ConcreteAPI::streamBeginCapture(const std::vector<void*>& stre
 }
 
 void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
+#ifdef DEVICE_USE_HIP_GRAPHS
   auto* graphInstance = handle.get();
   assert(graphInstance != nullptr && "a capture must be started before it can be ended");
   assert(graphInstance->instance == nullptr && "a graph is instantiated once");
@@ -242,7 +244,7 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
 }
 
 DeviceGraphHandle ConcreteAPI::graphCreate() {
-#ifdef DEVICE_USE_GRAPH_NODES
+#ifdef DEVICE_USE_HIP_GRAPHS
   auto graphInstance = std::make_shared<DeviceGraph>();
   APIWRAP(hipGraphCreate(&(graphInstance->graph), 0));
   return DeviceGraphHandle(std::move(graphInstance));
@@ -254,7 +256,7 @@ DeviceGraphHandle ConcreteAPI::graphCreate() {
 void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
                                  const std::vector<DeviceGraphNodeHandle>& dependencies,
                                  void* streamPtr) {
-#ifdef DEVICE_USE_GRAPH_NODES
+#ifdef DEVICE_USE_HIP_GRAPHS
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && "a graph must be created before nodes can be added");
   assert(!graphInstance->ready && "no nodes can be added to an instantiated graph");
@@ -284,7 +286,7 @@ void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
 
 DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHandle,
                                                 void* streamPtr) {
-#ifdef DEVICE_USE_GRAPH_NODES
+#ifdef DEVICE_USE_HIP_GRAPHS
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && "a node must be opened before it can be closed");
 
@@ -303,7 +305,7 @@ DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHa
 }
 
 void ConcreteAPI::graphInstantiate(const DeviceGraphHandle& graphHandle) {
-#ifdef DEVICE_USE_GRAPH_NODES
+#ifdef DEVICE_USE_HIP_GRAPHS
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && "a graph must be created before it is instantiated");
   assert(graphInstance->instance == nullptr && "a graph is instantiated once");
@@ -317,7 +319,7 @@ void ConcreteAPI::graphInstantiate(const DeviceGraphHandle& graphHandle) {
 }
 
 void ConcreteAPI::launchGraph(const DeviceGraphHandle& graphHandle, void* streamPtr) {
-#ifdef DEVICE_USE_GRAPH_CAPTURING
+#ifdef DEVICE_USE_HIP_GRAPHS
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && graphInstance->ready &&
          "a graph must be captured before launching");
