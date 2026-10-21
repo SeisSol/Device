@@ -6,6 +6,7 @@
 #include "device.h"
 
 #include "gtest/gtest.h"
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <vector>
@@ -504,6 +505,107 @@ TEST_F(GraphRoots, aCaptureThatForksRightAwayWaitsForTheWorkBeforeTheLaunch) {
   ASSERT_TRUE(graph.isInitialized());
 
   launchAfterFills(graph);
+
+  for (auto* event : joinEvents) {
+    device->api().destroyEvent(event);
+  }
+  device->api().destroyEvent(forkEvent);
+}
+
+/**
+ * A graph that forks after its first node, launched again and again right after its launches
+ * before: its branches have to wait for that node, and it for the work before the launch (with ROCm
+ * 6.2, the branches did not wait any more after the first launch).
+ */
+TEST_F(GraphRoots, aGraphThatForksAfterItsFirstNodeCanBeLaunchedRightAgain) {
+  if (graphCapturingUnavailable()) {
+    GTEST_SKIP() << "the backend does not support graph capturing";
+  }
+
+  auto* forkEvent = device->api().createEvent();
+  std::array<void*, BranchCount> joinEvents{};
+  for (auto& event : joinEvents) {
+    event = device->api().createEvent();
+  }
+
+  std::vector<void*> streams{mainStream};
+  streams.insert(streams.end(), branchStreams.begin(), branchStreams.end());
+  auto graph = device->api().streamBeginCapture(streams);
+  device->algorithms().scaleArray(large, 2.0F, LargeSize, mainStream);
+  device->api().recordEventOnStream(forkEvent, mainStream);
+  for (std::size_t i = 0; i < BranchCount; ++i) {
+    device->api().syncStreamWithEvent(branchStreams[i], forkEvent);
+    device->algorithms().scaleArray(
+        large + i * LargeChunkSize, 5.0F, LargeChunkSize, branchStreams[i]);
+    device->api().recordEventOnStream(joinEvents[i], branchStreams[i]);
+    device->api().syncStreamWithEvent(mainStream, joinEvents[i]);
+  }
+  device->api().streamEndCapture(graph);
+  ASSERT_TRUE(graph.isInitialized());
+
+  // the next launch follows right after the check: the host buffer is there already
+  std::vector<float> host(LargeSize);
+  for (int round = 0; round < 4 * Rounds; ++round) {
+    for (int fill = 1; fill <= PrecedingFills; ++fill) {
+      device->algorithms().fillArray(large, static_cast<float>(fill), LargeSize, mainStream);
+    }
+    device->api().launchGraph(graph, mainStream);
+    device->api().syncStreamWithHost(mainStream);
+    device->api().copyFromAsync(host.data(), large, LargeSize * sizeof(float), mainStream);
+    device->api().syncStreamWithHost(mainStream);
+    const auto wrong = std::count_if(
+        host.begin(), host.end(), [](float value) { return value != 10.0F * PrecedingFills; });
+    ASSERT_EQ(0, wrong) << "values wrong in round " << round;
+  }
+
+  for (auto* event : joinEvents) {
+    device->api().destroyEvent(event);
+  }
+  device->api().destroyEvent(forkEvent);
+}
+
+/**
+ * An event that was recorded within an earlier capture, after work there, gets recorded right at
+ * the start of the next capture, where the other streams wait for it: they have to join this
+ * capture (with ROCm 6.2 and 6.3, they depended on a node of the earlier graph instead, and ending
+ * the capture failed).
+ */
+TEST_F(Graphs, anEventRecordedRightAtTheStartOfACaptureForksIt) {
+  if (graphCapturingUnavailable()) {
+    GTEST_SKIP() << "the backend does not support graph capturing";
+  }
+
+  auto* forkEvent = device->api().createEvent();
+  std::array<void*, BranchCount> joinEvents{};
+  for (auto& event : joinEvents) {
+    event = device->api().createEvent();
+  }
+
+  std::vector<void*> streams{mainStream};
+  streams.insert(streams.end(), branchStreams.begin(), branchStreams.end());
+  for (int capture = 0; capture < 2; ++capture) {
+    fill(1);
+    auto graph = device->api().streamBeginCapture(streams);
+    if (capture == 0) {
+      // work in front of the event, so that the event stands for a node of this capture
+      device->algorithms().scaleArray(devArray, 1.0F, ArraySize, mainStream);
+    }
+    device->api().recordEventOnStream(forkEvent, mainStream);
+    for (std::size_t i = 0; i < BranchCount; ++i) {
+      device->api().syncStreamWithEvent(branchStreams[i], forkEvent);
+      device->algorithms().scaleArray(devArray + i * ChunkSize, 10.0F, ChunkSize, branchStreams[i]);
+      device->api().recordEventOnStream(joinEvents[i], branchStreams[i]);
+      device->api().syncStreamWithEvent(mainStream, joinEvents[i]);
+    }
+    device->api().streamEndCapture(graph);
+    ASSERT_TRUE(graph.isInitialized());
+
+    device->api().launchGraph(graph, mainStream);
+    device->api().syncStreamWithHost(mainStream);
+    for (const auto value : download()) {
+      ASSERT_EQ(10.0F, value) << "in capture " << capture;
+    }
+  }
 
   for (auto* event : joinEvents) {
     device->api().destroyEvent(event);

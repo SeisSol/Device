@@ -34,6 +34,16 @@ struct CaptureState {
 CaptureState captureState(hipStream_t stream);
 
 /**
+ * Gives the capture of the stream a node to stand on, an empty one, if it has none there yet;
+ * before an event gets recorded there. HIP (seen with ROCm 6.2 and 6.3) keeps the capture state
+ * that an event got when it was recorded last, within an earlier capture, if it gets recorded where
+ * the capture has no node yet (e.g. right at its beginning): the streams that wait for it then
+ * depend on a node of the earlier graph, never join this capture, and ending it fails ("capturing
+ * stream has unjoined work"). With the empty node, the event stands for a node of this capture.
+ */
+void anchorCapture(hipStream_t stream);
+
+/**
  * During a capture, HIP makes a stream that waits for an event of another capturing stream a
  * branch of that stream, also when the waiting stream takes part in the capture already. Streams
  * that wait for each other in turn thus end up as branches of each other, and ending the capture
