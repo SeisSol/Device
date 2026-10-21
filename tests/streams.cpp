@@ -112,6 +112,29 @@ TEST_F(Streams, anEventIsCompleteOnceItsStreamIs) {
   device->api().destroyEvent(event);
 }
 
+TEST_F(Streams, timingEventsTakeTheTimeOfTheWorkBetweenThem) {
+  if (!device->api().isCapableOfEventTiming()) {
+    GTEST_SKIP() << "the backend cannot time events";
+  }
+  auto* start = device->api().createEvent(true);
+  auto* end = device->api().createEvent(true);
+
+  device->api().recordEventOnStream(start, streamA);
+  for (int i = 0; i < EnqueueDepth; ++i) {
+    device->algorithms().fillArray(devArray, static_cast<float>(i), ArraySize, streamA);
+  }
+  device->api().recordEventOnStream(end, streamA);
+  device->api().syncEventWithHost(end);
+
+  // the fills take some time, but not too much; and the order of the events counts
+  const auto time = device->api().timespanEvents(start, end);
+  EXPECT_GT(time, 0.0);
+  EXPECT_LT(time, 10.0);
+
+  device->api().destroyEvent(end);
+  device->api().destroyEvent(start);
+}
+
 TEST_F(Streams, aHostFunctionRunsInStreamOrder) {
   std::vector<float> staging(ArraySize, -1);
   std::atomic<bool> sawFilledData{false};

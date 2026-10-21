@@ -31,6 +31,8 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
   return static_cast<double>(time) / 1000.0;
 }
 
+bool ConcreteAPI::isCapableOfEventTiming() { return true; }
+
 void ConcreteAPI::destroyEvent(void* eventPtr) {
   cudaEvent_t event = static_cast<cudaEvent_t>(eventPtr);
   APIWRAP(cudaEventDestroy(event));

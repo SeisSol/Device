@@ -20,21 +20,47 @@ namespace {
 struct Event {
   std::optional<sycl::event> syclEvent;
   bool withTiming{false};
+  // recorded as a profiling tag (sycl_ext_oneapi_profiling_tag), which has its time also on queues
+  // without profiling
+  bool profilingTag{false};
 };
+
+/// whether a graph records what gets submitted to the queue
+[[maybe_unused]] bool recording([[maybe_unused]] const sycl::queue& queue) {
+#ifdef SYCL_EXT_ONEAPI_GRAPH
+  return queue.ext_oneapi_get_state() == sycl::ext::oneapi::experimental::queue_state::recording;
+#else
+  return false;
+#endif
+}
 } // namespace
 
-void* ConcreteAPI::createEvent(bool withTiming) { return new Event{std::nullopt, withTiming}; }
+void* ConcreteAPI::createEvent(bool withTiming) {
+  return new Event{std::nullopt, withTiming, false};
+}
+
+bool ConcreteAPI::isCapableOfEventTiming() {
+#ifdef PROFILING_ENABLED
+  return true;
+#else
+  return this->currentContext()->profilingTags;
+#endif
+}
 
 double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
-#ifndef PROFILING_ENABLED
-  // Profiling information is only there when the queue carries the enable_profiling property, and
-  // asking an event without it throws from deep inside the runtime.
-  logError() << "The SYCL backend can only time events when it is built with "
-                "ENABLE_PROFILING_MARKERS=ON.";
-  return 0.0;
-#else
   auto* start = static_cast<Event*>(eventPtrStart);
   auto* end = static_cast<Event*>(eventPtrEnd);
+
+#ifndef PROFILING_ENABLED
+  // Profiling information is only there when the queue carries the enable_profiling property, or
+  // for profiling tags; asking another event throws from deep inside the runtime.
+  if (!(start->profilingTag && end->profilingTag)) {
+    logError() << "The SYCL backend can only time events when it is built with "
+                  "ENABLE_PROFILING_MARKERS=ON, or on devices with profiling tags "
+                  "(sycl_ext_oneapi_profiling_tag) for events recorded outside of graphs.";
+    return 0.0;
+  }
+#endif
 
   if (!(start->withTiming && end->withTiming)) {
     logError() << "Timing was not requested for at least one of the events given for timing "
@@ -53,7 +79,6 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
   // cf. https://oneapi-src.github.io/SYCLomatic/dev_guide/reference/diagnostic_ref/dpct1012.html
 
   return static_cast<double>(endTime - startTime) / 1'000'000'000.0;
-#endif
 }
 
 void ConcreteAPI::destroyEvent(void* eventPtr) {
@@ -84,6 +109,17 @@ void ConcreteAPI::recordEventOnHost(void* eventPtr) {
 void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   auto* queue = static_cast<sycl::queue*>(streamPtr);
   auto* event = static_cast<Event*>(eventPtr);
+
+#if !defined(PROFILING_ENABLED) && defined(SYCL_EXT_ONEAPI_PROFILING_TAG)
+  // a tag completes once all work submitted before it has; on an in-order queue, it is a light
+  // marker
+  event->profilingTag =
+      event->withTiming && this->currentContext()->profilingTags && !recording(*queue);
+  if (event->profilingTag) {
+    event->syclEvent = sycl::ext::oneapi::experimental::submit_profiling_tag(*queue);
+    return;
+  }
+#endif
 
   event->syclEvent = std::make_optional<sycl::event>(
       queue->submit([&](sycl::handler& h) { DEVICE_SYCL_EMPTY_OPERATION(h); }));
