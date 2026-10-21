@@ -26,7 +26,7 @@ struct Event {
 };
 
 /// whether a graph records what gets submitted to the queue
-bool recording([[maybe_unused]] const sycl::queue& queue) {
+[[maybe_unused]] bool recording([[maybe_unused]] const sycl::queue& queue) {
 #ifdef SYCL_EXT_ONEAPI_GRAPH
   return queue.ext_oneapi_get_state() == sycl::ext::oneapi::experimental::queue_state::recording;
 #else
