@@ -61,6 +61,7 @@ void ConcreteAPI::recordEventOnHost(void* eventPtr) {
 void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
+  internals::anchorCapture(stream);
   APIWRAP(hipEventRecord(event, stream));
   internals::noteRecordedEvent(event, stream);
 }

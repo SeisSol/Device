@@ -94,6 +94,16 @@ CaptureState captureState(hipStream_t stream) {
   return state;
 }
 
+void anchorCapture(hipStream_t stream) {
+  const auto state = captureState(stream);
+  if (state.status == hipStreamCaptureStatusActive && state.frontier.empty()) {
+    hipGraphNode_t anchor{nullptr};
+    APIWRAP(hipGraphAddEmptyNode(&anchor, state.graph, nullptr, 0));
+    APIWRAP(
+        hipStreamUpdateCaptureDependencies(stream, &anchor, 1, hipStreamSetCaptureDependencies));
+  }
+}
+
 std::function<void()>* adoptHostFunction(hipGraph_t graph, const std::function<void()>& function) {
   if (graph == nullptr) {
     return nullptr;
