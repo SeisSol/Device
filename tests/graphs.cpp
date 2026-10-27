@@ -324,6 +324,44 @@ TEST_F(Graphs, aNodeGraphCanBeLaunchedRepeatedly) {
   }
 }
 
+TEST_F(Graphs, isolatedNodesRunInDependencyOrder) {
+  if (graphNodesUnavailable()) {
+    GTEST_SKIP() << "the backend does not support explicit graph nodes";
+  }
+
+  fill(0);
+
+  auto graph = device->api().graphCreate();
+  const auto first = device->api().graphAddNode(graph, {}, mainStream, [&](void* stream) {
+    device->algorithms().fillArray(devArray, 1.0F, ArraySize, stream);
+  });
+
+  // captured into a graph of its own, which becomes a single node
+  device->api().graphBeginIsolatedNode(graph, {first}, branchStreams[0]);
+  device->algorithms().scaleArray(devArray, 3.0F, ArraySize, branchStreams[0]);
+  const auto second = device->api().graphEndNode(graph, branchStreams[0]);
+
+  // one that records nothing stands for its own dependencies, as any other node
+  device->api().graphBeginIsolatedNode(graph, {second}, branchStreams[1]);
+  const auto empty = device->api().graphEndNode(graph, branchStreams[1]);
+
+  const auto third = device->api().graphAddNode(graph, {empty}, mainStream, [&](void* stream) {
+    device->algorithms().scaleArray(devArray, 5.0F, ArraySize, stream);
+  });
+  ASSERT_TRUE(third.isInitialized());
+
+  device->api().graphInstantiate(graph);
+  for (int i = 0; i < 2; ++i) {
+    device->api().launchGraph(graph, mainStream);
+    device->api().syncStreamWithHost(mainStream);
+
+    // the scales run between the fill and each other: else 1, 3, 5 or 15 would come out wrong
+    for (const auto value : download()) {
+      ASSERT_EQ(15.0F, value);
+    }
+  }
+}
+
 TEST_F(Graphs, handlesOwnTheirGraph) {
   if (graphNodesUnavailable()) {
     GTEST_SKIP() << "the backend does not support explicit graph nodes";
