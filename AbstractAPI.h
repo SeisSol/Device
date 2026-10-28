@@ -158,6 +158,29 @@ struct AbstractAPI {
    * classes round to the nearest one, and a device without priority support ignores the value.
    */
   virtual void* createStream(double priority = NAN) = 0;
+
+  /**
+   * Streams on queues of their own: the device runs the work of such a stream on a hardware queue
+   * that only the streams with the same queue number share, in the order it gets enqueued, so that
+   * a stream that waits holds up no other ones. (HIP puts all streams onto a few hardware queues
+   * that they share; its backend runs own streams on HSA queues outside of HIP, see
+   * interfaces/hip/OwnQueues.h, and needs the target device-own-queue-hook in the program.)
+   *
+   * Enables them, and returns whether the device has them; call it before any stream or event gets
+   * created. Then, events can be recorded on and waited for by streams of either kind; events
+   * cannot time anything (see isCapableOfEventTiming()).
+   */
+  virtual bool enableOwnQueues() { return false; }
+
+  /**
+   * A stream on the own queue `queue` (see enableOwnQueues()); without own queues, an ordinary one.
+   * A priority (0 lowest, 1 highest) applies to the whole queue: its work gets taken up before that
+   * of queues of a lower priority.
+   */
+  virtual void* createStreamOnOwnQueue(int /*queue*/, double /*priority*/ = NAN) {
+    return createStream();
+  }
+
   virtual void destroyGenericStream(void* streamPtr) = 0;
   virtual void syncStreamWithHost(void* streamPtr) = 0;
   virtual bool isStreamWorkDone(void* streamPtr) = 0;

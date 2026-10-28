@@ -5,6 +5,7 @@
 #include "DataTypes.h"
 #include "HipWrappedAPI.h"
 #include "Internals.h"
+#include "OwnQueues.h"
 #include "utils/logger.h"
 
 #include <algorithm>
@@ -165,6 +166,7 @@ void orderRootsAfterTheLaunchStream(hipGraph_t graph) {
 
 namespace device::internals {
 CaptureState captureState(hipStream_t stream) {
+  stream = ownqueues::vehicle(stream);
   CaptureState state{};
   unsigned long long captureId{};
   const hipGraphNode_t* frontier{nullptr};
@@ -180,6 +182,7 @@ CaptureState captureState(hipStream_t stream) {
 }
 
 void anchorCapture(hipStream_t stream) {
+  stream = ownqueues::vehicle(stream);
   const auto state = captureState(stream);
   if (state.status == hipStreamCaptureStatusActive && state.frontier.empty()) {
     hipGraphNode_t anchor{nullptr};
@@ -206,6 +209,7 @@ void forgetHostFunctions(hipGraph_t graph) {
 }
 
 void noteRecordedEvent(hipEvent_t event, hipStream_t stream) {
+  stream = ownqueues::vehicle(stream);
   auto state = captureState(stream);
   const std::lock_guard<std::mutex> lock(capturedEventMutex);
   if (state.status == hipStreamCaptureStatusActive) {
@@ -216,6 +220,7 @@ void noteRecordedEvent(hipEvent_t event, hipStream_t stream) {
 }
 
 bool dependOnCapturedEvent(hipStream_t stream, hipEvent_t event) {
+  stream = ownqueues::vehicle(stream);
   const auto state = captureState(stream);
   if (state.status != hipStreamCaptureStatusActive) {
     return false;
@@ -254,6 +259,9 @@ struct DeviceGraph {
   std::vector<void*> streamPtrs;
 
   bool ready{false};
+
+  // translated into packets for the own queues it gets launched on (see OwnQueues.h)
+  ownqueues::Programs programs;
 
   DeviceGraph() = default;
   DeviceGraph(const DeviceGraph&) = delete;
@@ -300,8 +308,9 @@ DeviceGraphHandle ConcreteAPI::streamBeginCapture(const std::vector<void*>& stre
   auto graphInstance = std::make_shared<DeviceGraph>();
   graphInstance->streamPtrs = streamPtrs;
 
-  APIWRAP(hipStreamBeginCapture(static_cast<hipStream_t>(streamPtrs[0]),
-                                hipStreamCaptureModeThreadLocal));
+  APIWRAP(
+      hipStreamBeginCapture(ownqueues::vehicle(streamPtrs[0]), hipStreamCaptureModeThreadLocal));
+  ownqueues::beginCapture(streamPtrs[0]);
 
   return DeviceGraphHandle(std::move(graphInstance));
 #else
@@ -315,13 +324,17 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
   assert(graphInstance != nullptr && "a capture must be started before it can be ended");
   assert(graphInstance->instance == nullptr && "a graph is instantiated once");
 
-  APIWRAP(hipStreamEndCapture(static_cast<hipStream_t>(graphInstance->streamPtrs[0]),
+  APIWRAP(hipStreamEndCapture(ownqueues::vehicle(graphInstance->streamPtrs[0]),
                               &(graphInstance->graph)));
+  ownqueues::endCapture(graphInstance->streamPtrs[0]);
 
   removeImpliedDependencies(graphInstance->graph);
   orderRootsAfterTheLaunchStream(graphInstance->graph);
-  APIWRAP(
-      hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
+  if (!ownqueues::enabled()) {
+    // with own queues, once it gets launched on a stream of HIP
+    APIWRAP(
+        hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
+  }
 
   graphInstance->ready = true;
 #endif
@@ -359,12 +372,13 @@ void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
                            nativeDependencies.end());
 
   // the edge-data argument is not supported by HIP and has to stay a nullptr
-  APIWRAP(hipStreamBeginCaptureToGraph(static_cast<hipStream_t>(streamPtr),
+  APIWRAP(hipStreamBeginCaptureToGraph(ownqueues::vehicle(streamPtr),
                                        graphInstance->graph,
                                        nativeDependencies.data(),
                                        nullptr,
                                        nativeDependencies.size(),
                                        hipStreamCaptureModeThreadLocal));
+  ownqueues::beginCapture(streamPtr);
 #endif
 }
 
@@ -374,11 +388,12 @@ DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHa
   auto* graphInstance = graphHandle.get();
   assert(graphInstance != nullptr && "a node must be opened before it can be closed");
 
-  auto stream = static_cast<hipStream_t>(streamPtr);
+  auto stream = ownqueues::vehicle(streamPtr);
   auto produced = internals::captureState(stream).frontier;
 
   hipGraph_t endedGraph{nullptr};
   APIWRAP(hipStreamEndCapture(stream, &endedGraph));
+  ownqueues::endCapture(streamPtr);
   assert(endedGraph == graphInstance->graph && "capturing into a graph hands that same graph back");
 
   graphInstance->nodes.emplace_back(std::move(produced));
@@ -396,8 +411,11 @@ void ConcreteAPI::graphInstantiate(const DeviceGraphHandle& graphHandle) {
 
   removeImpliedDependencies(graphInstance->graph);
   orderRootsAfterTheLaunchStream(graphInstance->graph);
-  APIWRAP(
-      hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
+  if (!ownqueues::enabled()) {
+    // with own queues, once it gets launched on a stream of HIP
+    APIWRAP(
+        hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
+  }
 
   graphInstance->ready = true;
 #endif
@@ -409,6 +427,14 @@ void ConcreteAPI::launchGraph(const DeviceGraphHandle& graphHandle, void* stream
   assert(graphInstance != nullptr && graphInstance->ready &&
          "a graph must be captured before launching");
 
-  APIWRAP(hipGraphLaunch(graphInstance->instance, static_cast<hipStream_t>(streamPtr)));
+  if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
+    ownqueues::launchGraph(graphInstance->programs, graphInstance->graph, streamPtr);
+    return;
+  }
+  if (graphInstance->instance == nullptr) {
+    APIWRAP(
+        hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
+  }
+  APIWRAP(hipGraphLaunch(graphInstance->instance, ownqueues::vehicle(streamPtr)));
 #endif
 }

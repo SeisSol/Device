@@ -4,6 +4,7 @@
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
+#include "OwnQueues.h"
 #include "hip/hip_runtime.h"
 #include "utils/logger.h"
 
@@ -15,6 +16,9 @@
 using namespace device;
 
 void* ConcreteAPI::createEvent(bool withTiming) {
+  if (ownqueues::enabled()) {
+    return ownqueues::createEvent(withTiming);
+  }
   hipEvent_t event;
   if (withTiming) {
     APIWRAP(hipEventCreate(&event));
@@ -25,6 +29,10 @@ void* ConcreteAPI::createEvent(bool withTiming) {
 }
 
 double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
+  if (ownqueues::isTagged(eventPtrStart) || ownqueues::isTagged(eventPtrEnd)) {
+    // the marks of own queues have no time
+    return 0;
+  }
   float time{};
   hipEvent_t start = reinterpret_cast<hipEvent_t>(eventPtrStart);
   hipEvent_t end = reinterpret_cast<hipEvent_t>(eventPtrEnd);
@@ -32,15 +40,23 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
   return static_cast<double>(time) / 1000.0;
 }
 
-bool ConcreteAPI::isCapableOfEventTiming() { return true; }
+bool ConcreteAPI::isCapableOfEventTiming() { return !ownqueues::enabled(); }
 
 void ConcreteAPI::destroyEvent(void* eventPtr) {
+  if (ownqueues::isTagged(eventPtr)) {
+    ownqueues::destroyEvent(eventPtr);
+    return;
+  }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   internals::forgetEvent(event);
   APIWRAP(hipEventDestroy(event));
 }
 
 void ConcreteAPI::syncEventWithHost(void* eventPtr) {
+  if (ownqueues::isTagged(eventPtr)) {
+    ownqueues::syncEvent(eventPtr);
+    return;
+  }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
 
   CHECK_ERR;
@@ -49,18 +65,33 @@ void ConcreteAPI::syncEventWithHost(void* eventPtr) {
 }
 
 bool ConcreteAPI::isEventCompleted(void* eventPtr) {
+  if (ownqueues::isTagged(eventPtr)) {
+    return ownqueues::eventDone(eventPtr);
+  }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   auto result = APIWRAPX(hipEventQuery(event), {hipErrorNotReady});
   return result == hipSuccess;
 }
 
 void ConcreteAPI::recordEventOnHost(void* eventPtr) {
+  if (ownqueues::isTagged(eventPtr)) {
+    ownqueues::recordEventOnHost(eventPtr);
+    return;
+  }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   internals::forgetEvent(event);
   APIWRAP(hipEventRecord(event));
 }
 
 void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
+  if (ownqueues::isTagged(eventPtr)) {
+    ownqueues::recordEvent(eventPtr, streamPtr);
+    return;
+  }
+  if (ownqueues::isTagged(streamPtr)) {
+    logError() << "An event of HIP cannot be recorded on an own stream; create the events after "
+                  "enabling own queues.";
+  }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   internals::anchorCapture(stream);
