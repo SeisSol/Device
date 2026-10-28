@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
 #include <functional>
@@ -98,6 +99,12 @@ struct DeviceGraph {
   // one entry per graphAddNode call; an entry may hold zero, one or several native nodes
   std::vector<std::vector<cudaGraphNode_t>> nodes;
 
+  // the isolated nodes being captured (see graphBeginIsolatedNode), with their dependencies; and
+  // the graphs they were captured into, which their child graph nodes are clones of. The libraries
+  // whose work they hold may tie resources to them (NCCL does), so they live as long as this graph.
+  std::unordered_map<cudaStream_t, std::vector<cudaGraphNode_t>> isolatedDependencies;
+  std::vector<cudaGraph_t> isolatedGraphs;
+
   // only used by the whole-stream capture path
   std::vector<void*> streamPtrs;
 
@@ -117,6 +124,10 @@ struct DeviceGraph {
     }
     if (graph != nullptr) {
       cudaGraphDestroy(graph);
+    }
+    for (auto* isolated : isolatedGraphs) {
+      internals::forgetHostFunctions(isolated);
+      cudaGraphDestroy(isolated);
     }
   }
 };
@@ -183,6 +194,28 @@ DeviceGraphHandle ConcreteAPI::graphCreate() {
 #endif
 }
 
+#ifdef DEVICE_USE_GRAPH_NODES
+namespace {
+/// the native nodes that the handles stand for, each once
+std::vector<cudaGraphNode_t>
+    resolveDependencies(const DeviceGraph& graphInstance,
+                        const std::vector<DeviceGraphNodeHandle>& dependencies) {
+  std::vector<cudaGraphNode_t> native;
+  for (const auto& dependency : dependencies) {
+    assert(dependency.isInitialized() && "an uninitialized node cannot be depended upon");
+    const auto& nodes = graphInstance.nodes.at(dependency.getNodeId());
+    native.insert(native.end(), nodes.begin(), nodes.end());
+  }
+
+  // a node that recorded nothing stands for its own dependencies, so several handles can name
+  // the same native node - and HIP rejects a dependency list that contains a node twice
+  std::sort(native.begin(), native.end());
+  native.erase(std::unique(native.begin(), native.end()), native.end());
+  return native;
+}
+} // namespace
+#endif
+
 void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
                                  const std::vector<DeviceGraphNodeHandle>& dependencies,
                                  void* streamPtr) {
@@ -191,18 +224,7 @@ void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
   assert(graphInstance != nullptr && "a graph must be created before nodes can be added");
   assert(!graphInstance->ready && "no nodes can be added to an instantiated graph");
 
-  std::vector<cudaGraphNode_t> nativeDependencies;
-  for (const auto& dependency : dependencies) {
-    assert(dependency.isInitialized() && "an uninitialized node cannot be depended upon");
-    const auto& nodes = graphInstance->nodes.at(dependency.getNodeId());
-    nativeDependencies.insert(nativeDependencies.end(), nodes.begin(), nodes.end());
-  }
-
-  // a node that recorded nothing stands for its own dependencies, so several handles can name
-  // the same native node - and HIP rejects a dependency list that contains a node twice
-  std::sort(nativeDependencies.begin(), nativeDependencies.end());
-  nativeDependencies.erase(std::unique(nativeDependencies.begin(), nativeDependencies.end()),
-                           nativeDependencies.end());
+  const auto nativeDependencies = resolveDependencies(*graphInstance, dependencies);
 
   APIWRAP(cudaStreamBeginCaptureToGraph(static_cast<cudaStream_t>(streamPtr),
                                         graphInstance->graph,
@@ -213,6 +235,20 @@ void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
 #endif
 }
 
+void ConcreteAPI::graphBeginIsolatedNode(const DeviceGraphHandle& graphHandle,
+                                         const std::vector<DeviceGraphNodeHandle>& dependencies,
+                                         void* streamPtr) {
+#ifdef DEVICE_USE_GRAPH_NODES
+  auto* graphInstance = graphHandle.get();
+  assert(graphInstance != nullptr && "a graph must be created before nodes can be added");
+  assert(!graphInstance->ready && "no nodes can be added to an instantiated graph");
+
+  auto stream = static_cast<cudaStream_t>(streamPtr);
+  graphInstance->isolatedDependencies[stream] = resolveDependencies(*graphInstance, dependencies);
+  APIWRAP(cudaStreamBeginCapture(stream, cudaStreamCaptureModeThreadLocal));
+#endif
+}
+
 DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHandle,
                                                 void* streamPtr) {
 #ifdef DEVICE_USE_GRAPH_NODES
@@ -220,6 +256,30 @@ DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHa
   assert(graphInstance != nullptr && "a node must be opened before it can be closed");
 
   auto stream = static_cast<cudaStream_t>(streamPtr);
+  const auto isolated = graphInstance->isolatedDependencies.find(stream);
+  if (isolated != graphInstance->isolatedDependencies.end()) {
+    auto dependencies = std::move(isolated->second);
+    graphInstance->isolatedDependencies.erase(isolated);
+
+    cudaGraph_t captured{nullptr};
+    APIWRAP(cudaStreamEndCapture(stream, &captured));
+    std::size_t count = 0;
+    APIWRAP(cudaGraphGetNodes(captured, nullptr, &count));
+    if (count == 0) {
+      // like any other node, one that recorded nothing stands for its dependencies
+      internals::forgetHostFunctions(captured);
+      APIWRAP(cudaGraphDestroy(captured));
+      graphInstance->nodes.emplace_back(std::move(dependencies));
+    } else {
+      cudaGraphNode_t child{nullptr};
+      APIWRAP(cudaGraphAddChildGraphNode(
+          &child, graphInstance->graph, dependencies.data(), dependencies.size(), captured));
+      graphInstance->isolatedGraphs.push_back(captured);
+      graphInstance->nodes.push_back({child});
+    }
+    return DeviceGraphNodeHandle(graphInstance->nodes.size() - 1);
+  }
+
   auto produced = internals::captureState(stream).frontier;
 
   cudaGraph_t endedGraph{nullptr};

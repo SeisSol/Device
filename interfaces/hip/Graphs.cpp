@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
@@ -58,6 +59,88 @@ struct CapturedEvent {
 };
 std::mutex capturedEventMutex;
 std::unordered_map<hipEvent_t, CapturedEvent> capturedEvents;
+
+/**
+ * Removes the edges that other paths through the graph imply already. HIP handles each edge again
+ * at every launch (ROCm 6.3: as a wait between its streams), and graphs built from captures have
+ * many of them: a node that waits for an event waits for all nodes the event stands for, also for
+ * those it waits for through others anyway. Graphs too large for the reachability of all their
+ * nodes, which takes memory in proportion to the square of their size, keep their edges.
+ */
+void removeImpliedDependencies(hipGraph_t graph) {
+  constexpr std::size_t MaxReachabilityBytes = std::size_t{64} << 20;
+  std::size_t count = 0;
+  APIWRAP(hipGraphGetNodes(graph, nullptr, &count));
+  std::size_t edgeCount = 0;
+  APIWRAP(hipGraphGetEdges(graph, nullptr, nullptr, &edgeCount));
+  const std::size_t words = (count + 63) / 64;
+  if (count < 3 || edgeCount < 2 || count * words * sizeof(std::uint64_t) > MaxReachabilityBytes) {
+    return;
+  }
+  std::vector<hipGraphNode_t> nodes(count);
+  APIWRAP(hipGraphGetNodes(graph, nodes.data(), &count));
+  std::vector<hipGraphNode_t> from(edgeCount);
+  std::vector<hipGraphNode_t> to(edgeCount);
+  APIWRAP(hipGraphGetEdges(graph, from.data(), to.data(), &edgeCount));
+
+  std::unordered_map<hipGraphNode_t, std::size_t> index;
+  index.reserve(count);
+  for (std::size_t i = 0; i < count; ++i) {
+    index[nodes[i]] = i;
+  }
+  std::vector<std::vector<std::size_t>> successors(count);
+  std::vector<std::size_t> dependencies(count, 0);
+  for (std::size_t e = 0; e < edgeCount; ++e) {
+    successors[index.at(from[e])].push_back(index.at(to[e]));
+    ++dependencies[index.at(to[e])];
+  }
+
+  // a topological order
+  std::vector<std::size_t> order;
+  order.reserve(count);
+  for (std::size_t i = 0; i < count; ++i) {
+    if (dependencies[i] == 0) {
+      order.push_back(i);
+    }
+  }
+  for (std::size_t k = 0; k < order.size(); ++k) {
+    for (const auto j : successors[order[k]]) {
+      if (--dependencies[j] == 0) {
+        order.push_back(j);
+      }
+    }
+  }
+
+  // Backwards through the order, the nodes reachable from each node, as bits. An edge to a
+  // successor is implied if the successor can be reached through another one.
+  std::vector<std::uint64_t> reach(count * words, 0);
+  const auto reachable = [&](std::size_t i, std::size_t j) {
+    return ((reach[i * words + j / 64] >> (j % 64)) & 1U) != 0;
+  };
+  std::vector<hipGraphNode_t> removeFrom;
+  std::vector<hipGraphNode_t> removeTo;
+  for (auto it = order.rbegin(); it != order.rend(); ++it) {
+    const auto i = *it;
+    for (const auto j : successors[i]) {
+      for (std::size_t w = 0; w < words; ++w) {
+        reach[i * words + w] |= reach[j * words + w];
+      }
+    }
+    for (const auto j : successors[i]) {
+      if (reachable(i, j)) {
+        removeFrom.push_back(nodes[i]);
+        removeTo.push_back(nodes[j]);
+      }
+    }
+    for (const auto j : successors[i]) {
+      reach[i * words + j / 64] |= std::uint64_t{1} << (j % 64);
+    }
+  }
+  if (!removeFrom.empty()) {
+    APIWRAP(
+        hipGraphRemoveDependencies(graph, removeFrom.data(), removeTo.data(), removeFrom.size()));
+  }
+}
 
 /**
  * HIP (seen with ROCm 7.2) does not order all root nodes of a graph after the work that was
@@ -235,6 +318,7 @@ void ConcreteAPI::streamEndCapture(const DeviceGraphHandle& handle) {
   APIWRAP(hipStreamEndCapture(static_cast<hipStream_t>(graphInstance->streamPtrs[0]),
                               &(graphInstance->graph)));
 
+  removeImpliedDependencies(graphInstance->graph);
   orderRootsAfterTheLaunchStream(graphInstance->graph);
   APIWRAP(
       hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));
@@ -310,6 +394,7 @@ void ConcreteAPI::graphInstantiate(const DeviceGraphHandle& graphHandle) {
   assert(graphInstance != nullptr && "a graph must be created before it is instantiated");
   assert(graphInstance->instance == nullptr && "a graph is instantiated once");
 
+  removeImpliedDependencies(graphInstance->graph);
   orderRootsAfterTheLaunchStream(graphInstance->graph);
   APIWRAP(
       hipGraphInstantiate(&(graphInstance->instance), graphInstance->graph, nullptr, nullptr, 0));

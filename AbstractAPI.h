@@ -129,6 +129,20 @@ struct AbstractAPI {
                                              void* streamPtr) = 0;
   virtual void graphInstantiate(const DeviceGraphHandle& graphHandle) = 0;
 
+  /**
+   * As graphBeginNode, for work that has to be captured into a graph of its own, which then becomes
+   * a single node of the graph; graphEndNode ends it as usual. For libraries that keep state per
+   * capture, and thus fail when they get captured into the same graph several times: CUDA gives
+   * all captures into one graph the same id, which NCCL takes for one capture all along.
+   *
+   * Backends that tell such captures apart (HIP) record an ordinary node.
+   */
+  virtual void graphBeginIsolatedNode(const DeviceGraphHandle& graphHandle,
+                                      const std::vector<DeviceGraphNodeHandle>& dependencies,
+                                      void* streamPtr) {
+    graphBeginNode(graphHandle, dependencies, streamPtr);
+  }
+
   DeviceGraphNodeHandle graphAddNode(const DeviceGraphHandle& graphHandle,
                                      const std::vector<DeviceGraphNodeHandle>& dependencies,
                                      void* streamPtr,
