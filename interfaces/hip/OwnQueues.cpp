@@ -140,6 +140,8 @@ constexpr double SpinMicroseconds = 300;
 // created but stay unused, at most (a GCD of the MI250X has 24 hardware queues for the processes)
 constexpr std::size_t MaxPipes = 8;
 constexpr std::size_t MaxSpareQueues = 8;
+// the numbers of the helper queues of graphs start here (see Program)
+constexpr int FirstHelperQueue = 1000000;
 constexpr std::uint32_t MaxCopyBlocks = 1024;
 
 constexpr std::uint16_t fenceBits(hsa_fence_scope_t acquire, hsa_fence_scope_t release) {
@@ -500,6 +502,9 @@ class Runtime {
    * others stay unused, as do the idle ones: destroyed, they would move the queues after them.
    */
   hsa_queue_t* placeQueue(int number);
+  /// the own queues that the graphs of `self` may lend lanes from: on other pipes (if known), not
+  /// light, no helpers
+  std::vector<Queue*> borrowable(const Queue& self);
   std::uint64_t timestampFrequency{1};
   // the system timestamp when the own queues started; stamps before it are not valid
   std::uint64_t startTimestamp{0};
@@ -1092,6 +1097,12 @@ class Queue {
     return mark();
   }
 
+  /// whether the queue has done all it got (its last packet is a mark that has been reached), with
+  /// `mutex` held
+  [[nodiscard]] bool idleLocked() const {
+    return overflow_.empty() && marks_ > 0 && lastMarkIndex_ == created_ && reached(marks_);
+  }
+
   [[nodiscard]] bool reached(std::uint64_t mark) const {
     return mark == 0 ||
            hsa_signal_load_scacquire(counter_) <= CounterStart - static_cast<std::int64_t>(mark);
@@ -1647,6 +1658,27 @@ Queue& Runtime::queue(int number) {
   return *queue;
 }
 
+std::vector<Queue*> Runtime::borrowable(const Queue& self) {
+  std::vector<int> samePipe;
+  {
+    const std::lock_guard lock(placeMutex_);
+    for (const auto& pipe : pipes_) {
+      if (std::find(pipe.queues.begin(), pipe.queues.end(), self.number()) != pipe.queues.end()) {
+        samePipe = pipe.queues;
+      }
+    }
+  }
+  std::vector<Queue*> candidates;
+  const std::lock_guard lock(mutex_);
+  for (const auto& [number, queue] : queues_) {
+    if (queue.get() != &self && number < FirstHelperQueue && lightQueues.count(number) == 0 &&
+        std::find(samePipe.begin(), samePipe.end(), number) == samePipe.end()) {
+      candidates.push_back(queue.get());
+    }
+  }
+  return candidates;
+}
+
 hsa_queue_t* Runtime::placeQueue(int number) {
   const std::lock_guard lock(placeMutex_);
   const auto pipeOf = [&](hsa_queue_t* queue) -> int {
@@ -2053,7 +2085,7 @@ struct ProgramPacket {
 
 /// the own queue number of helper lane `lane` of the programs of queue `queue`
 int helperQueueNumber(int queue, unsigned lane) {
-  return 1000000 + (queue + 1000) * 16 + static_cast<int>(lane);
+  return FirstHelperQueue + (queue + 1000) * 16 + static_cast<int>(lane);
 }
 } // namespace
 
@@ -2067,7 +2099,10 @@ int helperQueueNumber(int queue, unsigned lane) {
  * helpers are done with it (a join), by signals of the program that each replay counts down. That
  * pays off only with pipes of the command processor left for the helpers (see
  * Runtime::placeQueue()): on the MI250X, with two own queues (TPV13 2.16 s instead of 2.74), not
- * with four (2.87 instead of 1.92).
+ * with four (2.87 instead of 1.92). With DEVICE_OWN_QUEUE_GRAPH_BORROW=1, the lanes go to other own
+ * queues instead, those that are idle at each replay (and only while the queue of the program is
+ * idle as well, unless DEVICE_OWN_QUEUE_GRAPH_BORROW_IDLE=0); on four queues, that made no
+ * difference (1.94 s), and coupled the queues without the condition (2.03 s).
  */
 class Program {
   public:
@@ -2081,19 +2116,25 @@ class Program {
   std::uint64_t submit();
 
   private:
-  /// the helper lanes `lanes` wait until the signal has counted down for this replay
-  void waitOnLanes(hsa_signal_t signal, const std::vector<unsigned>& lanes);
+  /// the lanes `lanes` wait until the signal has counted down `count` times
+  void waitOnLanes(hsa_signal_t signal, std::int64_t count, const std::vector<unsigned>& lanes);
   void push(unsigned lane, const PacketImage& image);
 
   Queue& queue_;
   std::vector<ProgramPacket> packets_;
   void* kernargs_{nullptr};
   std::uint64_t lastIndex_{0};
-  // lane 0 is the queue of the program
+  // lane 0 is the queue of the program; the others are helper queues of their own, or (borrow_)
+  // other own queues that are idle when the program gets enqueued, chosen anew each time
   std::vector<Queue*> lanes_;
+  bool borrow_{false};
+  // the queue of each lane in submit() (none: the lane runs on the queue of the program)
+  std::vector<Queue*> laneQueues_;
   std::vector<hsa_signal_t> forks_;
   std::vector<std::vector<hsa_signal_t>> joins_;
-  std::uint64_t replays_{0};
+  // how often each signal has been counted down so far
+  std::vector<std::int64_t> forkCounts_;
+  std::vector<std::vector<std::int64_t>> joinCounts_;
 };
 
 struct ProgramsImpl {
@@ -2333,9 +2374,11 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
   const auto laneCount =
       Runtime::instance().barrierValue ? env.get<unsigned>("OWN_QUEUE_GRAPH_LANES", 0U) : 0U;
   const auto laneMinimum = env.get<std::size_t>("OWN_QUEUE_GRAPH_LANE_MIN", std::size_t{3});
+  borrow_ = laneCount > 0 && env.get<bool>("OWN_QUEUE_GRAPH_BORROW", false);
   lanes_.push_back(&queue);
   for (unsigned lane = 1; lane <= laneCount; ++lane) {
-    lanes_.push_back(&Runtime::instance().queue(helperQueueNumber(queue.number(), lane)));
+    lanes_.push_back(borrow_ ? nullptr
+                             : &Runtime::instance().queue(helperQueueNumber(queue.number(), lane)));
   }
   std::vector<unsigned> laneOf(work.size(), 0);
   std::vector<bool> splitLevel(work.size(), false);
@@ -2399,6 +2442,7 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
       check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
             "hsa_amd_signal_create");
       forks_.push_back(signal);
+      forkCounts_.push_back(0);
       std::vector<hsa_signal_t> joins;
       for (std::size_t k = 0; k < used.size(); ++k) {
         check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
@@ -2406,6 +2450,7 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
         joins.push_back(signal);
       }
       joins_.push_back(joins);
+      joinCounts_.emplace_back(used.size(), 0);
       packets_.push_back(std::move(fork));
     }
     ProgramPacket packet;
@@ -2477,7 +2522,8 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
     logInfo() << "Own queue" << queue.number() << ": a graph of" << count << "nodes and"
               << edgeCount << "edges became" << work.size() << "packets in"
               << kernelsPerLevel.size() << "levels of up to" << widest << "kernels;" << splitLevels
-              << "of them spread over" << laneCount << "helper queues";
+              << "of them spread over" << laneCount
+              << (borrow_ ? "other own queues while idle" : "helper queues");
   }
 }
 
@@ -2507,19 +2553,26 @@ Program::~Program() {
 }
 
 void Program::push(unsigned lane, const PacketImage& image) {
-  if (lane == 0) {
+  auto* queue = laneQueues_[lane];
+  if (queue == nullptr || queue == &queue_) {
     queue_.push(image);
     return;
   }
+  if (borrow_) {
+    // (locked in submit())
+    queue->push(image);
+    return;
+  }
   // (the queue's mutex is held; the helpers of a queue are only ever locked after it)
-  const std::lock_guard lock(lanes_[lane]->mutex);
-  lanes_[lane]->push(image);
+  const std::lock_guard lock(queue->mutex);
+  queue->push(image);
 }
 
-void Program::waitOnLanes(hsa_signal_t signal, const std::vector<unsigned>& lanes) {
-  // counted down once per replay: this replay has passed once it is below the start minus the
-  // replays before
-  const auto below = CounterStart - static_cast<std::int64_t>(replays_) + 1;
+void Program::waitOnLanes(hsa_signal_t signal,
+                          std::int64_t count,
+                          const std::vector<unsigned>& lanes) {
+  // it has counted down `count` times once it is below the start minus the times before
+  const auto below = CounterStart - count + 1;
   for (const auto lane : lanes) {
     PacketImage packet;
     auto& barrier = packet.as<hsa_amd_barrier_value_packet_t>();
@@ -2536,7 +2589,40 @@ void Program::waitOnLanes(hsa_signal_t signal, const std::vector<unsigned>& lane
 }
 
 std::uint64_t Program::submit() {
-  ++replays_;
+  laneQueues_.assign(lanes_.begin(), lanes_.end());
+  std::vector<std::unique_lock<std::mutex>> borrowed;
+  static std::atomic<std::uint64_t> submits{0};
+  static std::atomic<std::uint64_t> lent{0};
+  static const bool borrowWhenIdle =
+      utils::Env("DEVICE_").get<bool>("OWN_QUEUE_GRAPH_BORROW_IDLE", true);
+  static const bool verbose = utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false);
+  const bool borrowNow = borrow_ && (!borrowWhenIdle || queue_.idleLocked());
+  if (borrowNow) {
+    // other own queues on other pipes that have nothing to do (with the queue of the program idle
+    // as well: the level starts right away, and the helpers hold up the work of their own queue as
+    // little as they can); a lane without one runs on the queue of the program (its mutex is held:
+    // the others only get tried, never waited for)
+    const auto candidates = Runtime::instance().borrowable(queue_);
+    std::size_t next = 0;
+    for (std::size_t lane = 1; lane < laneQueues_.size(); ++lane) {
+      while (next < candidates.size()) {
+        auto* candidate = candidates[next++];
+        std::unique_lock lock(candidate->mutex, std::try_to_lock);
+        if (lock.owns_lock() && candidate->idleLocked()) {
+          laneQueues_[lane] = candidate;
+          borrowed.push_back(std::move(lock));
+          break;
+        }
+      }
+    }
+  }
+  if (borrow_ && verbose) {
+    const auto count = ++submits;
+    lent += borrowed.size();
+    if (count % 20000 == 0) {
+      logInfo() << "Own queues: graphs borrowed" << lent.load() << "lanes in" << count << "replays";
+    }
+  }
   constexpr std::uint16_t LaneFences = fenceBits(HSA_FENCE_SCOPE_NONE, HSA_FENCE_SCOPE_AGENT);
   const auto countDown = [&](unsigned lane, hsa_signal_t signal) {
     PacketImage packet;
@@ -2549,14 +2635,25 @@ std::uint64_t Program::submit() {
   };
   for (const auto& packet : packets_) {
     if (packet.kind == ProgramPacket::Kind::Fork) {
-      // the queue has done all before the level; then the helpers start it
-      countDown(0, forks_[packet.slot]);
-      waitOnLanes(forks_[packet.slot], packet.lanes);
+      // the queue has done all before the level; then the helpers start it (the lanes on the
+      // queue of the program run in its order)
+      std::vector<unsigned> lanes;
+      for (const auto lane : packet.lanes) {
+        if (laneQueues_[lane] != nullptr) {
+          lanes.push_back(lane);
+        }
+      }
+      if (!lanes.empty()) {
+        countDown(0, forks_[packet.slot]);
+        waitOnLanes(forks_[packet.slot], ++forkCounts_[packet.slot], lanes);
+      }
     } else if (packet.kind == ProgramPacket::Kind::Join) {
       // the helpers are done with the level; the queue waits for them
       for (std::size_t k = 0; k < packet.lanes.size(); ++k) {
-        countDown(packet.lanes[k], joins_[packet.slot][k]);
-        waitOnLanes(joins_[packet.slot][k], {0});
+        if (laneQueues_[packet.lanes[k]] != nullptr) {
+          countDown(packet.lanes[k], joins_[packet.slot][k]);
+          waitOnLanes(joins_[packet.slot][k], ++joinCounts_[packet.slot][k], {0});
+        }
       }
     } else if (packet.host) {
       queue_.hostFunction(packet.host);
