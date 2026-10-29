@@ -1941,15 +1941,22 @@ namespace {
  * DEVICE_OWN_QUEUE_DAG_LOG=<prefix>: while the kernels get traced (see trace()), what the streams
  * do and when the kernels ran, per process in <prefix>-<rank>.txt (the rank from SLURM_PROCID,
  * PMI_RANK or OMPI_COMM_WORLD_RANK, else the process id), as the work and its dependencies for a
- * schedule over the queues. Times in ns of steady_clock, the packets of a queue counted from 1:
- *   L t stream queue first last name    a kernel launched on a stream (packets first+1..last)
- *   G t stream queue first last program a graph launched on a stream (see P)
- *   P program queue levels...           the level of each kernel of the graph (h: a host function)
- *   R t stream queue event mark index   an event recorded on a stream (its mark, after packet
- * index) W t stream queue event              a stream waits for an event O t stream queue first
- * last kind    other work on a stream (copy, host, counter) K queue index start end name        the
- * times a kernel ran A queue index start end target      the times of a wait (target: a queue, or
- * -1 for the host) N stream name                       the name of a stream (see nameStream())
+ * schedule over the queues. Times in ns of steady_clock, the packets of a queue counted from 1; a
+ * line for each of:
+ * - L t stream queue first last name: a kernel launched on a stream (packets first+1..last)
+ * - G t stream queue first last program: a graph launched on a stream (see P)
+ * - P program queue levels...: the level of each kernel of the graph (h: a host function)
+ * - R t stream queue event mark index: an event recorded on a stream (its mark, after packet index)
+ * - W t stream queue event: a stream waits for an event
+ * - O t stream queue first last kind: other work on a stream (copy, host, counter)
+ * - K queue index start end name: the times a kernel ran
+ * - A queue index start end target: the times of a wait (target: a queue, or -1 for the host)
+ * - N stream name: the name of a stream (see nameStream())
+ * - S t program queue level start end alone: a level that a graph spreads over queues
+ *   (DEVICE_OWN_QUEUE_SCHEDULE), its predicted start and end, and its end on its queue alone
+ * - F queue index program level free: a wait of a queue for the fork of such a level, and when
+ *   the queue was predicted to be free
+ * - J queue index program level: a wait of the queue of the level for the join of a helper
  */
 class DagLog {
   public:
@@ -3110,11 +3117,31 @@ std::uint64_t Program::submitScheduled() {
         ++movedKernels;
       }
     }
+    const bool logged = dagLog().on();
+    if (logged) {
+      dagLog().line("S %lld %p %d %zu %lld %lld %lld\n",
+                    DagLog::now(),
+                    static_cast<void*>(this),
+                    queue_.number(),
+                    l,
+                    static_cast<long long>(time * 1e9),
+                    static_cast<long long>(levelEnd * 1e9),
+                    static_cast<long long>((time + work) * 1e9));
+    }
     countDown(queue_, levelForks_[l]);
     const auto forkCount = ++levelForkCounts_[l];
     for (std::size_t k = 0; k < helpers.size(); ++k) {
       if (inLevel[k]) {
+        const auto before = helperFree[k];
         waitCount(*helpers[k], levelForks_[l], forkCount);
+        if (logged) {
+          dagLog().line("F %d %llu %p %zu %lld\n",
+                        helpers[k]->number(),
+                        static_cast<unsigned long long>(helpers[k]->created()),
+                        static_cast<void*>(this),
+                        l,
+                        static_cast<long long>(before * 1e9));
+        }
       }
     }
     for (std::size_t i = 0; i < level.count; ++i) {
@@ -3124,6 +3151,13 @@ std::uint64_t Program::submitScheduled() {
       if (inLevel[k]) {
         countDown(*helpers[k], levelJoins_[l][k]);
         waitCount(queue_, levelJoins_[l][k], ++levelJoinCounts_[l][k]);
+        if (logged) {
+          dagLog().line("J %d %llu %p %zu\n",
+                        queue_.number(),
+                        static_cast<unsigned long long>(queue_.created()),
+                        static_cast<void*>(this),
+                        l);
+        }
       }
     }
     time = levelEnd;
