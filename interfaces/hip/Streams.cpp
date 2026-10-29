@@ -161,12 +161,32 @@ __global__ void spinloop(uint32_t* location, uint32_t value) {
 }
 } // namespace
 
+uint32_t* ConcreteAPI::allocCounter() {
+  if (ownqueues::enabled()) {
+    return ownqueues::allocCounter();
+  }
+  return AbstractAPI::allocCounter();
+}
+
+void ConcreteAPI::freeCounter(uint32_t* counter) {
+  if (ownqueues::isCounter(counter)) {
+    ownqueues::freeCounter(counter);
+    return;
+  }
+  AbstractAPI::freeCounter(counter);
+}
+
 void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
   if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
     ownqueues::waitMemory(streamPtr, location, value);
     return;
   }
   hipStream_t stream = ownqueues::vehicle(streamPtr);
+  if (ownqueues::isCounter(location)) {
+    // a signal, at the same address on the device; HIP does not know it
+    spinloop<<<1, 1, 0, stream>>>(location, value);
+    return;
+  }
   uint32_t* deviceLocation = nullptr;
   APIWRAP(hipHostGetDevicePointer(reinterpret_cast<void**>(&deviceLocation), location, 0));
   const auto result = APIWRAPX(

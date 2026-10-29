@@ -95,11 +95,23 @@ __global__ void ownWaitAtLeast(const volatile std::int64_t* value, std::int64_t 
 }
 
 // until a counter in host memory is at least `atLeast`
+// takes the time (by its completion signal, on a queue with profiling)
+__global__ void ownStamp() {}
+
 __global__ void ownWaitHost(const volatile std::uint32_t* counter, std::uint32_t atLeast) {
   while (*counter < atLeast) {
     __builtin_amdgcn_s_sleep(2);
   }
 }
+
+// lets the work after it see what the host and other agents wrote before, together with the
+// acquire fence of the agent of the next kernel (for the caches of the other compute units): a
+// fence of the system in the shader drops only the lines of the L2 cache that may be stale (on
+// gfx90a, those of memory that is not local; the hardware keeps those of local memory coherent),
+// while that of a packet drops all of them, at the expense of the kernels of all queues (on the
+// MI250X, a kernel that read 4 MiB again and again took 3.3 times as long next to a queue of such
+// packets, and 1.1 times next to one of such kernels)
+__global__ void ownAcquireSystem() { __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, ""); }
 
 // ------------------------------------------------------------------------------------------------
 
@@ -119,11 +131,14 @@ constexpr std::uint16_t fenceBits(hsa_fence_scope_t acquire, hsa_fence_scope_t r
 }
 
 constexpr std::uint16_t KernelFences = fenceBits(HSA_FENCE_SCOPE_AGENT, HSA_FENCE_SCOPE_AGENT);
-// device memory may have been read or written by the host or other agents (e.g. MPI) before
-constexpr std::uint16_t HostFences = fenceBits(HSA_FENCE_SCOPE_SYSTEM, HSA_FENCE_SCOPE_SYSTEM);
 // a mark makes all work before it visible to the host and other agents
 constexpr std::uint16_t MarkFences = fenceBits(HSA_FENCE_SCOPE_NONE, HSA_FENCE_SCOPE_SYSTEM);
+// a wait for the host (or work that it stands for, e.g. data from MPI)
 constexpr std::uint16_t WaitFences = fenceBits(HSA_FENCE_SCOPE_SYSTEM, HSA_FENCE_SCOPE_NONE);
+// a wait for another own queue, i.e. for work of the same device: the scope of the device is
+// enough, while one of the system invalidates its L2 cache, at the expense of the kernels of all
+// queues (actor-mpi of SeisSol on the MI250X: a fifth of its time)
+constexpr std::uint16_t QueueWaitFences = fenceBits(HSA_FENCE_SCOPE_AGENT, HSA_FENCE_SCOPE_NONE);
 constexpr std::uint16_t BarrierBit = 1U << HSA_PACKET_HEADER_BARRIER;
 
 std::uint64_t alignUp(std::uint64_t value, std::uint64_t alignment) {
@@ -430,10 +445,19 @@ class Runtime {
   hsa_amd_memory_pool_t deviceKernargPool{};
   bool haveDevicePool{false};
   bool deviceKernargs{false};
-  // the fences of marks and of waits for other queues (DEVICE_OWN_QUEUE_MARK_SCOPE and
-  // DEVICE_OWN_QUEUE_WAIT_SCOPE: system or agent)
+  // the fences of marks and of waits for other queues (DEVICE_OWN_QUEUE_MARK_SCOPE, system by
+  // default, and DEVICE_OWN_QUEUE_WAIT_SCOPE, agent by default: system or agent)
   std::uint16_t markFences{MarkFences};
-  std::uint16_t waitFences{WaitFences};
+  std::uint16_t waitFences{QueueWaitFences};
+  // how the work after a wait for the host, and copies from host memory, see what it wrote: by a
+  // kernel that fences in the shader (DEVICE_OWN_QUEUE_HOST_ACQUIRE=kernel, the default, see
+  // ownAcquireSystem), or by the acquire fence of the packet (=packet)
+  bool acquireByKernel{true};
+  // events time what they enclose (DEVICE_OWN_QUEUE_TIMING=1): by a kernel that takes the time
+  bool timing{false};
+  std::uint64_t timestampFrequency{1};
+  // the system timestamp when the own queues started; stamps before it are not valid
+  std::uint64_t startTimestamp{0};
   hsa_ven_amd_loader_1_03_pfn_t loader{};
   // whether the command processor waits for signal values itself (barrier-value packets)
   bool barrierValue{false};
@@ -703,6 +727,12 @@ class Queue {
     check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &counter_),
           "hsa_amd_signal_create");
     check(hsa_amd_signal_value_pointer(counter_, &counterValue_), "hsa_amd_signal_value_pointer");
+    if (runtime.timing) {
+      // before the first packet: enabled later, the first stamps of the queue had no times
+      check(hsa_amd_profiling_set_profiler_enabled(queue_, 1),
+            "hsa_amd_profiling_set_profiler_enabled");
+      profiling_ = true;
+    }
     ringBytes_ = runtime.kernargRingBytes;
     ring_ = static_cast<char*>(allocKernargMemory(ringBytes_));
     APIWRAP(hipStreamCreateWithFlags(&helper_, hipStreamNonBlocking));
@@ -833,6 +863,41 @@ class Queue {
     while (hsa_signal_wait_scacquire(
                counter_, HSA_SIGNAL_CONDITION_LT, below, UINT64_MAX, HSA_WAIT_STATE_ACTIVE) >=
            below) {
+    }
+  }
+
+  /// lets the work enqueued from now on wait until the 32-bit counter in the signal reaches `value`
+  void waitForCounter(hsa_signal_t signal, std::uint32_t value) {
+    PacketImage packet;
+    auto& barrier = packet.as<hsa_amd_barrier_value_packet_t>();
+    barrier.signal = signal;
+    barrier.value = value;
+    barrier.mask = 0xffffffff;
+    barrier.cond = HSA_SIGNAL_CONDITION_GTE;
+    // (the host has written the data the counter stands for)
+    packet.setHeader(
+        static_cast<std::uint16_t>((HSA_PACKET_TYPE_VENDOR_SPECIFIC << HSA_PACKET_HEADER_TYPE) |
+                                   BarrierBit | hostWaitFences()),
+        HSA_AMD_PACKET_TYPE_BARRIER_VALUE);
+    push(packet);
+    acquireFromHost();
+  }
+
+  /// the fences of a packet that waits for the host (see Runtime::acquireByKernel)
+  [[nodiscard]] std::uint16_t hostWaitFences() const {
+    return runtime_.acquireByKernel ? QueueWaitFences : WaitFences;
+  }
+
+  /// after a packet that waited for the host: lets the work after it see what the host wrote
+  void acquireFromHost() {
+    if (runtime_.acquireByKernel) {
+      dispatch(kernelOf(reinterpret_cast<const void*>(ownAcquireSystem)),
+               dim3(1),
+               dim3(1),
+               0,
+               nullptr,
+               KernelFences,
+               hsa_signal_t{0});
     }
   }
 
@@ -1002,7 +1067,7 @@ class Queue {
       wait.completion_signal = reach;
       packet.setHeader(
           static_cast<std::uint16_t>((HSA_PACKET_TYPE_VENDOR_SPECIFIC << HSA_PACKET_HEADER_TYPE) |
-                                     BarrierBit | WaitFences),
+                                     BarrierBit | hostWaitFences()),
           HSA_AMD_PACKET_TYPE_BARRIER_VALUE);
       push(packet);
     } else {
@@ -1016,10 +1081,28 @@ class Queue {
                dim3(1),
                0,
                args,
-               WaitFences,
+               hostWaitFences(),
                reach);
     }
+    acquireFromHost();
     runtime_.hostThread.push({reach, gate, function});
+  }
+
+  /// enqueues a kernel that takes the time after all work before it, into the signal
+  void stamp(hsa_signal_t signal) {
+    if (!profiling_) {
+      check(hsa_amd_profiling_set_profiler_enabled(queue_, 1),
+            "hsa_amd_profiling_set_profiler_enabled");
+      profiling_ = true;
+    }
+    hsa_signal_store_relaxed(signal, 1);
+    dispatch(kernelOf(reinterpret_cast<const void*>(ownStamp)),
+             dim3(1),
+             dim3(1),
+             0,
+             nullptr,
+             KernelFences,
+             signal);
   }
 
   /// memory of at least `bytes`, for the temporaries of the graphs that run on the queue
@@ -1098,6 +1181,7 @@ class Queue {
   std::uint64_t marks_{0};
   std::uint64_t lastMarkIndex_{0};
   std::deque<PacketImage> overflow_;
+  bool profiling_{false};
 
   char* ring_{nullptr};
   std::uint64_t ringBytes_{0};
@@ -1150,9 +1234,11 @@ bool Runtime::setUp() {
   }
   char name[64] = {};
   hsa_agent_get_info(gpu, HSA_AGENT_INFO_NAME, name);
-  // the command processors of GFX9 wait for signal values (barrier-value packets), those of GFX11
-  // do not; DEVICE_OWN_QUEUE_WAITS=kernel|packet decides otherwise
-  barrierValue = std::string(name).rfind("gfx9", 0) == 0;
+  // the command processors of MI200 and MI300 wait for signal values (barrier-value packets; CLR
+  // uses them only there), that of gfx1150 rejects them as malformed, the other ones are untried;
+  // DEVICE_OWN_QUEUE_WAITS=kernel|packet decides otherwise
+  const std::string arch(name);
+  barrierValue = arch == "gfx90a" || arch.rfind("gfx94", 0) == 0 || arch == "gfx950";
   utils::Env env("DEVICE_");
   const auto waits = env.get<std::string>("OWN_QUEUE_WAITS", "");
   if (waits == "kernel") {
@@ -1171,6 +1257,12 @@ bool Runtime::setUp() {
                maxPackets > 0 ? maxPackets : MaxQueuePackets);
   kernargRingBytes =
       env.get<std::uint64_t>("OWN_QUEUE_KERNARG_MIB", std::uint64_t{DefaultKernargRingMiB}) << 20;
+  timing = env.get<bool>("OWN_QUEUE_TIMING", false);
+  hsa_system_get_info(HSA_SYSTEM_INFO_TIMESTAMP_FREQUENCY, &timestampFrequency);
+  if (timestampFrequency == 0) {
+    timestampFrequency = 1;
+  }
+  hsa_system_get_info(HSA_SYSTEM_INFO_TIMESTAMP, &startTimestamp);
   // where the kernel arguments go: host memory (default), or device memory that the host writes
   if (env.get<std::string>("OWN_QUEUE_KERNARGS", "host") == "device") {
     check(hsa_amd_agent_iterate_memory_pools(gpu, visitDevicePool, this),
@@ -1190,11 +1282,14 @@ bool Runtime::setUp() {
   markFences =
       fenceBits(HSA_FENCE_SCOPE_NONE, scope("OWN_QUEUE_MARK_SCOPE", HSA_FENCE_SCOPE_SYSTEM));
   waitFences =
-      fenceBits(scope("OWN_QUEUE_WAIT_SCOPE", HSA_FENCE_SCOPE_SYSTEM), HSA_FENCE_SCOPE_NONE);
+      fenceBits(scope("OWN_QUEUE_WAIT_SCOPE", HSA_FENCE_SCOPE_AGENT), HSA_FENCE_SCOPE_NONE);
+  acquireByKernel = env.get<std::string>("OWN_QUEUE_HOST_ACQUIRE", "kernel") != "packet";
   logInfo() << "Own queues on" << name << "; queues wait for other queues by"
-            << (barrierValue ? "barrier-value packets" : "kernels") << "; kernel arguments in"
-            << (deviceKernargs ? "device memory" : "host memory") << "; queues of" << queuePackets
-            << "packets and" << (kernargRingBytes >> 20) << "MiB for kernel arguments";
+            << (barrierValue ? "barrier-value packets" : "kernels") << "; work after the host sees"
+            << "its data by" << (acquireByKernel ? "a fence in a kernel" : "packet fences")
+            << "; kernel arguments in" << (deviceKernargs ? "device memory" : "host memory")
+            << "; queues of" << queuePackets << "packets and" << (kernargRingBytes >> 20)
+            << "MiB for kernel arguments";
   return true;
 }
 
@@ -1277,6 +1372,10 @@ struct Event {
   // recorded on an own stream: the mark of the queue
   Queue* queue{nullptr};
   std::uint64_t mark{0};
+  // with timing, on an own stream: the signal of a kernel that took the time there
+  bool timing{false};
+  hsa_signal_t stamp{};
+  bool stamped{false};
 };
 
 Stream* streamOf(void* handle) {
@@ -1311,16 +1410,34 @@ const void* deviceAddress(const void* ptr) {
          (static_cast<const char*>(ptr) - static_cast<const char*>(info.hostBaseAddress));
 }
 
+/// memory that is not that of the device (of the host, or of other agents): its lines in the L2
+/// cache may be stale, and the others read it past that cache
+bool foreignMemory(const void* ptr) {
+  hsa_amd_pointer_info_t info{};
+  info.size = sizeof(info);
+  return hsa_amd_pointer_info(ptr, &info, nullptr, nullptr, nullptr) != HSA_STATUS_SUCCESS ||
+         info.type != HSA_EXT_POINTER_TYPE_HSA ||
+         info.agentOwner.handle != Runtime::instance().gpu.handle;
+}
+
 void dispatchCopy(Queue& queue, void* dst, const void* src, std::size_t bytes) {
   const auto blocks = static_cast<std::uint32_t>(
       std::min<std::size_t>(MaxCopyBlocks, std::max<std::size_t>(1, bytes / (16 * CopyThreads))));
   void* args[] = {&dst, const_cast<void**>(&src), &bytes};
+  // sees what others wrote into their memory, and writes back what it wrote into theirs
+  const bool fromForeign = foreignMemory(src);
+  if (fromForeign) {
+    queue.acquireFromHost();
+  }
+  const auto acquire = fromForeign && !Runtime::instance().acquireByKernel ? HSA_FENCE_SCOPE_SYSTEM
+                                                                           : HSA_FENCE_SCOPE_AGENT;
+  const auto release = foreignMemory(dst) ? HSA_FENCE_SCOPE_SYSTEM : HSA_FENCE_SCOPE_AGENT;
   queue.dispatch(Queue::kernelOf(reinterpret_cast<const void*>(ownCopy)),
                  dim3(blocks),
                  dim3(CopyThreads),
                  0,
                  args,
-                 HostFences,
+                 fenceBits(acquire, release),
                  hsa_signal_t{0});
 }
 
@@ -1776,11 +1893,69 @@ void hostFunction(void* handle, const std::function<void()>& function) {
   stream->lastIndex = queue.created();
 }
 
+namespace {
+std::mutex counterMutex;
+std::unordered_map<const void*, hsa_signal_t> counterSignals;
+
+hsa_signal_t counterSignal(const void* location) {
+  const std::lock_guard lock(counterMutex);
+  const auto found = counterSignals.find(location);
+  return found == counterSignals.end() ? hsa_signal_t{0} : found->second;
+}
+} // namespace
+
+std::uint32_t* allocCounter() {
+  // a signal that only the device waits for (the host polls it), whose value the host stores into
+  // as into memory: the command processor checks it
+  hsa_signal_t signal{};
+  check(hsa_amd_signal_create(0, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
+        "hsa_amd_signal_create");
+  volatile hsa_signal_value_t* value = nullptr;
+  check(hsa_amd_signal_value_pointer(signal, &value), "hsa_amd_signal_value_pointer");
+  // (the lower half of the 64-bit value, which the higher one leaves at 0)
+  auto* counter = reinterpret_cast<std::uint32_t*>(const_cast<hsa_signal_value_t*>(value));
+  const std::lock_guard lock(counterMutex);
+  counterSignals.emplace(counter, signal);
+  return counter;
+}
+
+void freeCounter(std::uint32_t* counter) {
+  hsa_signal_t signal{};
+  {
+    const std::lock_guard lock(counterMutex);
+    const auto found = counterSignals.find(counter);
+    if (found == counterSignals.end()) {
+      return;
+    }
+    signal = found->second;
+    counterSignals.erase(found);
+  }
+  hsa_signal_destroy(signal);
+}
+
+bool isCounter(const void* location) {
+  if (location == nullptr) {
+    return false;
+  }
+  const std::lock_guard lock(counterMutex);
+  return counterSignals.find(location) != counterSignals.end();
+}
+
 void waitMemory(void* handle, std::uint32_t* location, std::uint32_t value) {
   auto* stream = streamOf(handle);
   auto& queue = *stream->queue;
-  std::uint32_t* deviceLocation = nullptr;
-  APIWRAP(hipHostGetDevicePointer(reinterpret_cast<void**>(&deviceLocation), location, 0));
+  const auto signal = counterSignal(location);
+  if (signal.handle != 0 && Runtime::instance().barrierValue) {
+    // the command processor waits for the signal
+    const std::lock_guard lock(queue.mutex);
+    queue.waitForCounter(signal, value);
+    stream->lastIndex = queue.created();
+    return;
+  }
+  std::uint32_t* deviceLocation = location;
+  if (signal.handle == 0) {
+    APIWRAP(hipHostGetDevicePointer(reinterpret_cast<void**>(&deviceLocation), location, 0));
+  }
   const std::uint32_t* counter = deviceLocation;
   void* args[] = {&counter, &value};
   const std::lock_guard lock(queue.mutex);
@@ -1789,8 +1964,9 @@ void waitMemory(void* handle, std::uint32_t* location, std::uint32_t value) {
                  dim3(1),
                  0,
                  args,
-                 HostFences,
+                 queue.hostWaitFences(),
                  hsa_signal_t{0});
+  queue.acquireFromHost();
   stream->lastIndex = queue.created();
 }
 
@@ -1841,6 +2017,7 @@ void freeAsync(void* ptr, void* handle) {
 
 void* createEvent(bool withTiming) {
   auto* event = new Event();
+  event->timing = withTiming && Runtime::instance().timing;
   if (withTiming) {
     APIWRAP(hipEventCreate(&event->hip));
   } else {
@@ -1851,6 +2028,9 @@ void* createEvent(bool withTiming) {
 
 void destroyEvent(void* handle) {
   auto* event = eventOf(handle);
+  if (event->stamp.handle != 0) {
+    hsa_signal_destroy(event->stamp);
+  }
   internals::forgetEvent(event->hip);
   APIWRAP(hipEventDestroy(event->hip));
   delete event;
@@ -1866,6 +2046,15 @@ void recordEvent(void* eventHandle, void* streamHandle) {
     auto* stream = streamOf(streamHandle);
     auto& queue = *stream->queue;
     const std::lock_guard lock(queue.mutex);
+    if (event->timing) {
+      if (event->stamp.handle == 0) {
+        check(hsa_amd_signal_create(1, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &event->stamp),
+              "hsa_amd_signal_create");
+      }
+      queue.stamp(event->stamp);
+      stream->lastIndex = queue.created();
+      event->stamped = true;
+    }
     event->queue = &queue;
     event->mark = queue.markCoveringLocked(stream->lastIndex);
     return;
@@ -1873,14 +2062,54 @@ void recordEvent(void* eventHandle, void* streamHandle) {
   // on a stream of HIP, or one that gets captured
   auto hipStream = vehicle(streamHandle);
   event->queue = nullptr;
+  event->stamped = false;
   internals::anchorCapture(hipStream);
   APIWRAP(hipEventRecord(event->hip, hipStream));
   internals::noteRecordedEvent(event->hip, hipStream);
 }
 
+double timespan(void* startHandle, void* endHandle) {
+  auto* start = eventOf(startHandle);
+  auto* end = eventOf(endHandle);
+  if (start->stamped && end->stamped) {
+    const auto stamp = [](hsa_signal_t signal) {
+      while (hsa_signal_wait_scacquire(
+                 signal, HSA_SIGNAL_CONDITION_LT, 1, UINT64_MAX, HSA_WAIT_STATE_ACTIVE) >= 1) {
+      }
+      hsa_amd_profiling_dispatch_time_t time{};
+      check(hsa_amd_profiling_get_dispatch_time(Runtime::instance().gpu, signal, &time),
+            "hsa_amd_profiling_get_dispatch_time");
+      return time.end;
+    };
+    const auto first = stamp(start->stamp);
+    const auto second = stamp(end->stamp);
+    // a stamp without a time (e.g. of a dispatch without profiling) translates to anything
+    std::uint64_t now = 0;
+    hsa_system_get_info(HSA_SYSTEM_INFO_TIMESTAMP, &now);
+    const auto valid = [&](std::uint64_t time) {
+      return time >= Runtime::instance().startTimestamp && time <= now;
+    };
+    if (!valid(first) || !valid(second)) {
+      warnOnce("events without times");
+      return 0;
+    }
+    const auto ticks = static_cast<double>(second) - static_cast<double>(first);
+    return ticks / static_cast<double>(Runtime::instance().timestampFrequency);
+  }
+  if (start->queue == nullptr && end->queue == nullptr && !start->stamped && !end->stamped) {
+    float time{};
+    APIWRAP(hipEventElapsedTime(&time, start->hip, end->hip));
+    return static_cast<double>(time) / 1000.0;
+  }
+  return 0;
+}
+
+bool timing() { return Runtime::instance().timing; }
+
 void recordEventOnHost(void* handle) {
   auto* event = eventOf(handle);
   event->queue = nullptr;
+  event->stamped = false;
   internals::forgetEvent(event->hip);
   APIWRAP(hipEventRecord(event->hip));
 }

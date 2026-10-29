@@ -167,8 +167,9 @@ struct AbstractAPI {
    * interfaces/hip/OwnQueues.h, and needs the target device-own-queue-hook in the program.)
    *
    * Enables them, and returns whether the device has them; call it before any stream or event gets
-   * created. Then, events can be recorded on and waited for by streams of either kind; events
-   * cannot time anything (see isCapableOfEventTiming()).
+   * created. Then, events can be recorded on and waited for by streams of either kind; events time
+   * only what is between two of them recorded on own streams, and only on request (HIP:
+   * DEVICE_OWN_QUEUE_TIMING=1, see isCapableOfEventTiming()).
    */
   virtual bool enableOwnQueues() { return false; }
 
@@ -190,9 +191,23 @@ struct AbstractAPI {
   /**
    * Blocks the stream until the value at `location` has reached at least `value`. `location` has
    * to be host memory that the device can read, i.e. an allocation from allocPinnedMem with
-   * Destination::CurrentDevice.
+   * Destination::CurrentDevice, or a counter from allocCounter().
    */
   virtual void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) = 0;
+
+  /**
+   * A counter in host memory, 0 at first, that the host and the device (by its address from
+   * devicePointer()) read and write, and that streams wait for (see streamWaitMemory()). Own
+   * streams (HIP, see enableOwnQueues()) wait for it in the command processor of the device, as
+   * for a signal of HSA, instead of with a kernel that polls it.
+   */
+  virtual uint32_t* allocCounter() {
+    auto* counter =
+        static_cast<uint32_t*>(allocPinnedMem(sizeof(uint32_t), false, Destination::CurrentDevice));
+    *counter = 0;
+    return counter;
+  }
+  virtual void freeCounter(uint32_t* counter) { freePinnedMem(counter); }
 
   virtual void* createEvent(bool withTiming = false) = 0;
   virtual void destroyEvent(void* eventPtr) = 0;

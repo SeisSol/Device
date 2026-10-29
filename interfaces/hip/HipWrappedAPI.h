@@ -104,6 +104,8 @@ class ConcreteAPI : public AbstractAPI {
   void streamHostFunction(void* streamPtr, const std::function<void()>& function) override;
 
   void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) override;
+  uint32_t* allocCounter() override;
+  void freeCounter(uint32_t* counter) override;
 
   void* createEvent(bool withTiming) override;
   void destroyEvent(void* eventPtr) override;

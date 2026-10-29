@@ -164,6 +164,10 @@ void ConcreteAPI::unpinMemory(void* ptr) {
 
 void* ConcreteAPI::devicePointer(void* ptr) {
   isFlagSet<DeviceSelected>(status);
+  if (ownqueues::isCounter(ptr)) {
+    // (the memory of a signal is at the same address on the device)
+    return ptr;
+  }
   void* result;
   APIWRAP(hipHostGetDevicePointer(&result, ptr, 0));
   return result;

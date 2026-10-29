@@ -36,7 +36,16 @@
  * while capturing) get memory of the queue instead, which the translation puts into the arguments.
  *
  * Events are tagged pointers as well, once own queues are enabled: recorded on an own stream, an
- * event is a mark of its queue; recorded on a stream of HIP, an event of HIP.
+ * event is a mark of its queue; recorded on a stream of HIP, an event of HIP. With
+ * DEVICE_OWN_QUEUE_TIMING=1, events with timing take the time by a kernel each.
+ *
+ * Fences: a mark writes back the L2 cache (release of the system), for the host and for MPI, which
+ * read device memory past it. Kernels and waits for other own queues only fence for the device
+ * (agent): an acquire of the system in a packet drops the whole L2 cache, at the expense of the
+ * kernels of all queues. Where the work has to see what the host wrote (after a wait for a counter
+ * or a host function, and in copies from host memory), a kernel of our own fences in the shader
+ * instead, which drops only the lines that may be stale (DEVICE_OWN_QUEUE_HOST_ACQUIRE=packet and
+ * DEVICE_OWN_QUEUE_WAIT_SCOPE=system go back to fences of packets).
  */
 namespace device::ownqueues {
 
@@ -80,6 +89,12 @@ bool streamDone(void* stream);
 void hostFunction(void* stream, const std::function<void()>& function);
 void waitMemory(void* stream, std::uint32_t* location, std::uint32_t value);
 
+/// counters for streamWaitMemory() that the command processor waits for: the values of signals
+std::uint32_t* allocCounter();
+void freeCounter(std::uint32_t* counter);
+/// whether the memory is a counter from allocCounter()
+bool isCounter(const void* location);
+
 /// copies between any memory the device can access; pageable host memory synchronously
 void copy(void* dst, const void* src, std::size_t bytes, void* stream);
 
@@ -93,6 +108,10 @@ hipEvent_t hipEventOf(void* event);
 void recordEvent(void* event, void* stream);
 void recordEventOnHost(void* event);
 void streamWaitEvent(void* stream, void* event);
+/// the time between two events, in seconds: by the kernels that took it for own events with timing
+double timespan(void* start, void* end);
+/// whether events with timing take the time on own streams (DEVICE_OWN_QUEUE_TIMING=1)
+bool timing();
 bool eventDone(void* event);
 void syncEvent(void* event);
 

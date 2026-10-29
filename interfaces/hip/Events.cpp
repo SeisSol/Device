@@ -30,7 +30,9 @@ void* ConcreteAPI::createEvent(bool withTiming) {
 
 double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
   if (ownqueues::isTagged(eventPtrStart) || ownqueues::isTagged(eventPtrEnd)) {
-    // the marks of own queues have no time
+    if (ownqueues::isTagged(eventPtrStart) && ownqueues::isTagged(eventPtrEnd)) {
+      return ownqueues::timespan(eventPtrStart, eventPtrEnd);
+    }
     return 0;
   }
   float time{};
@@ -40,7 +42,10 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
   return static_cast<double>(time) / 1000.0;
 }
 
-bool ConcreteAPI::isCapableOfEventTiming() { return !ownqueues::enabled(); }
+bool ConcreteAPI::isCapableOfEventTiming() {
+  // own queues take the time only on request: by a kernel for each event with timing
+  return !ownqueues::enabled() || ownqueues::timing();
+}
 
 void ConcreteAPI::destroyEvent(void* eventPtr) {
   if (ownqueues::isTagged(eventPtr)) {
