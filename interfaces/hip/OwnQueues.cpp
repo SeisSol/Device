@@ -129,7 +129,8 @@ __global__ void ownAcquireSystem() { __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, ""
 
 // ------------------------------------------------------------------------------------------------
 
-// the marks of a queue count its counter down from here
+// the marks of a queue count its counter down from here; only one queue may count a signal down
+// (the command processors of gfx90a lose decrements of a signal that several queues count down)
 constexpr std::int64_t CounterStart = std::int64_t{1} << 62;
 // the most packets an own queue holds, and the default memory for the arguments of its kernels: the
 // host must never wait for space while the queue waits for work the host has yet to enqueue (e.g.
@@ -2942,6 +2943,8 @@ void Program::harvest() {
   measuring_.clear();
 }
 
+// (a join signal for each helper: one that several queues count down loses decrements on gfx90a,
+// ROCm 6.3, by barrier packets and kernels alike: 4 queues of 2000 packets each lost 900 to 3600)
 void Program::ensureLevelSignals(std::size_t level, std::size_t helpers) {
   hsa_signal_t signal{};
   if (levelForks_[level].handle == 0) {
