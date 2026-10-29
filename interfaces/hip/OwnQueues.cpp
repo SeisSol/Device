@@ -2071,6 +2071,21 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
   if (kernargBytes > 0) {
     flushKernargs(static_cast<const char*>(kernargs_) + kernargBytes - 1);
   }
+  if (utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
+    std::map<std::size_t, std::size_t> kernelsPerLevel;
+    for (const auto& item : work) {
+      if (!item.host) {
+        ++kernelsPerLevel[item.level];
+      }
+    }
+    std::size_t widest = 0;
+    for (const auto& [lvl, kernels] : kernelsPerLevel) {
+      widest = std::max(widest, kernels);
+    }
+    logInfo() << "Own queue" << queue.number() << ": a graph of" << count << "nodes and"
+              << edgeCount << "edges became" << work.size() << "packets in"
+              << kernelsPerLevel.size() << "levels of up to" << widest << "kernels";
+  }
 }
 
 Program::~Program() {
