@@ -17,6 +17,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstring>
+#include <cxxabi.h>
 #include <deque>
 #include <hip/hip_runtime.h>
 #include <hsa/amd_hsa_queue.h>
@@ -25,6 +26,7 @@
 #include <hsa/hsa_ven_amd_loader.h>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -436,6 +438,17 @@ class Runtime {
   std::vector<Queue*> allQueues();
   void finalize();
 
+  /// the short name of a kernel object, for the trace
+  std::string kernelName(std::uint64_t object);
+  /// the number of the queue whose marks count the signal down, or nothing
+  std::optional<int> queueOfCounter(std::uint64_t signal);
+
+  // the trace (see trace()): whether the queues give their packets signals that take the times,
+  // from a pool
+  std::atomic<bool> tracing{false};
+  hsa_signal_t traceSignal();
+  void freeTraceSignal(hsa_signal_t signal);
+
   hsa_agent_t gpu{};
   hsa_agent_t cpu{};
   hsa_amd_memory_pool_t kernargPool{};
@@ -479,6 +492,9 @@ class Runtime {
   std::mutex mutex_;
   std::unordered_map<const void*, const KernelInfo*> kernels_;
   std::map<int, std::unique_ptr<Queue>> queues_;
+  std::unordered_map<std::uint64_t, std::string> kernelNames_;
+  std::mutex traceMutex_;
+  std::vector<hsa_signal_t> traceSignals_;
 };
 
 hsa_status_t visitAgent(hsa_agent_t agent, void* data) {
@@ -727,11 +743,9 @@ class Queue {
     check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &counter_),
           "hsa_amd_signal_create");
     check(hsa_amd_signal_value_pointer(counter_, &counterValue_), "hsa_amd_signal_value_pointer");
-    if (runtime.timing) {
+    if (runtime.timing || runtime.tracing.load()) {
       // before the first packet: enabled later, the first stamps of the queue had no times
-      check(hsa_amd_profiling_set_profiler_enabled(queue_, 1),
-            "hsa_amd_profiling_set_profiler_enabled");
-      profiling_ = true;
+      enableProfiling();
     }
     ringBytes_ = runtime.kernargRingBytes;
     ring_ = static_cast<char*>(allocKernargMemory(ringBytes_));
@@ -766,6 +780,82 @@ class Queue {
 
   /// enqueues a packet: into the queue, or into host memory while it is full (see drain())
   void push(const PacketImage& packet) {
+    if (runtime_.tracing.load(std::memory_order_relaxed)) {
+      PacketImage traced = packet;
+      annotate(traced);
+      pushImage(traced);
+    } else {
+      pushImage(packet);
+    }
+  }
+
+  /// a kernel or wait whose times the trace takes, by a signal of its own (see trace())
+  struct TraceEntry {
+    hsa_signal_t signal{};
+    std::uint64_t object{0};
+    // the queue a wait waits for, or none: a wait for the host
+    std::optional<int> waitsFor;
+    bool kernel{true};
+  };
+
+  /// moves the entries of the trace whose packets have completed into `done`, in their order
+  void takeTraced(std::vector<TraceEntry>& done) {
+    const std::lock_guard lock(traceMutex_);
+    while (!traced_.empty() && hsa_signal_load_relaxed(traced_.front().signal) < 1) {
+      done.push_back(traced_.front());
+      traced_.pop_front();
+    }
+  }
+
+  [[nodiscard]] bool traceEmpty() {
+    const std::lock_guard lock(traceMutex_);
+    return traced_.empty();
+  }
+
+  /// lets the command processor take the times of the packets from now on
+  void enableProfiling() {
+    if (!profiling_) {
+      check(hsa_amd_profiling_set_profiler_enabled(queue_, 1),
+            "hsa_amd_profiling_set_profiler_enabled");
+      profiling_ = true;
+    }
+  }
+
+  [[nodiscard]] std::uint64_t counterHandle() const { return counter_.handle; }
+
+  private:
+  /// gives kernels and waits without a completion signal one that takes their times
+  void annotate(PacketImage& image) {
+    std::uint32_t word = 0;
+    std::memcpy(&word, image.bytes.data(), sizeof(word));
+    const auto type =
+        (word >> HSA_PACKET_HEADER_TYPE) & ((1U << HSA_PACKET_HEADER_WIDTH_TYPE) - 1U);
+    TraceEntry entry;
+    hsa_signal_t* completion = nullptr;
+    if (type == HSA_PACKET_TYPE_KERNEL_DISPATCH) {
+      auto& packet = image.as<hsa_kernel_dispatch_packet_t>();
+      completion = &packet.completion_signal;
+      entry.object = packet.kernel_object;
+    } else if (type == HSA_PACKET_TYPE_VENDOR_SPECIFIC &&
+               ((word >> 16U) & 0xffU) == HSA_AMD_PACKET_TYPE_BARRIER_VALUE) {
+      auto& packet = image.as<hsa_amd_barrier_value_packet_t>();
+      completion = &packet.completion_signal;
+      entry.kernel = false;
+      if (packet.cond == HSA_SIGNAL_CONDITION_LT) {
+        entry.waitsFor = runtime_.queueOfCounter(packet.signal.handle);
+      }
+    }
+    if (completion == nullptr || completion->handle != 0) {
+      return;
+    }
+    entry.signal = runtime_.traceSignal();
+    *completion = entry.signal;
+    const std::lock_guard lock(traceMutex_);
+    traced_.push_back(entry);
+  }
+
+  public:
+  void pushImage(const PacketImage& packet) {
     ++created_;
     if (!overflow_.empty()) {
       drain();
@@ -1182,6 +1272,8 @@ class Queue {
   std::uint64_t lastMarkIndex_{0};
   std::deque<PacketImage> overflow_;
   bool profiling_{false};
+  std::mutex traceMutex_;
+  std::deque<TraceEntry> traced_;
 
   char* ring_{nullptr};
   std::uint64_t ringBytes_{0};
@@ -1349,7 +1441,195 @@ std::vector<Queue*> Runtime::allQueues() {
   return all;
 }
 
+std::string Runtime::kernelName(std::uint64_t object) {
+  const std::lock_guard lock(mutex_);
+  const auto known = kernelNames_.find(object);
+  if (known != kernelNames_.end()) {
+    return known->second;
+  }
+  std::string name = "kernel";
+  for (const auto& [symbol, info] : symbols) {
+    if (info.object == object) {
+      const bool descriptor = symbol.size() > 3 && symbol.compare(symbol.size() - 3, 3, ".kd") == 0;
+      name = symbol.substr(0, symbol.size() - (descriptor ? 3 : 0));
+      break;
+    }
+  }
+  int status = 0;
+  char* demangled = abi::__cxa_demangle(name.c_str(), nullptr, nullptr, &status);
+  if (status == 0 && demangled != nullptr) {
+    name = demangled;
+  }
+  std::free(demangled);
+  // without the parameters and template arguments, and with at most two levels of names
+  for (auto anonymous = name.find("(anonymous namespace)::"); anonymous != std::string::npos;
+       anonymous = name.find("(anonymous namespace)::")) {
+    name.erase(anonymous, std::string("(anonymous namespace)::").size());
+  }
+  std::string flat;
+  int depth = 0;
+  for (const char c : name.substr(0, name.find('('))) {
+    depth += c == '<' ? 1 : c == '>' ? -1 : 0;
+    if (depth == 0 && c != '>') {
+      flat.push_back(c);
+    }
+  }
+  const auto last = flat.rfind("::");
+  if (last != std::string::npos && last > 0) {
+    const auto before = flat.rfind("::", last - 1);
+    if (before != std::string::npos) {
+      flat = flat.substr(before + 2);
+    }
+  }
+  return kernelNames_[object] = flat.empty() ? name : flat;
+}
+
+std::optional<int> Runtime::queueOfCounter(std::uint64_t signal) {
+  const std::lock_guard lock(mutex_);
+  for (const auto& [number, queue] : queues_) {
+    if (queue->counterHandle() == signal) {
+      return number;
+    }
+  }
+  return std::nullopt;
+}
+
+hsa_signal_t Runtime::traceSignal() {
+  {
+    const std::lock_guard lock(traceMutex_);
+    if (!traceSignals_.empty()) {
+      const auto signal = traceSignals_.back();
+      traceSignals_.pop_back();
+      return signal;
+    }
+  }
+  hsa_signal_t signal{};
+  check(hsa_amd_signal_create(1, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
+        "hsa_amd_signal_create");
+  return signal;
+}
+
+void Runtime::freeTraceSignal(hsa_signal_t signal) {
+  hsa_signal_store_relaxed(signal, 1);
+  const std::lock_guard lock(traceMutex_);
+  traceSignals_.push_back(signal);
+}
+
+namespace {
+/**
+ * Takes the times of the traced packets once they have completed, and hands them to the sink on
+ * the clock of the host: the system timestamps of HSA, mapped onto std::chrono::steady_clock by
+ * reading both together again and again.
+ */
+class Tracer {
+  public:
+  void start(TraceSink sink) {
+    stop();
+    auto& runtime = Runtime::instance();
+    sink_ = std::move(sink);
+    for (auto* queue : runtime.allQueues()) {
+      const std::lock_guard lock(queue->mutex);
+      queue->enableProfiling();
+    }
+    stop_.store(false);
+    runtime.tracing.store(true);
+    thread_ = std::thread([this]() { run(); });
+  }
+
+  /// once all packets traced so far have been reported (or after ten seconds)
+  void stop() {
+    if (!thread_.joinable()) {
+      return;
+    }
+    Runtime::instance().tracing.store(false);
+    stop_.store(true);
+    thread_.join();
+    sink_ = nullptr;
+  }
+
+  private:
+  void calibrate() {
+    auto best = std::chrono::steady_clock::duration::max();
+    for (int attempt = 0; attempt < 3; ++attempt) {
+      const auto before = std::chrono::steady_clock::now();
+      std::uint64_t ticks = 0;
+      hsa_system_get_info(HSA_SYSTEM_INFO_TIMESTAMP, &ticks);
+      const auto after = std::chrono::steady_clock::now();
+      if (after - before < best) {
+        best = after - before;
+        ticks_ = ticks;
+        time_ = before + (after - before) / 2;
+      }
+    }
+    calibrated_ = std::chrono::steady_clock::now();
+  }
+
+  [[nodiscard]] std::chrono::steady_clock::time_point host(std::uint64_t ticks) const {
+    const auto seconds = (static_cast<double>(ticks) - static_cast<double>(ticks_)) /
+                         static_cast<double>(Runtime::instance().timestampFrequency);
+    return time_ + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                       std::chrono::duration<double>(seconds));
+  }
+
+  void run() {
+    auto& runtime = Runtime::instance();
+    calibrate();
+    std::vector<Queue::TraceEntry> done;
+    std::optional<std::chrono::steady_clock::time_point> stopping;
+    while (true) {
+      if (std::chrono::steady_clock::now() - calibrated_ > std::chrono::milliseconds(50)) {
+        calibrate();
+      }
+      bool pending = false;
+      bool reported = false;
+      for (auto* queue : runtime.allQueues()) {
+        done.clear();
+        queue->takeTraced(done);
+        pending = pending || !queue->traceEmpty();
+        for (const auto& entry : done) {
+          hsa_amd_profiling_dispatch_time_t time{};
+          if (hsa_amd_profiling_get_dispatch_time(runtime.gpu, entry.signal, &time) ==
+                  HSA_STATUS_SUCCESS &&
+              time.start >= runtime.startTimestamp && time.end >= time.start) {
+            const auto name = entry.kernel     ? runtime.kernelName(entry.object)
+                              : entry.waitsFor ? "wait for queue " + std::to_string(*entry.waitsFor)
+                                               : std::string("wait for the host");
+            sink_(name, queue->number(), host(time.start), host(time.end));
+          }
+          runtime.freeTraceSignal(entry.signal);
+          reported = true;
+        }
+      }
+      if (stop_.load()) {
+        if (!stopping) {
+          stopping = std::chrono::steady_clock::now();
+        }
+        if (!pending || std::chrono::steady_clock::now() - *stopping > std::chrono::seconds(10)) {
+          return;
+        }
+      }
+      if (!reported) {
+        std::this_thread::sleep_for(std::chrono::microseconds(200));
+      }
+    }
+  }
+
+  TraceSink sink_;
+  std::thread thread_;
+  std::atomic<bool> stop_{false};
+  std::uint64_t ticks_{0};
+  std::chrono::steady_clock::time_point time_;
+  std::chrono::steady_clock::time_point calibrated_;
+};
+
+Tracer& tracer() {
+  static Tracer tracer;
+  return tracer;
+}
+} // namespace
+
 void Runtime::finalize() {
+  tracer().stop();
   hostThread.stop();
   const std::lock_guard lock(mutex_);
   queues_.clear();
@@ -2105,6 +2385,18 @@ double timespan(void* startHandle, void* endHandle) {
 }
 
 bool timing() { return Runtime::instance().timing; }
+
+bool trace(const TraceSink& sink) {
+  if (!enabled()) {
+    return false;
+  }
+  if (sink) {
+    tracer().start(sink);
+  } else {
+    tracer().stop();
+  }
+  return true;
+}
 
 void recordEventOnHost(void* handle) {
   auto* event = eventOf(handle);

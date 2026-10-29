@@ -7,12 +7,14 @@
 
 #include "DataTypes.h"
 
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace device {
@@ -208,6 +210,19 @@ struct AbstractAPI {
     return counter;
   }
   virtual void freeCounter(uint32_t* counter) { freePinnedMem(counter); }
+
+  /**
+   * Traces the work of the device piece by piece (HIP with own queues: each kernel and each wait of
+   * an own queue): calls `sink` with its name, the number of its queue, and its begin and end on
+   * the clock of the host, from a thread of the library, some time after it ran. Returns whether
+   * the device traces. An empty sink stops tracing, once the work traced so far has been reported.
+   * Tracing costs the device a little for each kernel.
+   */
+  using DeviceTraceSink = std::function<void(std::string_view name,
+                                             int queue,
+                                             std::chrono::steady_clock::time_point begin,
+                                             std::chrono::steady_clock::time_point end)>;
+  virtual bool traceDevice(DeviceTraceSink /*sink*/) { return false; }
 
   virtual void* createEvent(bool withTiming = false) = 0;
   virtual void destroyEvent(void* eventPtr) = 0;

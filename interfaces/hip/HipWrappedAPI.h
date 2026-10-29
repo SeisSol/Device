@@ -106,6 +106,7 @@ class ConcreteAPI : public AbstractAPI {
   void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) override;
   uint32_t* allocCounter() override;
   void freeCounter(uint32_t* counter) override;
+  bool traceDevice(DeviceTraceSink sink) override;
 
   void* createEvent(bool withTiming) override;
   void destroyEvent(void* eventPtr) override;

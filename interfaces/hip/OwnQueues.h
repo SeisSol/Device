@@ -5,11 +5,13 @@
 #ifndef SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_H_
 #define SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_H_
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <hip/hip_runtime_api.h>
 #include <memory>
+#include <string_view>
 
 /**
  * Streams on HSA queues of our own.
@@ -112,6 +114,14 @@ void streamWaitEvent(void* stream, void* event);
 double timespan(void* start, void* end);
 /// whether events with timing take the time on own streams (DEVICE_OWN_QUEUE_TIMING=1)
 bool timing();
+
+/// the trace of the kernels and waits of the own queues (see AbstractAPI::traceDevice()); an
+/// empty sink stops it; false without own queues
+using TraceSink = std::function<void(std::string_view name,
+                                     int queue,
+                                     std::chrono::steady_clock::time_point begin,
+                                     std::chrono::steady_clock::time_point end)>;
+bool trace(const TraceSink& sink);
 bool eventDone(void* event);
 void syncEvent(void* event);
 

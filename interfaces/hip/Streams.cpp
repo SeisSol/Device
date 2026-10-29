@@ -168,6 +168,8 @@ uint32_t* ConcreteAPI::allocCounter() {
   return AbstractAPI::allocCounter();
 }
 
+bool ConcreteAPI::traceDevice(DeviceTraceSink sink) { return ownqueues::trace(sink); }
+
 void ConcreteAPI::freeCounter(uint32_t* counter) {
   if (ownqueues::isCounter(counter)) {
     ownqueues::freeCounter(counter);
