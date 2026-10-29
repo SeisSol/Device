@@ -16,6 +16,8 @@
 #include <cmath>
 #include <condition_variable>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cxxabi.h>
 #include <deque>
@@ -30,6 +32,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -136,6 +139,15 @@ constexpr std::uint64_t DefaultKernargRingMiB = 128;
 constexpr std::uint32_t CopyThreads = 256;
 // the long kernel of samePipe()
 constexpr double SpinMicroseconds = 300;
+// what the predicted work of a queue counts for a kernel of unknown duration, a copy, and for a
+// wait for the host (see Program::submitScheduled())
+constexpr double DefaultKernelSeconds = 5e-6;
+constexpr double DefaultCopySeconds = 5e-6;
+constexpr double DefaultHostSeconds = 50e-6;
+
+double steadySeconds() {
+  return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 // more pipes than this: the queues do not share them (see Runtime::placeQueue()); queues that get
 // created but stay unused, at most (a GCD of the MI250X has 24 hardware queues for the processes)
 constexpr std::size_t MaxPipes = 8;
@@ -485,6 +497,16 @@ class Runtime {
   bool acquireByKernel{true};
   // events time what they enclose (DEVICE_OWN_QUEUE_TIMING=1): by a kernel that takes the time
   bool timing{false};
+  // DEVICE_OWN_QUEUE_SCHEDULE=1: graphs spread the kernels of their levels over own queues on other
+  // pipes where that ends a level earlier, by the durations they learn and the predicted work of
+  // the queues (see Program::submitScheduled()); a level gets spread only with at least
+  // DEVICE_OWN_QUEUE_SCHEDULE_MIN_US of work, with forks and joins that take ..._FORK_US each
+  bool schedule{false};
+  double scheduleMinWork{120e-6};
+  double forkSeconds{5e-6};
+  /// the duration of a kernel (by its kernel object) the graphs have measured, or 0
+  double kernelEstimate(std::uint64_t object);
+  void learnKernel(std::uint64_t object, double seconds);
   // DEVICE_OWN_QUEUE_PIPES=check: each new queue gets checked for the pipes it shares; =spread: own
   // queues get pipes of their own as long as there are (see placeQueue())
   bool pipeCheck{false};
@@ -502,8 +524,8 @@ class Runtime {
    * others stay unused, as do the idle ones: destroyed, they would move the queues after them.
    */
   hsa_queue_t* placeQueue(int number);
-  /// the own queues that the graphs of `self` may lend lanes from: on other pipes (if known), not
-  /// light, no helpers
+  /// the own queues that the graphs of `self` may lend lanes from: on other pipes (if known), alone
+  /// there but for light queues, not light themselves, no helpers
   std::vector<Queue*> borrowable(const Queue& self);
   std::uint64_t timestampFrequency{1};
   // the system timestamp when the own queues started; stamps before it are not valid
@@ -538,6 +560,8 @@ class Runtime {
     hsa_queue_t* probe{nullptr};
     std::vector<int> queues;
   };
+  std::mutex estimateMutex_;
+  std::unordered_map<std::uint64_t, double> kernelEstimates_;
   std::mutex placeMutex_;
   std::vector<Pipe> pipes_;
   bool pipesKnown_{false};
@@ -901,7 +925,7 @@ class Queue {
                 queue_, static_cast<std::uint32_t>(mask->second.size() * 32), mask->second.data()),
             "hsa_amd_queue_cu_set_mask");
     }
-    if (runtime.timing || runtime.tracing.load()) {
+    if (runtime.timing || runtime.tracing.load() || runtime.schedule) {
       // before the first packet: enabled later, the first stamps of the queue had no times
       enableProfiling();
     }
@@ -950,6 +974,8 @@ class Queue {
   /// a kernel or wait whose times the trace takes, by a signal of its own (see trace())
   struct TraceEntry {
     hsa_signal_t signal{};
+    // the number of the packet in the queue (see created())
+    std::uint64_t index{0};
     std::uint64_t object{0};
     // the queue a wait waits for, or none: a wait for the host
     std::optional<int> waitsFor;
@@ -1007,6 +1033,8 @@ class Queue {
       return;
     }
     entry.signal = runtime_.traceSignal();
+    // (pushImage() counts it next)
+    entry.index = created_ + 1;
     *completion = entry.signal;
     const std::lock_guard lock(traceMutex_);
     traced_.push_back(entry);
@@ -1103,6 +1131,35 @@ class Queue {
     return overflow_.empty() && marks_ > 0 && lastMarkIndex_ == created_ && reached(marks_);
   }
 
+  // the time (s of steady_clock) by which the queue is predicted to have done all it got, for
+  // DEVICE_OWN_QUEUE_SCHEDULE (see Program::submitScheduled()): its work as learned or guessed, and
+  // the predicted work of the queues it waits for (all of it: a bound)
+
+  /// with `mutex` held
+  [[nodiscard]] double predictedFreeLocked(double now) {
+    if (idleLocked()) {
+      predictedFree_.store(now, std::memory_order_relaxed);
+    }
+    return std::max(predictedFree_.load(std::memory_order_relaxed), now);
+  }
+
+  [[nodiscard]] double predictedFree() const {
+    return predictedFree_.load(std::memory_order_relaxed);
+  }
+
+  /// with `mutex` held
+  void predictWork(double now, double seconds) {
+    predictedFree_.store(std::max(predictedFree_.load(std::memory_order_relaxed), now) + seconds,
+                         std::memory_order_relaxed);
+  }
+
+  /// with `mutex` held
+  void predictUntil(double time) {
+    if (time > predictedFree_.load(std::memory_order_relaxed)) {
+      predictedFree_.store(time, std::memory_order_relaxed);
+    }
+  }
+
   [[nodiscard]] bool reached(std::uint64_t mark) const {
     return mark == 0 ||
            hsa_signal_load_scacquire(counter_) <= CounterStart - static_cast<std::int64_t>(mark);
@@ -1159,6 +1216,9 @@ class Queue {
   void waitFor(Queue& other, std::uint64_t mark) {
     if (&other == this || mark == 0 || other.reached(mark)) {
       return;
+    }
+    if (runtime_.schedule) {
+      predictUntil(other.predictedFree());
     }
     const auto below = CounterStart - static_cast<std::int64_t>(mark) + 1;
     if (runtime_.barrierValue) {
@@ -1434,6 +1494,7 @@ class Queue {
   std::uint64_t created_{0};
   std::uint64_t marks_{0};
   std::uint64_t lastMarkIndex_{0};
+  std::atomic<double> predictedFree_{0.0};
   std::deque<PacketImage> overflow_;
   bool profiling_{false};
   std::mutex traceMutex_;
@@ -1519,6 +1580,9 @@ bool Runtime::setUp() {
   const auto pipes = env.get<std::string>("OWN_QUEUE_PIPES", arch == "gfx90a" ? "spread" : "any");
   pipeCheck = pipes == "check";
   pipeSpread = pipes == "spread";
+  schedule = barrierValue && env.get<bool>("OWN_QUEUE_SCHEDULE", false);
+  scheduleMinWork = env.get<double>("OWN_QUEUE_SCHEDULE_MIN_US", 120.0) * 1e-6;
+  forkSeconds = env.get<double>("OWN_QUEUE_SCHEDULE_FORK_US", 5.0) * 1e-6;
   {
     const auto light = env.get<std::string>("OWN_QUEUE_LIGHT", "");
     std::size_t position = 0;
@@ -1658,13 +1722,32 @@ Queue& Runtime::queue(int number) {
   return *queue;
 }
 
+double Runtime::kernelEstimate(std::uint64_t object) {
+  const std::lock_guard lock(estimateMutex_);
+  const auto found = kernelEstimates_.find(object);
+  return found == kernelEstimates_.end() ? 0.0 : found->second;
+}
+
+void Runtime::learnKernel(std::uint64_t object, double seconds) {
+  const std::lock_guard lock(estimateMutex_);
+  auto& estimate = kernelEstimates_[object];
+  estimate = estimate <= 0 ? seconds : 0.75 * estimate + 0.25 * seconds;
+}
+
 std::vector<Queue*> Runtime::borrowable(const Queue& self) {
-  std::vector<int> samePipe;
+  // the queues on the pipe of `self`, and those that share a pipe with another busy queue: work
+  // lent to them would hold up the other queue on their pipe
+  std::vector<int> excluded;
   {
     const std::lock_guard lock(placeMutex_);
     for (const auto& pipe : pipes_) {
-      if (std::find(pipe.queues.begin(), pipe.queues.end(), self.number()) != pipe.queues.end()) {
-        samePipe = pipe.queues;
+      std::size_t busy = 0;
+      for (const auto number : pipe.queues) {
+        busy += lightQueues.count(number) > 0 || number >= FirstHelperQueue ? 0 : 1;
+      }
+      if (busy > 1 ||
+          std::find(pipe.queues.begin(), pipe.queues.end(), self.number()) != pipe.queues.end()) {
+        excluded.insert(excluded.end(), pipe.queues.begin(), pipe.queues.end());
       }
     }
   }
@@ -1672,7 +1755,7 @@ std::vector<Queue*> Runtime::borrowable(const Queue& self) {
   const std::lock_guard lock(mutex_);
   for (const auto& [number, queue] : queues_) {
     if (queue.get() != &self && number < FirstHelperQueue && lightQueues.count(number) == 0 &&
-        std::find(samePipe.begin(), samePipe.end(), number) == samePipe.end()) {
+        std::find(excluded.begin(), excluded.end(), number) == excluded.end()) {
       candidates.push_back(queue.get());
     }
   }
@@ -1853,6 +1936,82 @@ namespace {
  * the clock of the host: the system timestamps of HSA, mapped onto std::chrono::steady_clock by
  * reading both together again and again.
  */
+/**
+ * DEVICE_OWN_QUEUE_DAG_LOG=<prefix>: while the kernels get traced (see trace()), what the streams
+ * do and when the kernels ran, per process in <prefix>-<rank>.txt (the rank from SLURM_PROCID,
+ * PMI_RANK or OMPI_COMM_WORLD_RANK, else the process id), as the work and its dependencies for a
+ * schedule over the queues. Times in ns of steady_clock, the packets of a queue counted from 1:
+ *   L t stream queue first last name    a kernel launched on a stream (packets first+1..last)
+ *   G t stream queue first last program a graph launched on a stream (see P)
+ *   P program queue levels...           the level of each kernel of the graph (h: a host function)
+ *   R t stream queue event mark index   an event recorded on a stream (its mark, after packet
+ * index) W t stream queue event              a stream waits for an event O t stream queue first
+ * last kind    other work on a stream (copy, host, counter) K queue index start end name        the
+ * times a kernel ran A queue index start end target      the times of a wait (target: a queue, or
+ * -1 for the host) N stream name                       the name of a stream (see nameStream())
+ */
+class DagLog {
+  public:
+  [[nodiscard]] bool on() const {
+    return !prefix_.empty() && Runtime::instance().tracing.load(std::memory_order_relaxed);
+  }
+
+  template <typename... Args>
+  void line(const char* format, Args... args) {
+    const std::lock_guard lock(mutex_);
+    if (file_ == nullptr) {
+      std::string rank = std::to_string(static_cast<long>(getpid()));
+      for (const char* variable : {"SLURM_PROCID", "PMI_RANK", "OMPI_COMM_WORLD_RANK"}) {
+        if (const char* value = std::getenv(variable); value != nullptr) {
+          rank = value;
+          break;
+        }
+      }
+      file_ = std::fopen((prefix_ + "-" + rank + ".txt").c_str(), "w");
+      if (file_ == nullptr) {
+        prefix_.clear();
+        return;
+      }
+      std::setvbuf(file_, nullptr, _IOFBF, 1 << 20);
+    }
+    std::fprintf(file_, format, args...);
+  }
+
+  void flush() {
+    const std::lock_guard lock(mutex_);
+    if (file_ != nullptr) {
+      std::fflush(file_);
+    }
+  }
+
+  /// whether the program still has to be described (once)
+  bool firstTime(const void* program) {
+    const std::lock_guard lock(mutex_);
+    return described_.insert(program).second;
+  }
+
+  static long long now() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  }
+
+  static long long ns(std::chrono::steady_clock::time_point time) {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(time.time_since_epoch()).count();
+  }
+
+  private:
+  std::string prefix_{utils::Env("DEVICE_").get<std::string>("OWN_QUEUE_DAG_LOG", "")};
+  std::mutex mutex_;
+  std::FILE* file_{nullptr};
+  std::unordered_set<const void*> described_;
+};
+
+DagLog& dagLog() {
+  static DagLog log;
+  return log;
+}
+
 class Tracer {
   public:
   void start(TraceSink sink) {
@@ -1927,6 +2086,23 @@ class Tracer {
                               : entry.waitsFor ? "wait for queue " + std::to_string(*entry.waitsFor)
                                                : std::string("wait for the host");
             sink_(name, queue->number(), host(time.start), host(time.end));
+            if (dagLog().on()) {
+              if (entry.kernel) {
+                dagLog().line("K %d %llu %lld %lld %s\n",
+                              queue->number(),
+                              static_cast<unsigned long long>(entry.index),
+                              DagLog::ns(host(time.start)),
+                              DagLog::ns(host(time.end)),
+                              name.c_str());
+              } else {
+                dagLog().line("A %d %llu %lld %lld %d\n",
+                              queue->number(),
+                              static_cast<unsigned long long>(entry.index),
+                              DagLog::ns(host(time.start)),
+                              DagLog::ns(host(time.end)),
+                              entry.waitsFor ? *entry.waitsFor : -1);
+              }
+            }
           }
           runtime.freeTraceSignal(entry.signal);
           reported = true;
@@ -1981,6 +2157,8 @@ void Runtime::finalize() {
 
 struct Stream {
   Queue* queue{nullptr};
+  // for the DAG log
+  std::string name;
   // stands in for the stream while it gets captured
   hipStream_t vehicle{nullptr};
   int captures{0};
@@ -2081,6 +2259,8 @@ struct ProgramPacket {
   enum class Kind : std::uint8_t { Work, Fork, Join } kind{Kind::Work};
   std::size_t slot{0};
   std::vector<unsigned> lanes;
+  // the level in the graph
+  std::size_t level{0};
 };
 
 /// the own queue number of helper lane `lane` of the programs of queue `queue`
@@ -2115,6 +2295,17 @@ class Program {
   /// enqueues the program on its queue, with the queue's mutex held; returns the write index after
   std::uint64_t submit();
 
+  /// the level of each of its kernels (h: a host function), for the DAG log
+  [[nodiscard]] std::string levels() const {
+    std::string text;
+    for (const auto& packet : packets_) {
+      if (packet.kind == ProgramPacket::Kind::Work) {
+        text += packet.host ? " h" : " " + std::to_string(packet.level);
+      }
+    }
+    return text;
+  }
+
   private:
   /// the lanes `lanes` wait until the signal has counted down `count` times
   void waitOnLanes(hsa_signal_t signal, std::int64_t count, const std::vector<unsigned>& lanes);
@@ -2135,6 +2326,26 @@ class Program {
   // how often each signal has been counted down so far
   std::vector<std::int64_t> forkCounts_;
   std::vector<std::vector<std::int64_t>> joinCounts_;
+
+  // DEVICE_OWN_QUEUE_SCHEDULE (see submitScheduled()): the levels (packets first..first+count-1),
+  // the learned duration of each packet (s, 0: unknown), the signals of a replay that measures them
+  struct Level {
+    std::size_t first{0};
+    std::size_t count{0};
+    bool splittable{false};
+  };
+  std::uint64_t submitScheduled();
+  void harvest();
+  void ensureLevelSignals(std::size_t level, std::size_t helpers);
+  bool schedule_{false};
+  std::vector<Level> levels_;
+  std::vector<double> estimates_;
+  std::vector<std::pair<std::size_t, hsa_signal_t>> measuring_;
+  std::uint64_t scheduledReplays_{0};
+  std::vector<hsa_signal_t> levelForks_;
+  std::vector<std::int64_t> levelForkCounts_;
+  std::vector<std::vector<hsa_signal_t>> levelJoins_;
+  std::vector<std::vector<std::int64_t>> levelJoinCounts_;
 };
 
 struct ProgramsImpl {
@@ -2371,8 +2582,10 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
   }
   // the helper lanes, and which level runs on which lanes (see Program)
   utils::Env env("DEVICE_");
-  const auto laneCount =
-      Runtime::instance().barrierValue ? env.get<unsigned>("OWN_QUEUE_GRAPH_LANES", 0U) : 0U;
+  schedule_ = Runtime::instance().schedule;
+  const auto laneCount = Runtime::instance().barrierValue && !schedule_
+                             ? env.get<unsigned>("OWN_QUEUE_GRAPH_LANES", 0U)
+                             : 0U;
   const auto laneMinimum = env.get<std::size_t>("OWN_QUEUE_GRAPH_LANE_MIN", std::size_t{3});
   borrow_ = laneCount > 0 && env.get<bool>("OWN_QUEUE_GRAPH_BORROW", false);
   lanes_.push_back(&queue);
@@ -2455,6 +2668,7 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
     }
     ProgramPacket packet;
     packet.lane = laneOf[index];
+    packet.level = item.level;
     // the first one of each level waits for all before it (and so for the work before the graph);
     // on a helper lane, the fork has waited
     const bool barrier = levelStart || packet.lane != 0 || splitLevel[index];
@@ -2508,6 +2722,24 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
   if (kernargBytes > 0) {
     flushKernargs(static_cast<const char*>(kernargs_) + kernargBytes - 1);
   }
+  if (schedule_) {
+    // (no fixed lanes: only work packets)
+    for (std::size_t first = 0; first < packets_.size();) {
+      auto last = first;
+      bool host = false;
+      while (last < packets_.size() && packets_[last].level == packets_[first].level) {
+        host = host || static_cast<bool>(packets_[last].host);
+        ++last;
+      }
+      levels_.push_back({first, last - first, !host && last - first >= 2});
+      first = last;
+    }
+    estimates_.assign(packets_.size(), 0.0);
+    levelForks_.resize(levels_.size());
+    levelForkCounts_.assign(levels_.size(), 0);
+    levelJoins_.resize(levels_.size());
+    levelJoinCounts_.resize(levels_.size());
+  }
   if (utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
     std::map<std::size_t, std::size_t> kernelsPerLevel;
     for (const auto& item : work) {
@@ -2542,6 +2774,19 @@ Program::~Program() {
     hsa_amd_memory_pool_free(kernargs_);
   }
   // (the queue has waited for the helpers at each join)
+  for (auto& [index, signal] : measuring_) {
+    Runtime::instance().freeTraceSignal(signal);
+  }
+  for (const auto signal : levelForks_) {
+    if (signal.handle != 0) {
+      hsa_signal_destroy(signal);
+    }
+  }
+  for (const auto& joins : levelJoins_) {
+    for (const auto signal : joins) {
+      hsa_signal_destroy(signal);
+    }
+  }
   for (const auto signal : forks_) {
     hsa_signal_destroy(signal);
   }
@@ -2589,6 +2834,9 @@ void Program::waitOnLanes(hsa_signal_t signal,
 }
 
 std::uint64_t Program::submit() {
+  if (schedule_) {
+    return submitScheduled();
+  }
   laneQueues_.assign(lanes_.begin(), lanes_.end());
   std::vector<std::unique_lock<std::mutex>> borrowed;
   static std::atomic<std::uint64_t> submits{0};
@@ -2668,8 +2916,258 @@ std::uint64_t Program::submit() {
   return lastIndex_;
 }
 
+void Program::harvest() {
+  if (measuring_.empty()) {
+    return;
+  }
+  for (const auto& [index, signal] : measuring_) {
+    if (hsa_signal_load_relaxed(signal) > 0) {
+      // (not done yet)
+      return;
+    }
+  }
+  auto& runtime = Runtime::instance();
+  for (const auto& [index, signal] : measuring_) {
+    hsa_amd_profiling_dispatch_time_t time{};
+    if (hsa_amd_profiling_get_dispatch_time(runtime.gpu, signal, &time) == HSA_STATUS_SUCCESS &&
+        time.end > time.start) {
+      const double seconds = static_cast<double>(time.end - time.start) /
+                             static_cast<double>(runtime.timestampFrequency);
+      auto& estimate = estimates_[index];
+      estimate = estimate <= 0 ? seconds : 0.75 * estimate + 0.25 * seconds;
+      runtime.learnKernel(packets_[index].packet.kernel_object, seconds);
+    }
+    runtime.freeTraceSignal(signal);
+  }
+  measuring_.clear();
+}
+
+void Program::ensureLevelSignals(std::size_t level, std::size_t helpers) {
+  hsa_signal_t signal{};
+  if (levelForks_[level].handle == 0) {
+    check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
+          "hsa_amd_signal_create");
+    levelForks_[level] = signal;
+  }
+  while (levelJoins_[level].size() < helpers) {
+    check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
+          "hsa_amd_signal_create");
+    levelJoins_[level].push_back(signal);
+    levelJoinCounts_[level].push_back(0);
+  }
+}
+
+/**
+ * Enqueues the program level by level (DEVICE_OWN_QUEUE_SCHEDULE): a level of independent kernels
+ * goes onto the queue of the program, or, where that ends it earlier, partly onto own queues on
+ * other pipes (the queues of a pipe run one kernel after the other): the longest kernel first onto
+ * the queue that ends it first, by the durations the program has measured and the predicted work of
+ * the queues, with a fork (the others start the level once the queue of the program has reached it)
+ * and a join (the queue of the program goes on once they are done). The other queues only get
+ * tried, never waited for (the mutex of the queue of the program is held); their work after this
+ * waits for it.
+ */
+std::uint64_t Program::submitScheduled() {
+  auto& runtime = Runtime::instance();
+  harvest();
+  ++scheduledReplays_;
+  // a few replays early on, then every 128th, take the times of all kernels
+  const bool measure =
+      measuring_.empty() &&
+      (scheduledReplays_ <= 4 ? scheduledReplays_ >= 2 : scheduledReplays_ % 128 == 0);
+  std::vector<Queue*> helpers;
+  std::vector<std::unique_lock<std::mutex>> locks;
+  for (auto* candidate : runtime.borrowable(queue_)) {
+    std::unique_lock lock(candidate->mutex, std::try_to_lock);
+    if (lock.owns_lock()) {
+      helpers.push_back(candidate);
+      locks.push_back(std::move(lock));
+    }
+  }
+  const double now = steadySeconds();
+  double time = queue_.predictedFreeLocked(now);
+  std::vector<double> helperFree(helpers.size());
+  for (std::size_t k = 0; k < helpers.size(); ++k) {
+    helperFree[k] = helpers[k]->predictedFreeLocked(now);
+  }
+  std::vector<bool> helperUsed(helpers.size(), false);
+
+  constexpr std::uint16_t LaneFences = fenceBits(HSA_FENCE_SCOPE_NONE, HSA_FENCE_SCOPE_AGENT);
+  const auto countDown = [&](Queue& target, hsa_signal_t signal) {
+    PacketImage packet;
+    packet.as<hsa_barrier_and_packet_t>().completion_signal = signal;
+    packet.setHeader(
+        static_cast<std::uint16_t>((HSA_PACKET_TYPE_BARRIER_AND << HSA_PACKET_HEADER_TYPE) |
+                                   BarrierBit | LaneFences),
+        0);
+    target.push(packet);
+  };
+  const auto waitCount = [&](Queue& target, hsa_signal_t signal, std::int64_t count) {
+    PacketImage packet;
+    auto& barrier = packet.as<hsa_amd_barrier_value_packet_t>();
+    barrier.signal = signal;
+    barrier.value = CounterStart - count + 1;
+    barrier.mask = -1;
+    barrier.cond = HSA_SIGNAL_CONDITION_LT;
+    packet.setHeader(
+        static_cast<std::uint16_t>((HSA_PACKET_TYPE_VENDOR_SPECIFIC << HSA_PACKET_HEADER_TYPE) |
+                                   BarrierBit | QueueWaitFences),
+        HSA_AMD_PACKET_TYPE_BARRIER_VALUE);
+    target.push(packet);
+  };
+  const auto emit = [&](Queue& target, std::size_t index, bool barrier) {
+    const auto& packet = packets_[index];
+    if (packet.host) {
+      queue_.hostFunction(packet.host);
+      return;
+    }
+    PacketImage image;
+    image.as<hsa_kernel_dispatch_packet_t>() = packet.packet;
+    if (measure) {
+      const auto signal = runtime.traceSignal();
+      image.as<hsa_kernel_dispatch_packet_t>().completion_signal = signal;
+      measuring_.emplace_back(index, signal);
+    }
+    image.setHeader(barrier ? static_cast<std::uint16_t>(packet.header | BarrierBit)
+                            : packet.header,
+                    packet.rest);
+    target.push(image);
+  };
+
+  std::size_t splitLevels = 0;
+  std::size_t movedKernels = 0;
+  for (std::size_t l = 0; l < levels_.size(); ++l) {
+    const auto& level = levels_[l];
+    double work = 0;
+    bool known = true;
+    for (std::size_t i = 0; i < level.count; ++i) {
+      const auto estimate = estimates_[level.first + i];
+      known = known && estimate > 0;
+      work += estimate > 0 ? estimate : DefaultKernelSeconds;
+    }
+    double levelEnd = time + work;
+    // the lane of each kernel: 0 the queue of the program, k > 0 helper k - 1
+    std::vector<std::size_t> laneOf(level.count, 0);
+    bool split = false;
+    if (level.splittable && known && !helpers.empty() && work >= runtime.scheduleMinWork) {
+      std::vector<std::size_t> order(level.count);
+      for (std::size_t i = 0; i < level.count; ++i) {
+        order[i] = i;
+      }
+      std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+        return estimates_[level.first + a] > estimates_[level.first + b];
+      });
+      std::vector<double> laneEnd(helpers.size() + 1);
+      laneEnd[0] = time;
+      for (std::size_t k = 0; k < helpers.size(); ++k) {
+        laneEnd[k + 1] = std::max(time + runtime.forkSeconds, helperFree[k]);
+      }
+      for (const auto i : order) {
+        std::size_t best = 0;
+        for (std::size_t lane = 1; lane < laneEnd.size(); ++lane) {
+          if (laneEnd[lane] < laneEnd[best]) {
+            best = lane;
+          }
+        }
+        laneOf[i] = best;
+        laneEnd[best] += estimates_[level.first + i];
+      }
+      double end = laneEnd[0];
+      bool any = false;
+      for (std::size_t i = 0; i < level.count; ++i) {
+        if (laneOf[i] > 0) {
+          any = true;
+          end = std::max(end, laneEnd[laneOf[i]] + runtime.forkSeconds);
+        }
+      }
+      if (any && end < levelEnd) {
+        split = true;
+        levelEnd = end;
+        for (std::size_t i = 0; i < level.count; ++i) {
+          if (laneOf[i] > 0) {
+            helperFree[laneOf[i] - 1] = laneEnd[laneOf[i]];
+          }
+        }
+      }
+    }
+    if (!split) {
+      for (std::size_t i = 0; i < level.count; ++i) {
+        emit(queue_, level.first + i, false);
+      }
+      time = levelEnd;
+      continue;
+    }
+    ++splitLevels;
+    ensureLevelSignals(l, helpers.size());
+    std::vector<bool> inLevel(helpers.size(), false);
+    for (std::size_t i = 0; i < level.count; ++i) {
+      if (laneOf[i] > 0) {
+        inLevel[laneOf[i] - 1] = true;
+        helperUsed[laneOf[i] - 1] = true;
+        ++movedKernels;
+      }
+    }
+    countDown(queue_, levelForks_[l]);
+    const auto forkCount = ++levelForkCounts_[l];
+    for (std::size_t k = 0; k < helpers.size(); ++k) {
+      if (inLevel[k]) {
+        waitCount(*helpers[k], levelForks_[l], forkCount);
+      }
+    }
+    for (std::size_t i = 0; i < level.count; ++i) {
+      emit(laneOf[i] == 0 ? queue_ : *helpers[laneOf[i] - 1], level.first + i, true);
+    }
+    for (std::size_t k = 0; k < helpers.size(); ++k) {
+      if (inLevel[k]) {
+        countDown(*helpers[k], levelJoins_[l][k]);
+        waitCount(queue_, levelJoins_[l][k], ++levelJoinCounts_[l][k]);
+      }
+    }
+    time = levelEnd;
+  }
+  queue_.predictUntil(time);
+  for (std::size_t k = 0; k < helpers.size(); ++k) {
+    if (helperUsed[k]) {
+      helpers[k]->predictUntil(helperFree[k]);
+    }
+  }
+  static const bool verbose = utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false);
+  if (verbose) {
+    static std::atomic<std::uint64_t> replays{0};
+    static std::atomic<std::uint64_t> splits{0};
+    static std::atomic<std::uint64_t> moved{0};
+    splits += splitLevels;
+    moved += movedKernels;
+    if (++replays % 20000 == 0) {
+      logInfo() << "Own queues: in" << replays.load() << "replays, graphs spread" << splits.load()
+                << "levels, with" << moved.load() << "kernels on other queues";
+    }
+  }
+  lastIndex_ = queue_.created();
+  return lastIndex_;
+}
+
 // ------------------------------------------------------------------------------------------------
 // the interface
+
+namespace {
+/// other work on a stream for the DAG log (see DagLog)
+void logOther(const Stream* stream, Queue& queue, std::uint64_t first, const char* kind) {
+  if (Runtime::instance().schedule) {
+    queue.predictWork(steadySeconds(),
+                      std::string_view(kind) == "copy" ? DefaultCopySeconds : DefaultHostSeconds);
+  }
+  if (dagLog().on()) {
+    dagLog().line("O %lld %p %d %llu %llu %s\n",
+                  DagLog::now(),
+                  static_cast<const void*>(stream),
+                  queue.number(),
+                  static_cast<unsigned long long>(first),
+                  static_cast<unsigned long long>(stream->lastIndex),
+                  kind);
+  }
+}
+} // namespace
 
 void registerLaunchHook(LaunchFunction launch) { hipLaunch = launch; }
 
@@ -2746,8 +3244,22 @@ hipError_t launch(const void* function,
   const auto& kernel = Runtime::instance().kernel(function);
   auto& queue = *stream->queue;
   const std::lock_guard lock(queue.mutex);
+  const auto first = queue.created();
   queue.dispatch(kernel, grid, block, sharedMemBytes, args, KernelFences, hsa_signal_t{0});
   stream->lastIndex = queue.created();
+  if (Runtime::instance().schedule) {
+    const auto estimate = Runtime::instance().kernelEstimate(kernel.object);
+    queue.predictWork(steadySeconds(), estimate > 0 ? estimate : DefaultKernelSeconds);
+  }
+  if (dagLog().on()) {
+    dagLog().line("L %lld %p %d %llu %llu %s\n",
+                  DagLog::now(),
+                  static_cast<void*>(stream),
+                  queue.number(),
+                  static_cast<unsigned long long>(first),
+                  static_cast<unsigned long long>(stream->lastIndex),
+                  kernel.name.c_str());
+  }
   return hipSuccess;
 }
 
@@ -2775,8 +3287,10 @@ void hostFunction(void* handle, const std::function<void()>& function) {
   auto* stream = streamOf(handle);
   auto& queue = *stream->queue;
   const std::lock_guard lock(queue.mutex);
+  const auto first = queue.created();
   queue.hostFunction(function);
   stream->lastIndex = queue.created();
+  logOther(stream, queue, first, "host");
 }
 
 namespace {
@@ -2834,8 +3348,10 @@ void waitMemory(void* handle, std::uint32_t* location, std::uint32_t value) {
   if (signal.handle != 0 && Runtime::instance().barrierValue) {
     // the command processor waits for the signal
     const std::lock_guard lock(queue.mutex);
+    const auto first = queue.created();
     queue.waitForCounter(signal, value);
     stream->lastIndex = queue.created();
+    logOther(stream, queue, first, "counter");
     return;
   }
   std::uint32_t* deviceLocation = location;
@@ -2845,6 +3361,7 @@ void waitMemory(void* handle, std::uint32_t* location, std::uint32_t value) {
   const std::uint32_t* counter = deviceLocation;
   void* args[] = {&counter, &value};
   const std::lock_guard lock(queue.mutex);
+  const auto first = queue.created();
   queue.dispatch(Queue::kernelOf(reinterpret_cast<const void*>(ownWaitHost)),
                  dim3(1),
                  dim3(1),
@@ -2854,6 +3371,7 @@ void waitMemory(void* handle, std::uint32_t* location, std::uint32_t value) {
                  hsa_signal_t{0});
   queue.acquireFromHost();
   stream->lastIndex = queue.created();
+  logOther(stream, queue, first, "counter");
 }
 
 void copy(void* dst, const void* src, std::size_t bytes, void* handle) {
@@ -2872,8 +3390,10 @@ void copy(void* dst, const void* src, std::size_t bytes, void* handle) {
     auto* staging = static_cast<char*>(queue.kernargs(bytes, 16));
     std::memcpy(staging, src, bytes);
     flushKernargs(staging + bytes - 1);
+    const auto first = queue.created();
     dispatchCopy(queue, dstDevice, staging, bytes);
     stream->lastIndex = queue.created();
+    logOther(stream, queue, first, "copy");
     return;
   }
   if (srcDevice == nullptr || dstDevice == nullptr) {
@@ -2884,8 +3404,10 @@ void copy(void* dst, const void* src, std::size_t bytes, void* handle) {
     return;
   }
   const std::lock_guard lock(queue.mutex);
+  const auto first = queue.created();
   dispatchCopy(queue, dstDevice, srcDevice, bytes);
   stream->lastIndex = queue.created();
+  logOther(stream, queue, first, "copy");
 }
 
 void* allocAsync(std::size_t bytes, void* handle) {
@@ -2943,6 +3465,15 @@ void recordEvent(void* eventHandle, void* streamHandle) {
     }
     event->queue = &queue;
     event->mark = queue.markCoveringLocked(stream->lastIndex);
+    if (dagLog().on()) {
+      dagLog().line("R %lld %p %d %p %llu %llu\n",
+                    DagLog::now(),
+                    static_cast<void*>(stream),
+                    queue.number(),
+                    static_cast<void*>(event),
+                    static_cast<unsigned long long>(event->mark),
+                    static_cast<unsigned long long>(stream->lastIndex));
+    }
     return;
   }
   // on a stream of HIP, or one that gets captured
@@ -2992,6 +3523,17 @@ double timespan(void* startHandle, void* endHandle) {
 
 bool timing() { return Runtime::instance().timing; }
 
+void nameStream(void* handle, const std::string& name) {
+  if (!isTagged(handle)) {
+    return;
+  }
+  auto* stream = streamOf(handle);
+  stream->name = name;
+  if (dagLog().on()) {
+    dagLog().line("N %p %s\n", static_cast<void*>(stream), name.c_str());
+  }
+}
+
 bool trace(const TraceSink& sink) {
   if (!enabled()) {
     return false;
@@ -3000,6 +3542,7 @@ bool trace(const TraceSink& sink) {
     tracer().start(sink);
   } else {
     tracer().stop();
+    dagLog().flush();
   }
   return true;
 }
@@ -3030,6 +3573,13 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
     const std::lock_guard lock(queue.mutex);
     queue.waitFor(*event->queue, event->mark);
     stream->lastIndex = queue.created();
+    if (dagLog().on()) {
+      dagLog().line("W %lld %p %d %p\n",
+                    DagLog::now(),
+                    static_cast<void*>(stream),
+                    queue.number(),
+                    static_cast<void*>(event));
+    }
     return;
   }
   auto hipStream = vehicle(streamHandle);
@@ -3078,7 +3628,21 @@ void launchGraph(Programs& programs, hipGraph_t graph, void* handle) {
     program = entry.get();
   }
   const std::lock_guard lock(queue.mutex);
+  const auto first = queue.created();
   stream->lastIndex = program->submit();
+  if (dagLog().on()) {
+    if (dagLog().firstTime(program)) {
+      dagLog().line(
+          "P %p %d%s\n", static_cast<void*>(program), queue.number(), program->levels().c_str());
+    }
+    dagLog().line("G %lld %p %d %llu %llu %p\n",
+                  DagLog::now(),
+                  static_cast<void*>(stream),
+                  queue.number(),
+                  static_cast<unsigned long long>(first),
+                  static_cast<unsigned long long>(stream->lastIndex),
+                  static_cast<void*>(program));
+  }
 }
 
 void syncAll() {

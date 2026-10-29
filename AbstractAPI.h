@@ -223,6 +223,8 @@ struct AbstractAPI {
                                              std::chrono::steady_clock::time_point begin,
                                              std::chrono::steady_clock::time_point end)>;
   virtual bool traceDevice(DeviceTraceSink /*sink*/) { return false; }
+  /// names a stream for the logs of the device (e.g. the DAG log of own queues of HIP)
+  virtual void nameStream(void* /*streamPtr*/, const std::string& /*name*/) {}
 
   virtual void* createEvent(bool withTiming = false) = 0;
   virtual void destroyEvent(void* eventPtr) = 0;

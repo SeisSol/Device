@@ -11,6 +11,7 @@
 #include <functional>
 #include <hip/hip_runtime_api.h>
 #include <memory>
+#include <string>
 #include <string_view>
 
 /**
@@ -122,6 +123,8 @@ using TraceSink = std::function<void(std::string_view name,
                                      std::chrono::steady_clock::time_point begin,
                                      std::chrono::steady_clock::time_point end)>;
 bool trace(const TraceSink& sink);
+/// names an own stream for the DAG log (see DEVICE_OWN_QUEUE_DAG_LOG); others stay unnamed
+void nameStream(void* stream, const std::string& name);
 bool eventDone(void* event);
 void syncEvent(void* event);
 

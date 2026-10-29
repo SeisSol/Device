@@ -107,6 +107,7 @@ class ConcreteAPI : public AbstractAPI {
   uint32_t* allocCounter() override;
   void freeCounter(uint32_t* counter) override;
   bool traceDevice(DeviceTraceSink sink) override;
+  void nameStream(void* streamPtr, const std::string& name) override;
 
   void* createEvent(bool withTiming) override;
   void destroyEvent(void* eventPtr) override;

@@ -170,6 +170,12 @@ uint32_t* ConcreteAPI::allocCounter() {
 
 bool ConcreteAPI::traceDevice(DeviceTraceSink sink) { return ownqueues::trace(sink); }
 
+void ConcreteAPI::nameStream(void* streamPtr, const std::string& name) {
+  if (ownqueues::enabled()) {
+    ownqueues::nameStream(streamPtr, name);
+  }
+}
+
 void ConcreteAPI::freeCounter(uint32_t* counter) {
   if (ownqueues::isCounter(counter)) {
     ownqueues::freeCounter(counter);
