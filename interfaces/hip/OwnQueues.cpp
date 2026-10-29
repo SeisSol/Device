@@ -26,6 +26,7 @@
 #include <hsa/hsa.h>
 #include <hsa/hsa_ext_amd.h>
 #include <hsa/hsa_ven_amd_loader.h>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -506,6 +507,10 @@ class Runtime {
   bool schedule{false};
   double scheduleMinWork{120e-6};
   double forkSeconds{5e-6};
+  // a level gets spread only if none of its kernels has more workgroups than this
+  // (DEVICE_OWN_QUEUE_SCHEDULE_MAX_BLOCKS, the compute units of the device by default): larger ones
+  // fill the device by themselves, and spreading them made a mesh of 1.4 million cells slower
+  std::uint64_t scheduleMaxBlocks{128};
   /// the duration of a kernel (by its kernel object) the graphs have measured, or 0
   double kernelEstimate(std::uint64_t object);
   void learnKernel(std::uint64_t object, double seconds);
@@ -1660,6 +1665,10 @@ bool Runtime::setUp() {
   acquireByKernel = env.get<std::string>("OWN_QUEUE_HOST_ACQUIRE", "kernel") != "packet";
   hsa_agent_get_info(
       gpu, static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_COMPUTE_UNIT_COUNT), &computeUnits);
+  // (about a workgroup for each compute unit: kernels that wait for latencies more than for the
+  // device; the MI250X has 110)
+  scheduleMaxBlocks = env.get<std::uint64_t>("OWN_QUEUE_SCHEDULE_MAX_BLOCKS",
+                                             computeUnits > 0 ? computeUnits : 128);
   {
     // "<queue>:<first>-<last>[+<first>-<last>...];..."
     const auto masks = env.get<std::string>("OWN_QUEUE_CU_MASKS", "");
@@ -3087,16 +3096,26 @@ std::uint64_t Program::submitScheduled() {
     const auto& level = levels_[l];
     double work = 0;
     bool known = true;
+    bool small = true;
     for (std::size_t i = 0; i < level.count; ++i) {
       const auto estimate = estimates_[level.first + i];
       known = known && estimate > 0;
       work += estimate > 0 ? estimate : DefaultKernelSeconds;
+      const auto& dispatch = packets_[level.first + i].packet;
+      if (dispatch.workgroup_size_x > 0 && dispatch.workgroup_size_y > 0 &&
+          dispatch.workgroup_size_z > 0) {
+        const std::uint64_t blocks =
+            static_cast<std::uint64_t>(dispatch.grid_size_x / dispatch.workgroup_size_x) *
+            (dispatch.grid_size_y / dispatch.workgroup_size_y) *
+            (dispatch.grid_size_z / dispatch.workgroup_size_z);
+        small = small && blocks <= runtime.scheduleMaxBlocks;
+      }
     }
     double levelEnd = time + work;
     // the lane of each kernel: 0 the queue of the program, k > 0 helper k - 1
     std::vector<std::size_t> laneOf(level.count, 0);
     bool split = false;
-    if (level.splittable && known && !helpers.empty() && work >= runtime.scheduleMinWork) {
+    if (level.splittable && known && small && !helpers.empty() && work >= runtime.scheduleMinWork) {
       std::vector<std::size_t> order(level.count);
       for (std::size_t i = 0; i < level.count; ++i) {
         order[i] = i;
