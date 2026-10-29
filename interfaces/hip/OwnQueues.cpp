@@ -27,6 +27,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -100,6 +101,14 @@ __global__ void ownWaitAtLeast(const volatile std::int64_t* value, std::int64_t 
 // takes the time (by its completion signal, on a queue with profiling)
 __global__ void ownStamp() {}
 
+// keeps a compute unit busy for `ticks` of the constant clock (see samePipe())
+__global__ void ownSpin(std::uint64_t ticks) {
+  const auto start = wall_clock64();
+  while (static_cast<std::uint64_t>(wall_clock64() - start) < ticks) {
+    __builtin_amdgcn_s_sleep(1);
+  }
+}
+
 __global__ void ownWaitHost(const volatile std::uint32_t* counter, std::uint32_t atLeast) {
   while (*counter < atLeast) {
     __builtin_amdgcn_s_sleep(2);
@@ -125,6 +134,12 @@ constexpr std::int64_t CounterStart = std::int64_t{1} << 62;
 constexpr std::uint32_t MaxQueuePackets = 1U << 17;
 constexpr std::uint64_t DefaultKernargRingMiB = 128;
 constexpr std::uint32_t CopyThreads = 256;
+// the long kernel of samePipe()
+constexpr double SpinMicroseconds = 300;
+// more pipes than this: the queues do not share them (see Runtime::placeQueue()); queues that get
+// created but stay unused, at most (a GCD of the MI250X has 24 hardware queues for the processes)
+constexpr std::size_t MaxPipes = 8;
+constexpr std::size_t MaxSpareQueues = 8;
 constexpr std::uint32_t MaxCopyBlocks = 1024;
 
 constexpr std::uint16_t fenceBits(hsa_fence_scope_t acquire, hsa_fence_scope_t release) {
@@ -468,6 +483,23 @@ class Runtime {
   bool acquireByKernel{true};
   // events time what they enclose (DEVICE_OWN_QUEUE_TIMING=1): by a kernel that takes the time
   bool timing{false};
+  // DEVICE_OWN_QUEUE_PIPES=check: each new queue gets checked for the pipes it shares; =spread: own
+  // queues get pipes of their own as long as there are (see placeQueue())
+  bool pipeCheck{false};
+  bool pipeSpread{false};
+  // own queues that are idle most of the time, which may share a pipe with another one
+  // (DEVICE_OWN_QUEUE_LIGHT, a list of queue numbers)
+  std::set<int> lightQueues;
+  /**
+   * An HSA queue for the own queue `number`, on a pipe with as few other own queues as possible.
+   * The hardware scheduler gives the i-th queue of a process the pipe i modulo their number (the
+   * MI250X: 4 pipes for the processes): queues that get created later take the pipes in turn, and
+   * those after a queue that goes move up by one. So the first call finds the pipes, with an idle
+   * queue on each (until a new queue is on a known one), and each call creates queues until one is
+   * on a pipe as little busy as any (by its own queues that are not light, see lightQueues); the
+   * others stay unused, as do the idle ones: destroyed, they would move the queues after them.
+   */
+  hsa_queue_t* placeQueue(int number);
   std::uint64_t timestampFrequency{1};
   // the system timestamp when the own queues started; stamps before it are not valid
   std::uint64_t startTimestamp{0};
@@ -496,6 +528,16 @@ class Runtime {
   std::mutex mutex_;
   std::unordered_map<const void*, const KernelInfo*> kernels_;
   std::map<int, std::unique_ptr<Queue>> queues_;
+  // the pipes found so far (see placeQueue()): an idle queue on each, and the own queues on it
+  struct Pipe {
+    hsa_queue_t* probe{nullptr};
+    std::vector<int> queues;
+  };
+  std::mutex placeMutex_;
+  std::vector<Pipe> pipes_;
+  bool pipesKnown_{false};
+  // queues that stay unused: destroyed, they could move the other queues to other pipes
+  std::vector<hsa_queue_t*> spareQueues_;
   std::unordered_map<std::uint64_t, std::string> kernelNames_;
   std::mutex traceMutex_;
   std::vector<hsa_signal_t> traceSignals_;
@@ -722,6 +764,111 @@ struct PacketImage {
   }
 };
 
+hsa_queue_t* createHsaQueue() {
+  auto& runtime = Runtime::instance();
+  hsa_queue_t* queue = nullptr;
+  check(hsa_queue_create(runtime.gpu,
+                         runtime.queuePackets,
+                         HSA_QUEUE_TYPE_MULTI,
+                         queueError,
+                         nullptr,
+                         UINT32_MAX,
+                         UINT32_MAX,
+                         &queue),
+        "hsa_queue_create");
+  return queue;
+}
+
+/// a kernel of one wave on a queue that nothing else writes to (see Runtime::placeQueue())
+void dispatchAlone(hsa_queue_t* queue,
+                   const KernelInfo& kernel,
+                   const void* kernargs,
+                   hsa_signal_t completion) {
+  PacketImage image;
+  auto& packet = image.as<hsa_kernel_dispatch_packet_t>();
+  packet.workgroup_size_x = 64;
+  packet.workgroup_size_y = 1;
+  packet.workgroup_size_z = 1;
+  packet.grid_size_x = 64;
+  packet.grid_size_y = 1;
+  packet.grid_size_z = 1;
+  packet.private_segment_size = kernel.privateSize;
+  packet.group_segment_size = kernel.groupSize;
+  packet.kernel_object = kernel.object;
+  packet.kernarg_address = const_cast<void*>(kernargs);
+  packet.completion_signal = completion;
+  image.setHeader(
+      static_cast<std::uint16_t>((HSA_PACKET_TYPE_KERNEL_DISPATCH << HSA_PACKET_HEADER_TYPE) |
+                                 BarrierBit | KernelFences),
+      static_cast<std::uint16_t>(3U << HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS));
+  const auto index = hsa_queue_add_write_index_relaxed(queue, 1);
+  auto* slot = static_cast<std::uint8_t*>(queue->base_address) + (index % queue->size) * 64;
+  std::memcpy(slot + sizeof(std::uint32_t),
+              image.bytes.data() + sizeof(std::uint32_t),
+              image.bytes.size() - sizeof(std::uint32_t));
+  std::uint32_t word = 0;
+  std::memcpy(&word, image.bytes.data(), sizeof(word));
+  __atomic_store_n(reinterpret_cast<std::uint32_t*>(slot), word, __ATOMIC_RELEASE);
+  hsa_signal_store_screlease(queue->doorbell_signal, static_cast<hsa_signal_value_t>(index));
+}
+
+/**
+ * Whether two queues that nothing else uses share a pipe of the command processor. The hardware
+ * scheduler gives the queues of a process to its pipes one after the other, and a pipe serves its
+ * queues together (MI250X, ROCm 6.3): a kernel that one queue starts after a long one of another
+ * queue on the pipe completes only after it, and a queue that waits in a barrier packet holds up
+ * the others on the pipe for about 40 us at a time. Here: a long kernel on `first`, then a short
+ * one on `second`.
+ */
+bool samePipe(hsa_queue_t* first, hsa_queue_t* second) {
+  auto& runtime = Runtime::instance();
+  const auto& spin = runtime.kernel(reinterpret_cast<const void*>(ownSpin));
+  const auto& stamp = runtime.kernel(reinterpret_cast<const void*>(ownStamp));
+  // (the hidden arguments stay zero: the kernels do not read them)
+  static const auto* spinArgs = [&]() {
+    int rate = 0;
+    APIWRAP(hipDeviceGetAttribute(&rate, hipDeviceAttributeWallClockRate, 0));
+    const auto bytes = std::max<std::uint32_t>(spin.kernargSize, 64);
+    auto* kernargs = static_cast<std::uint8_t*>(allocKernargMemory(bytes));
+    std::memset(kernargs, 0, bytes);
+    const auto ticks = static_cast<std::uint64_t>(SpinMicroseconds * rate / 1000.0);
+    std::memcpy(kernargs, &ticks, sizeof(ticks));
+    flushKernargs(kernargs + bytes - 1);
+    return kernargs;
+  }();
+  static const auto* noArgs = [&]() {
+    const auto bytes = std::max<std::uint32_t>(stamp.kernargSize, 64);
+    auto* kernargs = static_cast<std::uint8_t*>(allocKernargMemory(bytes));
+    std::memset(kernargs, 0, bytes);
+    flushKernargs(kernargs + bytes - 1);
+    return kernargs;
+  }();
+  hsa_signal_t spun{};
+  hsa_signal_t probed{};
+  check(hsa_amd_signal_create(1, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &spun),
+        "hsa_amd_signal_create");
+  check(hsa_amd_signal_create(1, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &probed),
+        "hsa_amd_signal_create");
+  dispatchAlone(first, spin, spinArgs, spun);
+  // (the long kernel has started by then)
+  const auto settle = std::chrono::steady_clock::now();
+  while (std::chrono::steady_clock::now() - settle < std::chrono::microseconds(30)) {
+  }
+  const auto start = std::chrono::steady_clock::now();
+  dispatchAlone(second, stamp, noArgs, probed);
+  while (hsa_signal_wait_scacquire(
+             probed, HSA_SIGNAL_CONDITION_LT, 1, UINT64_MAX, HSA_WAIT_STATE_ACTIVE) > 0) {
+  }
+  const auto took =
+      std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count();
+  while (hsa_signal_wait_scacquire(
+             spun, HSA_SIGNAL_CONDITION_LT, 1, UINT64_MAX, HSA_WAIT_STATE_ACTIVE) > 0) {
+  }
+  hsa_signal_destroy(spun);
+  hsa_signal_destroy(probed);
+  return took > SpinMicroseconds / 2;
+}
+
 /**
  * An HSA queue of our own. Its marks (barrier packets that wait for all work before them) count its
  * counter signal down, from CounterStart; mark m has been reached once the counter is at most
@@ -734,16 +881,12 @@ struct PacketImage {
  */
 class Queue {
   public:
-  Queue(Runtime& runtime, int number) : runtime_(runtime), number_(number) {
-    check(hsa_queue_create(runtime.gpu,
-                           runtime.queuePackets,
-                           HSA_QUEUE_TYPE_MULTI,
-                           queueError,
-                           nullptr,
-                           UINT32_MAX,
-                           UINT32_MAX,
-                           &queue_),
-          "hsa_queue_create");
+  /// on the HSA queue `placed` (see Runtime::placeQueue()), or on a new one
+  Queue(Runtime& runtime, int number, hsa_queue_t* placed = nullptr)
+      : runtime_(runtime), number_(number), queue_(placed) {
+    if (queue_ == nullptr) {
+      queue_ = createHsaQueue();
+    }
     check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &counter_),
           "hsa_amd_signal_create");
     check(hsa_amd_signal_value_pointer(counter_, &counterValue_), "hsa_amd_signal_value_pointer");
@@ -1360,6 +1503,22 @@ bool Runtime::setUp() {
   kernargRingBytes =
       env.get<std::uint64_t>("OWN_QUEUE_KERNARG_MIB", std::uint64_t{DefaultKernargRingMiB}) << 20;
   timing = env.get<bool>("OWN_QUEUE_TIMING", false);
+  // the pipes of the command processor (see Runtime::placeQueue()): own queues spread over them on
+  // the MI250X (measured there), DEVICE_OWN_QUEUE_PIPES=spread|check|any decides otherwise
+  const auto pipes = env.get<std::string>("OWN_QUEUE_PIPES", arch == "gfx90a" ? "spread" : "any");
+  pipeCheck = pipes == "check";
+  pipeSpread = pipes == "spread";
+  {
+    const auto light = env.get<std::string>("OWN_QUEUE_LIGHT", "");
+    std::size_t position = 0;
+    while (position < light.size()) {
+      const auto end = std::min(light.find(',', position), light.size());
+      if (end > position) {
+        lightQueues.insert(std::stoi(light.substr(position, end - position)));
+      }
+      position = end + 1;
+    }
+  }
   hsa_system_get_info(HSA_SYSTEM_INFO_TIMESTAMP_FREQUENCY, &timestampFrequency);
   if (timestampFrequency == 0) {
     timestampFrequency = 1;
@@ -1466,12 +1625,111 @@ const KernelInfo& Runtime::kernel(const void* function) {
 }
 
 Queue& Runtime::queue(int number) {
+  {
+    const std::lock_guard lock(mutex_);
+    const auto found = queues_.find(number);
+    if (found != queues_.end()) {
+      return *found->second;
+    }
+  }
+  hsa_queue_t* placed = pipeCheck || pipeSpread ? placeQueue(number) : nullptr;
   const std::lock_guard lock(mutex_);
   auto& queue = queues_[number];
-  if (queue == nullptr) {
-    queue = std::make_unique<Queue>(*this, number);
+  if (queue != nullptr) {
+    // (another thread was first)
+    if (placed != nullptr) {
+      const std::lock_guard placeLock(placeMutex_);
+      spareQueues_.push_back(placed);
+    }
+    return *queue;
   }
+  queue = std::make_unique<Queue>(*this, number, placed);
   return *queue;
+}
+
+hsa_queue_t* Runtime::placeQueue(int number) {
+  const std::lock_guard lock(placeMutex_);
+  const auto pipeOf = [&](hsa_queue_t* queue) -> int {
+    for (std::size_t pipe = 0; pipe < pipes_.size(); ++pipe) {
+      if (samePipe(queue, pipes_[pipe].probe)) {
+        return static_cast<int>(pipe);
+      }
+    }
+    return -1;
+  };
+  if (!pipesKnown_) {
+    // an idle queue on each pipe: the queues of a process get the pipes one after the other, so
+    // the first new queue on a known pipe means that there are no more
+    while (true) {
+      auto* queue = createHsaQueue();
+      if (pipes_.size() < MaxPipes && pipeOf(queue) < 0) {
+        pipes_.push_back({queue, {}});
+        continue;
+      }
+      spareQueues_.push_back(queue);
+      break;
+    }
+    pipesKnown_ = true;
+    if (pipes_.size() >= MaxPipes) {
+      // (queues that do not hold each other up)
+      logWarning() << "Own queues: the queues do not seem to share pipes; they go anywhere";
+      pipeSpread = false;
+    } else {
+      logInfo() << "Own queues: the command processor serves the queues of the process on"
+                << pipes_.size() << "pipes";
+    }
+  }
+  // how busy a pipe is: by its own queues that are not light, then by all of them (a light queue
+  // goes rather to one with light queues only)
+  const bool light = lightQueues.count(number) > 0;
+  const auto load = [&](std::size_t pipe) {
+    std::size_t heavy = 0;
+    for (const auto other : pipes_[pipe].queues) {
+      heavy += lightQueues.count(other) > 0 ? 0 : 1;
+    }
+    return light ? std::pair{pipes_[pipe].queues.size() - heavy, heavy}
+                 : std::pair{heavy, pipes_[pipe].queues.size()};
+  };
+  hsa_queue_t* queue = nullptr;
+  int pipe = -1;
+  if (pipeSpread) {
+    // a pipe as little busy as any (the next queues take the pipes in turn: a round of tries)
+    auto least = load(0);
+    for (std::size_t other = 1; other < pipes_.size(); ++other) {
+      least = std::min(least, load(other));
+    }
+    for (std::size_t attempt = 0; attempt <= pipes_.size() && spareQueues_.size() < MaxSpareQueues;
+         ++attempt) {
+      queue = createHsaQueue();
+      pipe = pipeOf(queue);
+      if (pipe >= 0 && load(pipe) == least) {
+        break;
+      }
+      spareQueues_.push_back(queue);
+      queue = nullptr;
+    }
+    if (queue == nullptr) {
+      logWarning() << "Own queue" << number << "found no pipe as little busy as" << least.first;
+      queue = createHsaQueue();
+      pipe = pipeOf(queue);
+    }
+  } else {
+    queue = createHsaQueue();
+    pipe = pipeOf(queue);
+  }
+  std::string others;
+  if (pipe >= 0) {
+    for (const auto other : pipes_[pipe].queues) {
+      others += " " + std::to_string(other);
+    }
+    pipes_[pipe].queues.push_back(number);
+  }
+  if (pipeCheck || utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
+    logInfo() << "Own queue" << number << "on pipe" << pipe << "with own queues"
+              << (others.empty() ? std::string(" none") : others) << "(" << spareQueues_.size()
+              << "spare queues so far)";
+  }
+  return queue;
 }
 
 std::vector<Queue*> Runtime::allQueues() {
@@ -1675,6 +1933,15 @@ void Runtime::finalize() {
   hostThread.stop();
   const std::lock_guard lock(mutex_);
   queues_.clear();
+  const std::lock_guard placeLock(placeMutex_);
+  for (auto& pipe : pipes_) {
+    hsa_queue_destroy(pipe.probe);
+  }
+  pipes_.clear();
+  for (auto* queue : spareQueues_) {
+    hsa_queue_destroy(queue);
+  }
+  spareQueues_.clear();
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -1775,9 +2042,33 @@ struct ProgramPacket {
   std::uint16_t rest{0};
   // a host function instead of a kernel
   std::function<void()> host;
+  // the lane that runs it: 0 the queue of the program, the others its helper queues
+  unsigned lane{0};
+  // a fork (the helper lanes of the level start once the lane 0 has reached it) or a join (lane 0
+  // goes on once the helper lanes are done with the level), at the given slot of signals
+  enum class Kind : std::uint8_t { Work, Fork, Join } kind{Kind::Work};
+  std::size_t slot{0};
+  std::vector<unsigned> lanes;
 };
+
+/// the own queue number of helper lane `lane` of the programs of queue `queue`
+int helperQueueNumber(int queue, unsigned lane) {
+  return 1000000 + (queue + 1000) * 16 + static_cast<int>(lane);
+}
 } // namespace
 
+/**
+ * A graph translated for a queue. The kernels of a level of the graph are independent of each
+ * other; a queue runs them one after the other though, also without barriers in between (MI250X,
+ * ROCm 6.3). With DEVICE_OWN_QUEUE_GRAPH_LANES=k, the levels with at least
+ * DEVICE_OWN_QUEUE_GRAPH_LANE_MIN kernels (3 by default) get spread over the queue and k helper
+ * queues of its own (lanes), the largest kernels first onto the lane with the least so far; the
+ * helpers start the level once the queue has reached it (a fork), and the queue goes on once the
+ * helpers are done with it (a join), by signals of the program that each replay counts down. That
+ * pays off only with pipes of the command processor left for the helpers (see
+ * Runtime::placeQueue()): on the MI250X, with two own queues (TPV13 2.16 s instead of 2.74), not
+ * with four (2.87 instead of 1.92).
+ */
 class Program {
   public:
   Program(Queue& queue, hipGraph_t graph);
@@ -1790,10 +2081,19 @@ class Program {
   std::uint64_t submit();
 
   private:
+  /// the helper lanes `lanes` wait until the signal has counted down for this replay
+  void waitOnLanes(hsa_signal_t signal, const std::vector<unsigned>& lanes);
+  void push(unsigned lane, const PacketImage& image);
+
   Queue& queue_;
   std::vector<ProgramPacket> packets_;
   void* kernargs_{nullptr};
   std::uint64_t lastIndex_{0};
+  // lane 0 is the queue of the program
+  std::vector<Queue*> lanes_;
+  std::vector<hsa_signal_t> forks_;
+  std::vector<std::vector<hsa_signal_t>> joins_;
+  std::uint64_t replays_{0};
 };
 
 struct ProgramsImpl {
@@ -2028,11 +2328,91 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
   if (kernargBytes > 0) {
     kernargs_ = allocKernargMemory(kernargBytes);
   }
+  // the helper lanes, and which level runs on which lanes (see Program)
+  utils::Env env("DEVICE_");
+  const auto laneCount =
+      Runtime::instance().barrierValue ? env.get<unsigned>("OWN_QUEUE_GRAPH_LANES", 0U) : 0U;
+  const auto laneMinimum = env.get<std::size_t>("OWN_QUEUE_GRAPH_LANE_MIN", std::size_t{3});
+  lanes_.push_back(&queue);
+  for (unsigned lane = 1; lane <= laneCount; ++lane) {
+    lanes_.push_back(&Runtime::instance().queue(helperQueueNumber(queue.number(), lane)));
+  }
+  std::vector<unsigned> laneOf(work.size(), 0);
+  std::vector<bool> splitLevel(work.size(), false);
+  std::size_t splitLevels = 0;
+  for (std::size_t first = 0; first < work.size();) {
+    auto last = first;
+    bool host = false;
+    while (last < work.size() && work[last].level == work[first].level) {
+      host = host || static_cast<bool>(work[last].host);
+      ++last;
+    }
+    if (laneCount > 0 && !host && last - first >= laneMinimum) {
+      // the largest first onto the lane with the least so far (the queue first): the kernels are
+      // small, so each one costs about the same, and more so with many blocks
+      std::vector<std::size_t> items(last - first);
+      for (std::size_t k = 0; k < items.size(); ++k) {
+        items[k] = first + k;
+      }
+      const auto weight = [&](std::size_t k) {
+        return 128 + static_cast<std::uint64_t>(work[k].grid.x) * work[k].grid.y * work[k].grid.z;
+      };
+      std::stable_sort(items.begin(), items.end(), [&](std::size_t a, std::size_t b) {
+        return weight(a) > weight(b);
+      });
+      std::vector<std::uint64_t> load(laneCount + 1, 0);
+      for (const auto k : items) {
+        unsigned best = 0;
+        for (unsigned lane = 1; lane <= laneCount; ++lane) {
+          if (load[lane] < load[best]) {
+            best = lane;
+          }
+        }
+        laneOf[k] = best;
+        load[best] += weight(k);
+      }
+      for (auto k = first; k < last; ++k) {
+        splitLevel[k] = true;
+      }
+      ++splitLevels;
+    }
+    first = last;
+  }
   std::size_t previousLevel = SIZE_MAX;
-  for (auto& item : work) {
+  for (std::size_t index = 0; index < work.size(); ++index) {
+    auto& item = work[index];
+    const bool levelStart = item.level != previousLevel;
+    if (levelStart && splitLevel[index]) {
+      // the lanes of this level
+      std::vector<unsigned> used;
+      for (auto k = index; k < work.size() && work[k].level == item.level; ++k) {
+        if (laneOf[k] != 0 && std::find(used.begin(), used.end(), laneOf[k]) == used.end()) {
+          used.push_back(laneOf[k]);
+        }
+      }
+      std::sort(used.begin(), used.end());
+      ProgramPacket fork;
+      fork.kind = ProgramPacket::Kind::Fork;
+      fork.slot = forks_.size();
+      fork.lanes = used;
+      hsa_signal_t signal{};
+      check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
+            "hsa_amd_signal_create");
+      forks_.push_back(signal);
+      std::vector<hsa_signal_t> joins;
+      for (std::size_t k = 0; k < used.size(); ++k) {
+        check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
+              "hsa_amd_signal_create");
+        joins.push_back(signal);
+      }
+      joins_.push_back(joins);
+      packets_.push_back(std::move(fork));
+    }
     ProgramPacket packet;
-    // the first one of each level waits for all before it (and so for the work before the graph)
-    const bool barrier = item.level != previousLevel;
+    packet.lane = laneOf[index];
+    // the first one of each level waits for all before it (and so for the work before the graph);
+    // on a helper lane, the fork has waited
+    const bool barrier = levelStart || packet.lane != 0 || splitLevel[index];
     previousLevel = item.level;
     if (item.host) {
       packet.host = std::move(item.host);
@@ -2067,6 +2447,18 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
       }
     }
     packets_.push_back(std::move(packet));
+    const bool levelEnd = index + 1 == work.size() || work[index + 1].level != item.level;
+    if (levelEnd && splitLevel[index]) {
+      ProgramPacket join;
+      join.kind = ProgramPacket::Kind::Join;
+      join.slot = forks_.size() - 1;
+      for (const auto& p : packets_) {
+        if (p.kind == ProgramPacket::Kind::Fork && p.slot == join.slot) {
+          join.lanes = p.lanes;
+        }
+      }
+      packets_.push_back(std::move(join));
+    }
   }
   if (kernargBytes > 0) {
     flushKernargs(static_cast<const char*>(kernargs_) + kernargBytes - 1);
@@ -2084,7 +2476,8 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
     }
     logInfo() << "Own queue" << queue.number() << ": a graph of" << count << "nodes and"
               << edgeCount << "edges became" << work.size() << "packets in"
-              << kernelsPerLevel.size() << "levels of up to" << widest << "kernels";
+              << kernelsPerLevel.size() << "levels of up to" << widest << "kernels;" << splitLevels
+              << "of them spread over" << laneCount << "helper queues";
   }
 }
 
@@ -2102,17 +2495,76 @@ Program::~Program() {
   if (kernargs_ != nullptr) {
     hsa_amd_memory_pool_free(kernargs_);
   }
+  // (the queue has waited for the helpers at each join)
+  for (const auto signal : forks_) {
+    hsa_signal_destroy(signal);
+  }
+  for (const auto& joins : joins_) {
+    for (const auto signal : joins) {
+      hsa_signal_destroy(signal);
+    }
+  }
+}
+
+void Program::push(unsigned lane, const PacketImage& image) {
+  if (lane == 0) {
+    queue_.push(image);
+    return;
+  }
+  // (the queue's mutex is held; the helpers of a queue are only ever locked after it)
+  const std::lock_guard lock(lanes_[lane]->mutex);
+  lanes_[lane]->push(image);
+}
+
+void Program::waitOnLanes(hsa_signal_t signal, const std::vector<unsigned>& lanes) {
+  // counted down once per replay: this replay has passed once it is below the start minus the
+  // replays before
+  const auto below = CounterStart - static_cast<std::int64_t>(replays_) + 1;
+  for (const auto lane : lanes) {
+    PacketImage packet;
+    auto& barrier = packet.as<hsa_amd_barrier_value_packet_t>();
+    barrier.signal = signal;
+    barrier.value = below;
+    barrier.mask = -1;
+    barrier.cond = HSA_SIGNAL_CONDITION_LT;
+    packet.setHeader(
+        static_cast<std::uint16_t>((HSA_PACKET_TYPE_VENDOR_SPECIFIC << HSA_PACKET_HEADER_TYPE) |
+                                   BarrierBit | QueueWaitFences),
+        HSA_AMD_PACKET_TYPE_BARRIER_VALUE);
+    push(lane, packet);
+  }
 }
 
 std::uint64_t Program::submit() {
+  ++replays_;
+  constexpr std::uint16_t LaneFences = fenceBits(HSA_FENCE_SCOPE_NONE, HSA_FENCE_SCOPE_AGENT);
+  const auto countDown = [&](unsigned lane, hsa_signal_t signal) {
+    PacketImage packet;
+    packet.as<hsa_barrier_and_packet_t>().completion_signal = signal;
+    packet.setHeader(
+        static_cast<std::uint16_t>((HSA_PACKET_TYPE_BARRIER_AND << HSA_PACKET_HEADER_TYPE) |
+                                   BarrierBit | LaneFences),
+        0);
+    push(lane, packet);
+  };
   for (const auto& packet : packets_) {
-    if (packet.host) {
+    if (packet.kind == ProgramPacket::Kind::Fork) {
+      // the queue has done all before the level; then the helpers start it
+      countDown(0, forks_[packet.slot]);
+      waitOnLanes(forks_[packet.slot], packet.lanes);
+    } else if (packet.kind == ProgramPacket::Kind::Join) {
+      // the helpers are done with the level; the queue waits for them
+      for (std::size_t k = 0; k < packet.lanes.size(); ++k) {
+        countDown(packet.lanes[k], joins_[packet.slot][k]);
+        waitOnLanes(joins_[packet.slot][k], {0});
+      }
+    } else if (packet.host) {
       queue_.hostFunction(packet.host);
     } else {
       PacketImage image;
       image.as<hsa_kernel_dispatch_packet_t>() = packet.packet;
       image.setHeader(packet.header, packet.rest);
-      queue_.push(image);
+      push(packet.lane, image);
     }
   }
   lastIndex_ = queue_.created();
