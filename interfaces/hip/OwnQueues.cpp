@@ -480,6 +480,10 @@ class Runtime {
   std::uint32_t bus{0};
   std::uint32_t slot{0};
   std::uint32_t domain{0};
+  // the compute units that the waves of a queue may use, by queue number
+  // (DEVICE_OWN_QUEUE_CU_MASKS, e.g. "-10:0-23;1:24-109"); all of them for the others
+  std::map<int, std::vector<std::uint32_t>> computeUnitMasks;
+  std::uint32_t computeUnits{0};
   HostThread hostThread;
 
   // the symbols of the kernels, from the loaded code objects; by their names (with .kd)
@@ -743,6 +747,12 @@ class Queue {
     check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &counter_),
           "hsa_amd_signal_create");
     check(hsa_amd_signal_value_pointer(counter_, &counterValue_), "hsa_amd_signal_value_pointer");
+    if (const auto mask = runtime.computeUnitMasks.find(number);
+        mask != runtime.computeUnitMasks.end()) {
+      check(hsa_amd_queue_cu_set_mask(
+                queue_, static_cast<std::uint32_t>(mask->second.size() * 32), mask->second.data()),
+            "hsa_amd_queue_cu_set_mask");
+    }
     if (runtime.timing || runtime.tracing.load()) {
       // before the first packet: enabled later, the first stamps of the queue had no times
       enableProfiling();
@@ -1376,6 +1386,38 @@ bool Runtime::setUp() {
   waitFences =
       fenceBits(scope("OWN_QUEUE_WAIT_SCOPE", HSA_FENCE_SCOPE_AGENT), HSA_FENCE_SCOPE_NONE);
   acquireByKernel = env.get<std::string>("OWN_QUEUE_HOST_ACQUIRE", "kernel") != "packet";
+  hsa_agent_get_info(
+      gpu, static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_COMPUTE_UNIT_COUNT), &computeUnits);
+  {
+    // "<queue>:<first>-<last>[+<first>-<last>...];..."
+    const auto masks = env.get<std::string>("OWN_QUEUE_CU_MASKS", "");
+    std::size_t position = 0;
+    while (position < masks.size()) {
+      const auto end = std::min(masks.find(';', position), masks.size());
+      const auto entry = masks.substr(position, end - position);
+      position = end + 1;
+      const auto colon = entry.find(':');
+      if (colon == std::string::npos) {
+        continue;
+      }
+      std::vector<std::uint32_t> mask((computeUnits + 31) / 32, 0);
+      std::size_t range = colon + 1;
+      while (range < entry.size()) {
+        const auto rangeEnd = std::min(entry.find('+', range), entry.size());
+        const auto text = entry.substr(range, rangeEnd - range);
+        range = rangeEnd + 1;
+        const auto dash = text.find('-');
+        const auto first = static_cast<std::uint32_t>(std::stoul(text.substr(0, dash)));
+        const auto last = dash == std::string::npos
+                              ? first
+                              : static_cast<std::uint32_t>(std::stoul(text.substr(dash + 1)));
+        for (auto unit = first; unit <= last && unit < computeUnits; ++unit) {
+          mask[unit / 32] |= 1U << (unit % 32);
+        }
+      }
+      computeUnitMasks[std::stoi(entry.substr(0, colon))] = mask;
+    }
+  }
   logInfo() << "Own queues on" << name << "; queues wait for other queues by"
             << (barrierValue ? "barrier-value packets" : "kernels") << "; work after the host sees"
             << "its data by" << (acquireByKernel ? "a fence in a kernel" : "packet fences")
