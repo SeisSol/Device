@@ -145,6 +145,7 @@ constexpr double SpinMicroseconds = 300;
 constexpr double DefaultKernelSeconds = 5e-6;
 constexpr double DefaultCopySeconds = 5e-6;
 constexpr double DefaultHostSeconds = 50e-6;
+constexpr std::size_t MaxMarkPredictions = 4096;
 
 double steadySeconds() {
   return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -1107,6 +1108,13 @@ class Queue {
     push(packet);
     ++marks_;
     lastMarkIndex_ = created_;
+    if (runtime_.schedule) {
+      // (see predictedFreeLocked(); a queue that nobody asks keeps the latest ones)
+      markPredictions_.emplace_back(marks_, predictedFree_.load(std::memory_order_relaxed));
+      if (markPredictions_.size() > MaxMarkPredictions) {
+        markPredictions_.pop_front();
+      }
+    }
     releases_.emplace_back(marks_, head_);
     if (!ownKernargs_.empty()) {
       ownReleases_.emplace_back(marks_, std::move(ownKernargs_));
@@ -1140,6 +1148,33 @@ class Queue {
   [[nodiscard]] double predictedFreeLocked(double now) {
     if (idleLocked()) {
       predictedFree_.store(now, std::memory_order_relaxed);
+      markPredictions_.clear();
+      return now;
+    }
+    // anchored to what the queue has done: by how much the latest mark it has reached was predicted
+    // later than now (it is ahead), or the next one earlier than now (it is behind); a busy queue
+    // that never gets idle would drift away otherwise (all the work of the queues it waits for)
+    const auto reachedMarks =
+        static_cast<std::uint64_t>(CounterStart - hsa_signal_load_relaxed(counter_));
+    double shift = 0;
+    bool passed = false;
+    double latest = 0;
+    while (!markPredictions_.empty() && markPredictions_.front().first <= reachedMarks) {
+      latest = markPredictions_.front().second;
+      passed = true;
+      markPredictions_.pop_front();
+    }
+    if (passed && latest > now) {
+      shift = now - latest;
+    } else if (!markPredictions_.empty() && markPredictions_.front().second < now) {
+      shift = now - markPredictions_.front().second;
+    }
+    if (shift != 0) {
+      predictedFree_.store(predictedFree_.load(std::memory_order_relaxed) + shift,
+                           std::memory_order_relaxed);
+      for (auto& prediction : markPredictions_) {
+        prediction.second += shift;
+      }
     }
     return std::max(predictedFree_.load(std::memory_order_relaxed), now);
   }
@@ -1496,6 +1531,8 @@ class Queue {
   std::uint64_t marks_{0};
   std::uint64_t lastMarkIndex_{0};
   std::atomic<double> predictedFree_{0.0};
+  // the marks not reached yet when last asked, and the predicted time of each
+  std::deque<std::pair<std::uint64_t, double>> markPredictions_;
   std::deque<PacketImage> overflow_;
   bool profiling_{false};
   std::mutex traceMutex_;
