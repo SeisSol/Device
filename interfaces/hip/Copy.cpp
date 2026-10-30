@@ -4,6 +4,7 @@
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
+#include "OwnQueues.h"
 #include "hip/hip_runtime.h"
 #include "utils/logger.h"
 
@@ -30,19 +31,31 @@ void ConcreteAPI::copyBetween(void* dst, const void* src, size_t count) {
 
 void ConcreteAPI::copyToAsync(void* dst, const void* src, size_t count, void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
-  auto stream = (streamPtr != nullptr) ? static_cast<hipStream_t>(streamPtr) : 0;
+  if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
+    ownqueues::copy(dst, src, count, streamPtr);
+    return;
+  }
+  auto stream = (streamPtr != nullptr) ? ownqueues::vehicle(streamPtr) : 0;
   APIWRAP(hipMemcpyAsync(dst, src, count, hipMemcpyHostToDevice, stream));
 }
 
 void ConcreteAPI::copyFromAsync(void* dst, const void* src, size_t count, void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
-  auto stream = (streamPtr != nullptr) ? static_cast<hipStream_t>(streamPtr) : 0;
+  if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
+    ownqueues::copy(dst, src, count, streamPtr);
+    return;
+  }
+  auto stream = (streamPtr != nullptr) ? ownqueues::vehicle(streamPtr) : 0;
   APIWRAP(hipMemcpyAsync(dst, src, count, hipMemcpyDeviceToHost, stream));
 }
 
 void ConcreteAPI::copyBetweenAsync(void* dst, const void* src, size_t count, void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
-  auto stream = (streamPtr != nullptr) ? static_cast<hipStream_t>(streamPtr) : 0;
+  if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
+    ownqueues::copy(dst, src, count, streamPtr);
+    return;
+  }
+  auto stream = (streamPtr != nullptr) ? ownqueues::vehicle(streamPtr) : 0;
   APIWRAP(hipMemcpyAsync(dst, src, count, hipMemcpyDeviceToDevice, stream));
 }
 
@@ -65,7 +78,8 @@ void ConcreteAPI::prefetchUnifiedMemTo(Destination type,
                                        size_t count,
                                        void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
-  hipStream_t stream = (streamPtr == nullptr) ? 0 : (static_cast<hipStream_t>(streamPtr));
+  // (a hint, which the stream standing in for an own one may take in any order)
+  hipStream_t stream = (streamPtr == nullptr) ? 0 : ownqueues::vehicle(streamPtr);
   APIWRAP(hipMemPrefetchAsync(
       devPtr, count, type == Destination::CurrentDevice ? getDeviceId() : hipCpuDeviceId, stream));
 }

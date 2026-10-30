@@ -95,6 +95,8 @@ class ConcreteAPI : public AbstractAPI {
   void graphInstantiate(const DeviceGraphHandle& graphHandle) override;
 
   void* createStream(double priority) override;
+  bool enableOwnQueues() override;
+  void* createStreamOnOwnQueue(int queue, double priority) override;
   void destroyGenericStream(void* streamPtr) override;
   void syncStreamWithHost(void* streamPtr) override;
   bool isStreamWorkDone(void* streamPtr) override;
@@ -102,6 +104,10 @@ class ConcreteAPI : public AbstractAPI {
   void streamHostFunction(void* streamPtr, const std::function<void()>& function) override;
 
   void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) override;
+  uint32_t* allocCounter() override;
+  void freeCounter(uint32_t* counter) override;
+  bool traceDevice(DeviceTraceSink sink) override;
+  void nameStream(void* streamPtr, const std::string& name) override;
 
   void* createEvent(bool withTiming) override;
   void destroyEvent(void* eventPtr) override;

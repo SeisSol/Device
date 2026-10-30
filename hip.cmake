@@ -64,6 +64,7 @@ set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Memory.cpp
                         interfaces/hip/Streams.cpp
                         interfaces/hip/Graphs.cpp
+                        interfaces/hip/OwnQueues.cpp
                         algorithms/cudahip/ArrayManip.cpp
                         algorithms/cudahip/BatchManip.cpp
                         algorithms/cudahip/Debugging.cpp
@@ -85,6 +86,18 @@ if (IS_NVCC_PLATFORM)
     target_link_options(device PRIVATE -arch=${DEVICE_ARCH})
 else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
+    # own queues (see interfaces/hip/OwnQueues.h)
+    target_link_libraries(device PRIVATE ${HIP_PATH}/lib/libhsa-runtime64.so ${HIP_PATH}/lib/libamd_comgr.so)
+endif()
+
+# The launch hook for own queues, to be compiled into the program itself (see
+# interfaces/hip/OwnQueueHook.cpp): link this target to the executable.
+add_library(device-own-queue-hook INTERFACE)
+if (NOT IS_NVCC_PLATFORM)
+    target_sources(device-own-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip/OwnQueueHook.cpp)
+    target_include_directories(device-own-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip ${HIP_PATH}/include)
+    target_compile_definitions(device-own-queue-hook INTERFACE __HIP_PLATFORM_AMD__)
+    target_link_libraries(device-own-queue-hook INTERFACE device ${CMAKE_DL_LIBS})
 endif()
 
 if (ENABLE_PROFILING_MARKERS)

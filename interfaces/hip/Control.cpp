@@ -20,6 +20,7 @@
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
+#include "OwnQueues.h"
 
 using namespace device;
 
@@ -99,6 +100,7 @@ void ConcreteAPI::initialize() {
 }
 
 void ConcreteAPI::finalize() {
+  ownqueues::finalize();
   const std::lock_guard<std::mutex> lock(apiMutex);
   if (status[StatusID::InterfaceInitialized]) {
     CHECK_ERR;
@@ -146,6 +148,8 @@ unsigned ConcreteAPI::getGlobMemAlignment() {
 void ConcreteAPI::syncDevice() {
   isFlagSet<DeviceSelected>(status);
   APIWRAP(hipDeviceSynchronize());
+  // (HIP does not know of the own queues)
+  ownqueues::syncAll();
   CHECK_ERR;
 }
 

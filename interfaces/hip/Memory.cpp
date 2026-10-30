@@ -4,6 +4,7 @@
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
+#include "OwnQueues.h"
 #include "hip/hip_runtime.h"
 #include "utils/logger.h"
 
@@ -107,16 +108,25 @@ void ConcreteAPI::freePinnedMem(void* devPtr) {
 void* ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
   if (size == 0) {
     return nullptr;
-  } else {
-    void* ptr;
-    APIWRAP(hipMallocAsync(&ptr, size, static_cast<hipStream_t>(streamPtr)));
-    return ptr;
   }
+  if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
+    return ownqueues::allocAsync(size, streamPtr);
+  }
+  // while an own stream gets captured, the graph gets an allocation of its own, which the
+  // translation of the graph moves to memory of the queue that it runs on
+  void* ptr;
+  APIWRAP(hipMallocAsync(&ptr, size, ownqueues::vehicle(streamPtr)));
+  return ptr;
 }
 void ConcreteAPI::freeMemAsync(void* devPtr, void* streamPtr) {
-  if (devPtr != nullptr) {
-    APIWRAP(hipFreeAsync(devPtr, static_cast<hipStream_t>(streamPtr)));
+  if (devPtr == nullptr) {
+    return;
   }
+  if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
+    ownqueues::freeAsync(devPtr, streamPtr);
+    return;
+  }
+  APIWRAP(hipFreeAsync(devPtr, ownqueues::vehicle(streamPtr)));
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {
@@ -154,6 +164,10 @@ void ConcreteAPI::unpinMemory(void* ptr) {
 
 void* ConcreteAPI::devicePointer(void* ptr) {
   isFlagSet<DeviceSelected>(status);
+  if (ownqueues::isCounter(ptr)) {
+    // (the memory of a signal is at the same address on the device)
+    return ptr;
+  }
   void* result;
   APIWRAP(hipHostGetDevicePointer(&result, ptr, 0));
   return result;
