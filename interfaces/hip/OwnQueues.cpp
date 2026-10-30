@@ -501,8 +501,8 @@ class Runtime {
   hsa_agent_t cpu{};
   hsa_amd_memory_pool_t kernargPool{};
   bool havePool{false};
-  // kernel arguments in device memory that the host writes (DEVICE_OWN_QUEUE_KERNARGS=device),
-  // instead of host memory
+  // kernel arguments in device memory that the host writes (DEVICE_OWN_QUEUE_KERNARGS=device, the
+  // default on MI300), instead of host memory
   hsa_amd_memory_pool_t deviceKernargPool{};
   bool haveDevicePool{false};
   bool deviceKernargs{false};
@@ -1668,8 +1668,13 @@ bool Runtime::setUp() {
     timestampFrequency = 1;
   }
   hsa_system_get_info(HSA_SYSTEM_INFO_TIMESTAMP, &startTimestamp);
-  // where the kernel arguments go: host memory (default), or device memory that the host writes
-  if (env.get<std::string>("OWN_QUEUE_KERNARGS", "host") == "device") {
+  // where the kernel arguments go: device memory that the host writes, or host memory. On MI300
+  // (gfx94x), device memory by default: on an MI300A, TPV5 and TPV13 took 9-10 % less on four
+  // ranks, TPV5 8 % less on one, and 21 % less with recorded super-timesteps (where the kernels
+  // read the same arguments again and again); on MI250X, it made no difference.
+  const auto kernargs =
+      env.get<std::string>("OWN_QUEUE_KERNARGS", arch.rfind("gfx94", 0) == 0 ? "device" : "host");
+  if (kernargs == "device") {
     check(hsa_amd_agent_iterate_memory_pools(gpu, visitDevicePool, this),
           "hsa_amd_agent_iterate_memory_pools");
     deviceKernargs = haveDevicePool;
