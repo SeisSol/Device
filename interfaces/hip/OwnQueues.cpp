@@ -579,10 +579,17 @@ class Runtime {
 
   private:
   void scanCodeObjects();
+  /// writes what the own queues use into the log
+  void describe();
 
   std::mutex mutex_;
   std::unordered_map<const void*, const KernelInfo*> kernels_;
   std::map<int, std::unique_ptr<Queue>> queues_;
+  // the name of the device (e.g. gfx90a), and whether the log has the description already: it gets
+  // written with the first queue, not when set up, as a program may tell the logger its rank only
+  // later (SeisSol sets up the device before MPI_Init), and every process would write it then
+  std::string deviceName_;
+  bool described_{false};
   // the pipes found so far (see placeQueue()): an idle queue on each, and the own queues on it
   struct Pipe {
     hsa_queue_t* probe{nullptr};
@@ -1732,13 +1739,17 @@ bool Runtime::setUp() {
       computeUnitMasks[std::stoi(entry.substr(0, colon))] = mask;
     }
   }
-  logInfo() << "Own queues on" << name << "; queues wait for other queues by"
+  deviceName_ = arch;
+  return true;
+}
+
+void Runtime::describe() {
+  logInfo() << "Own queues on" << deviceName_ << "; queues wait for other queues by"
             << (barrierValue ? "barrier-value packets" : "kernels") << "; work after the host sees"
             << "its data by" << (acquireByKernel ? "a fence in a kernel" : "packet fences")
             << "; kernel arguments in" << (deviceKernargs ? "device memory" : "host memory")
             << "; queues of" << queuePackets << "packets and" << (kernargRingBytes >> 20)
             << "MiB for kernel arguments";
-  return true;
 }
 
 void Runtime::scanCodeObjects() {
@@ -1785,6 +1796,10 @@ Queue& Runtime::queue(int number) {
     const auto found = queues_.find(number);
     if (found != queues_.end()) {
       return *found->second;
+    }
+    if (!described_) {
+      described_ = true;
+      describe();
     }
   }
   hsa_queue_t* placed = pipeCheck || pipeSpread ? placeQueue(number) : nullptr;
