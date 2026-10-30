@@ -119,6 +119,22 @@ __global__ void ownWaitHost(const volatile std::uint32_t* counter, std::uint32_t
   }
 }
 
+// on a stream of HIP, which cannot wait for a signal of ours: until the counter of the marks of an
+// own queue is below `below` (loads of the system read past the L2 caches, which the command
+// processor does not update)
+__global__ void ownHipWaitBelow(const std::int64_t* value, std::int64_t below) {
+  while (__hip_atomic_load(value, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM) >= below) {
+    __builtin_amdgcn_s_sleep(2);
+  }
+  __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "");
+}
+
+// on a stream of HIP, after the work before it there: sets a counter that own queues wait for (see
+// recordEvent())
+__global__ void ownWriteCounter(std::uint32_t* counter, std::uint32_t value) {
+  __hip_atomic_store(counter, value, __ATOMIC_RELEASE, __HIP_MEMORY_SCOPE_SYSTEM);
+}
+
 // lets the work after it see what the host and other agents wrote before, together with the
 // acquire fence of the agent of the next kernel (for the caches of the other compute units): a
 // fence of the system in the shader drops only the lines of the L2 cache that may be stale (on
@@ -500,6 +516,11 @@ class Runtime {
   bool acquireByKernel{true};
   // events time what they enclose (DEVICE_OWN_QUEUE_TIMING=1): by a kernel that takes the time
   bool timing{false};
+  // waits between own streams and streams of HIP (e.g. those of NCCL) on the device
+  // (DEVICE_OWN_QUEUE_HIP_WAITS=device, the default; =host waits on the host): a stream of HIP
+  // waits for a mark by a kernel of ours (ownHipWaitBelow), an own stream for an event of HIP by a
+  // counter that a kernel of ours sets on that stream after each event (see recordEvent())
+  bool hipWaitsOnDevice{true};
   // DEVICE_OWN_QUEUE_SCHEDULE=1: graphs spread the kernels of their levels over own queues on other
   // pipes where that ends a level earlier, by the durations they learn and the predicted work of
   // the queues (see Program::submitScheduled()); a level gets spread only with at least
@@ -1013,6 +1034,10 @@ class Queue {
   }
 
   [[nodiscard]] std::uint64_t counterHandle() const { return counter_.handle; }
+  /// the value of the counter of the marks (see waitFor()), for kernels that wait for it
+  [[nodiscard]] const std::int64_t* counterValue() const {
+    return const_cast<const std::int64_t*>(counterValue_);
+  }
 
   private:
   /// gives kernels and waits without a completion signal one that takes their times
@@ -1618,6 +1643,7 @@ bool Runtime::setUp() {
   kernargRingBytes =
       env.get<std::uint64_t>("OWN_QUEUE_KERNARG_MIB", std::uint64_t{DefaultKernargRingMiB}) << 20;
   timing = env.get<bool>("OWN_QUEUE_TIMING", false);
+  hipWaitsOnDevice = env.get<std::string>("OWN_QUEUE_HIP_WAITS", "device") != "host";
   // the pipes of the command processor (see Runtime::placeQueue()): own queues spread over them on
   // the MI250X (measured there), DEVICE_OWN_QUEUE_PIPES=spread|check|any decides otherwise
   const auto pipes = env.get<std::string>("OWN_QUEUE_PIPES", arch == "gfx90a" ? "spread" : "any");
@@ -2229,6 +2255,10 @@ struct Event {
   bool timing{false};
   hsa_signal_t stamp{};
   bool stamped{false};
+  // recorded on a stream of HIP (see Runtime::hipWaitsOnDevice): the counter of that stream (from
+  // allocCounter()) and the value it gets after the work before the event
+  std::uint32_t* hipCounter{nullptr};
+  std::uint32_t hipValue{0};
 };
 
 Stream* streamOf(void* handle) {
@@ -3516,6 +3546,30 @@ void freeAsync(void* ptr, void* handle) {
   queue.freeAsync(ptr, stream->lastIndex);
 }
 
+namespace {
+// the counters of the streams of HIP that events got recorded on (see Runtime::hipWaitsOnDevice),
+// with the value of the latest event; the lock keeps the values in the order of the streams
+struct HipStreamCounter {
+  std::uint32_t* counter{nullptr};
+  std::uint32_t value{0};
+};
+std::mutex hipCounterMutex;
+std::unordered_map<hipStream_t, HipStreamCounter> hipCounters;
+
+/// lets a stream of HIP wait until mark `mark` of `queue` has been reached: by a kernel of ours
+/// there that waits for the counter of the marks
+void waitOnHipStream(const Queue& queue, std::uint64_t mark, hipStream_t stream) {
+  if (queue.reached(mark)) {
+    return;
+  }
+  const std::int64_t* value = queue.counterValue();
+  std::int64_t below = CounterStart - static_cast<std::int64_t>(mark) + 1;
+  void* args[] = {&value, &below};
+  APIWRAP(
+      hipLaunch(reinterpret_cast<const void*>(ownHipWaitBelow), dim3(1), dim3(1), args, 0, stream));
+}
+} // namespace
+
 void* createEvent(bool withTiming) {
   auto* event = new Event();
   event->timing = withTiming && Runtime::instance().timing;
@@ -3558,6 +3612,7 @@ void recordEvent(void* eventHandle, void* streamHandle) {
     }
     event->queue = &queue;
     event->mark = queue.markCoveringLocked(stream->lastIndex);
+    event->hipCounter = nullptr;
     if (dagLog().on()) {
       dagLog().line("R %lld %p %d %p %llu %llu\n",
                     DagLog::now(),
@@ -3573,7 +3628,28 @@ void recordEvent(void* eventHandle, void* streamHandle) {
   auto hipStream = vehicle(streamHandle);
   event->queue = nullptr;
   event->stamped = false;
+  event->hipCounter = nullptr;
   internals::anchorCapture(hipStream);
+  if (Runtime::instance().hipWaitsOnDevice && !isTagged(streamHandle) &&
+      internals::captureState(hipStream).status != hipStreamCaptureStatusActive) {
+    // own streams wait for the event by a counter that a kernel of ours sets after it (CLR does not
+    // give the signal of an event)
+    const std::lock_guard lock(hipCounterMutex);
+    auto& counter = hipCounters[hipStream];
+    if (counter.counter == nullptr) {
+      counter.counter = allocCounter();
+    }
+    APIWRAP(hipEventRecord(event->hip, hipStream));
+    internals::noteRecordedEvent(event->hip, hipStream);
+    std::uint32_t* location = counter.counter;
+    std::uint32_t value = ++counter.value;
+    void* args[] = {&location, &value};
+    APIWRAP(hipLaunch(
+        reinterpret_cast<const void*>(ownWriteCounter), dim3(1), dim3(1), args, 0, hipStream));
+    event->hipCounter = location;
+    event->hipValue = value;
+    return;
+  }
   APIWRAP(hipEventRecord(event->hip, hipStream));
   internals::noteRecordedEvent(event->hip, hipStream);
 }
@@ -3644,6 +3720,7 @@ void recordEventOnHost(void* handle) {
   auto* event = eventOf(handle);
   event->queue = nullptr;
   event->stamped = false;
+  event->hipCounter = nullptr;
   internals::forgetEvent(event->hip);
   APIWRAP(hipEventRecord(event->hip));
 }
@@ -3658,6 +3735,11 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
     }
     auto* event = eventOf(eventHandle);
     if (event->queue == nullptr) {
+      if (event->hipCounter != nullptr) {
+        // the counter that a kernel of ours sets after the event on the stream of HIP
+        waitMemory(streamHandle, event->hipCounter, event->hipValue);
+        return;
+      }
       warnOnce("own streams wait for events recorded on streams of HIP on the host");
       APIWRAP(hipEventSynchronize(event->hip));
       return;
@@ -3680,6 +3762,10 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
     auto* event = eventOf(eventHandle);
     if (internals::captureState(hipStream).status == hipStreamCaptureStatusActive) {
       logError() << "Own queues: a stream that gets captured cannot wait for an own stream.";
+    }
+    if (Runtime::instance().hipWaitsOnDevice) {
+      waitOnHipStream(*event->queue, event->mark, hipStream);
+      return;
     }
     warnOnce("streams of HIP wait for events of own streams on the host");
     event->queue->wait(event->mark);

@@ -42,6 +42,12 @@
  * event is a mark of its queue; recorded on a stream of HIP, an event of HIP. With
  * DEVICE_OWN_QUEUE_TIMING=1, events with timing take the time by a kernel each.
  *
+ * Own streams and streams of HIP (e.g. those that NCCL gets) wait for each other on the device: a
+ * stream of HIP waits for a mark by a kernel of ours that waits for the counter of the marks, and
+ * after each event recorded on a stream of HIP, a kernel of ours sets a counter of that stream,
+ * which own streams wait for by a barrier-value packet (DEVICE_OWN_QUEUE_HIP_WAITS=host waits on
+ * the host instead).
+ *
  * Fences: a mark writes back the L2 cache (release of the system), for the host and for MPI, which
  * read device memory past it. Kernels and waits for other own queues only fence for the device
  * (agent): an acquire of the system in a packet drops the whole L2 cache, at the expense of the
