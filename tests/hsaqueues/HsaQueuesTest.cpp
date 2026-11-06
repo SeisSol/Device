@@ -51,6 +51,8 @@ void expect(bool ok, const char* what) {
 } // namespace
 
 int main() {
+  // the test qualifies new architectures as well (see README.md)
+  setenv("DEVICE_HSA_QUEUE_UNTESTED", "1", 0);
   auto& device = device::DeviceInstance::instance();
   auto& api = device.api();
   api.setDevice(0);

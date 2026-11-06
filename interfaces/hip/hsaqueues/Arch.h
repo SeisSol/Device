@@ -18,8 +18,10 @@ namespace device::hsaqueues {
  * anywhere. The environment decides otherwise in any case (DEVICE_HSA_QUEUE_WAITS, _PIPES and
  * _KERNARGS).
  *
+ * HSA queues only get enabled on architectures marked Runs, unless DEVICE_HSA_QUEUE_UNTESTED=1.
  * For a new architecture: run the test of HSA queues and its benchmarks there (barrier-value
- * packets, the pipes that queues share, the costs of fences), then add a line to the table.
+ * packets, the pipes that queues share, the costs of fences), add a line to the table, and mark it
+ * Runs once programs ran there with HSA queues, bitwise as without.
  */
 struct ArchTraits {
   enum class Tested : std::uint8_t {

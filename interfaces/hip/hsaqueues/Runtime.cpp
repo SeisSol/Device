@@ -285,6 +285,14 @@ bool Runtime::setUp() {
   // what the command processor of the device takes, and the defaults that measurements chose for it
   // (see Arch.cpp)
   arch_ = archTraits(name);
+  // only where programs have run with them, unless asked for (e.g. by the test of a new
+  // architecture, see tests/hsaqueues)
+  if (arch_.tested != ArchTraits::Tested::Runs && !setting<bool>("UNTESTED", false)) {
+    logWarning() << "HSA queues: not enabled, as no program has run on" << arch_.name
+                 << "with them yet (" << arch_.note
+                 << "); DEVICE_HSA_QUEUE_UNTESTED=1 enables them anyway.";
+    return false;
+  }
   // waits for other queues: by barrier-value packets where the table knows the command processor
   // takes them; DEVICE_HSA_QUEUE_WAITS=kernel|packet decides otherwise
   barrierValue = arch_.barrierValue;

@@ -68,7 +68,8 @@ using LaunchFunction = hipError_t (*)(const void*, dim3, dim3, void**, std::size
 /// called by the hook in the program (see Hook.cpp), at its start
 void registerLaunchHook(LaunchFunction hipLaunch);
 
-/// enables HSA queues, if HSA and the launch hook are there; returns whether they are enabled
+/// enables HSA queues, if HSA and the launch hook are there, on an architecture where programs have
+/// run with them (Arch.cpp; or with DEVICE_HSA_QUEUE_UNTESTED=1); returns whether they are enabled
 bool enable();
 bool enabled();
 

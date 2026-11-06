@@ -15,7 +15,9 @@ hook: kernels and copies, events across queues, HSA streams and streams of HIP
 waiting for each other, a graph with a temporary allocation and branches, host
 functions, 200000 launches, launches behind a wait for the host, counters; then
 the host and device time of launches against HIP. It exits with 1 if a check
-fails.
+fails. It enables the HSA queues on any architecture
+(`DEVICE_HSA_QUEUE_UNTESTED=1`), while programs only get them on those that the
+table marks `Runs`.
 
 The probes `hsa-queues-probe-*` use HSA alone. They measure what the table of
 architectures (`interfaces/hip/hsaqueues/Arch.cpp`) says about a new one:
