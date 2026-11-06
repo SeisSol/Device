@@ -79,7 +79,8 @@ std::string ConcreteAPI::getMemLeaksReport() {
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
   isFlagSet<DeviceSelected>(status);
   std::lock_guard guard(apiMutex);
-  return allocatedMemBytes;
+  // what is allocated now, not all that ever was
+  return allocatedMemBytes - deallocatedMemBytes;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {

@@ -165,7 +165,9 @@ size_t ConcreteAPI::getMaxAvailableMem() {
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
   const std::lock_guard<std::mutex> lock(apiMutex);
 
-  return this->currentStatistics().allocatedMemBytes;
+  // what is allocated now, not all that ever was
+  return this->currentStatistics().allocatedMemBytes -
+         this->currentStatistics().deallocatedMemBytes;
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
