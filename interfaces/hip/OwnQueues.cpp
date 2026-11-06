@@ -30,6 +30,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <queue>
 #include <set>
 #include <string>
 #include <thread>
@@ -2392,7 +2393,8 @@ int helperQueueNumber(int queue, unsigned lane) {
  */
 class Program {
   public:
-  Program(Queue& queue, hipGraph_t graph);
+  /// `origins`: the own queue of the stream whose work each node is, where known (see noteOrigin())
+  Program(Queue& queue, hipGraph_t graph, const std::unordered_map<hipGraphNode_t, int>& origins);
   ~Program();
 
   Program(const Program&) = delete;
@@ -2414,7 +2416,10 @@ class Program {
 
   private:
   /// the lanes `lanes` wait until the signal has counted down `count` times
-  void waitOnLanes(hsa_signal_t signal, std::int64_t count, const std::vector<unsigned>& lanes);
+  void waitOnLanes(hsa_signal_t signal,
+                   std::int64_t count,
+                   const std::vector<unsigned>& lanes,
+                   bool byKernel = false);
   void push(unsigned lane, const PacketImage& image);
 
   Queue& queue_;
@@ -2452,11 +2457,49 @@ class Program {
   std::vector<std::int64_t> levelForkCounts_;
   std::vector<std::vector<hsa_signal_t>> levelJoins_;
   std::vector<std::vector<std::int64_t>> levelJoinCounts_;
+
+  // DEVICE_OWN_QUEUE_GRAPH_SPREAD=k (see buildSpread()): the work packets each one depends on
+  // directly (through nodes without work), and once their durations have been measured, the
+  // program spread over the queue and k-1 helper queues of its own
+  struct SpreadItem {
+    enum class Kind : std::uint8_t { Work, Wait, Fork, Join } kind{Kind::Work};
+    // Work: the packet; Wait: the packet of another lane it waits for
+    std::size_t index{0};
+    unsigned lane{0};
+  };
+  void buildSpread();
+  /// the items of the lanes, the signals between them, for the lane of each packet; the number of
+  /// waits on other lanes (durations and predicted ends only for the DAG log)
+  std::size_t buildLanes(const std::vector<unsigned>& laneOf,
+                         const std::vector<double>& durations,
+                         const std::vector<double>& finish);
+  std::uint64_t submitSpread();
+  void countDownOn(unsigned lane, hsa_signal_t signal);
+  unsigned spread_{0};
+  // the waits of the lanes (or only those of lane 0 for the others at the end) by kernels that spin
+  // on the signal (DEVICE_OWN_QUEUE_GRAPH_SPREAD_WAITS=kernel or join)
+  bool spreadKernelWaits_{false};
+  bool joinKernelWaits_{false};
+  std::unordered_map<std::uint64_t, const std::int64_t*> signalValues_;
+  double spreadLatency_{5e-6};
+  std::vector<std::vector<std::size_t>> dependencies_;
+  std::vector<SpreadItem> spreadItems_;
+  std::vector<unsigned> spreadHelpers_;
+  // the lane of each packet, its position among the kernels of the lane, the kernels of each lane;
+  // the signal of each lane that each of its kernels counts down (see buildLanes())
+  std::vector<unsigned> laneOf_;
+  std::vector<std::size_t> positions_;
+  std::vector<std::size_t> laneKernels_;
+  std::vector<hsa_signal_t> laneCounters_;
+  hsa_signal_t spreadFork_{};
+  std::uint64_t spreadReplays_{0};
 };
 
 struct ProgramsImpl {
   std::mutex mutex;
   std::map<Queue*, std::unique_ptr<Program>> byQueue;
+  // the own queue of the stream whose work each node is (see noteOrigin())
+  std::unordered_map<hipGraphNode_t, int> origins;
 };
 
 Programs::Programs() : impl(std::make_unique<ProgramsImpl>()) {}
@@ -2497,7 +2540,10 @@ void relocateRange(const std::vector<Allocation>& allocations,
 }
 } // namespace
 
-Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
+Program::Program(Queue& queue,
+                 hipGraph_t graph,
+                 const std::unordered_map<hipGraphNode_t, int>& origins)
+    : queue_(queue) {
   std::size_t count = 0;
   APIWRAP(hipGraphGetNodes(graph, nullptr, &count));
   std::vector<hipGraphNode_t> nodes(count);
@@ -2514,9 +2560,11 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
     index[nodes[i]] = i;
   }
   std::vector<std::vector<std::size_t>> successors(count);
+  std::vector<std::vector<std::size_t>> predecessors(count);
   std::vector<std::size_t> pending(count, 0);
   for (std::size_t e = 0; e < edgeCount; ++e) {
     successors[index.at(from[e])].push_back(index.at(to[e]));
+    predecessors[index.at(to[e])].push_back(index.at(from[e]));
     ++pending[index.at(to[e])];
   }
   std::vector<std::size_t> level(count, 0);
@@ -2537,9 +2585,47 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
   if (order.size() != count) {
     logError() << "Own queues: a graph has a cycle.";
   }
-  std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
-    return level[a] < level[b];
-  });
+  // with each node back on the queue of its stream (see below), the lanes run their packets in the
+  // order the nodes got added to the graph, as the streams would have (topologically, the earliest
+  // added ready node first; HIP lists the nodes in that order): the work of a stream stays
+  // together, e.g. that of one cluster, instead of taking turns level by level with the other
+  // streams of the queue (TPV5 on one MI300A: 1.78 s by levels)
+  utils::Env env("DEVICE_");
+  const bool byOrigin = env.get<bool>("OWN_QUEUE_GRAPH_ORIGIN", false) && !origins.empty() &&
+                        Runtime::instance().barrierValue && !Runtime::instance().schedule &&
+                        env.get<unsigned>("OWN_QUEUE_GRAPH_LANES", 0U) == 0 &&
+                        std::none_of(nodes.begin(), nodes.end(), [](hipGraphNode_t node) {
+                          hipGraphNodeType type{};
+                          APIWRAP(hipGraphNodeGetType(node, &type));
+                          return type == hipGraphNodeTypeHost;
+                        });
+  if (byOrigin) {
+    std::vector<std::size_t> waiting(count, 0);
+    for (std::size_t i = 0; i < count; ++i) {
+      waiting[i] = predecessors[i].size();
+    }
+    std::priority_queue<std::size_t, std::vector<std::size_t>, std::greater<>> ready;
+    for (std::size_t i = 0; i < count; ++i) {
+      if (waiting[i] == 0) {
+        ready.push(i);
+      }
+    }
+    order.clear();
+    while (!ready.empty()) {
+      const auto i = ready.top();
+      ready.pop();
+      order.push_back(i);
+      for (const auto j : successors[i]) {
+        if (--waiting[j] == 0) {
+          ready.push(j);
+        }
+      }
+    }
+  } else {
+    std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+      return level[a] < level[b];
+    });
+  }
 
   // the temporary allocations get memory of the queue, one after the other
   std::vector<Allocation> allocations;
@@ -2556,6 +2642,17 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
     }
   }
   if (!allocations.empty()) {
+    if (utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
+      std::set<std::uint64_t> distinct;
+      std::uint64_t largest = 0;
+      for (const auto& allocation : allocations) {
+        distinct.insert(allocation.begin);
+        largest = std::max(largest, allocation.end - allocation.begin);
+      }
+      logInfo() << "Own queue" << queue.number() << ": a graph allocates" << allocations.size()
+                << "times (" << distinct.size() << "distinct addresses, the largest"
+                << largest / 1024 << "KiB):" << arenaBytes / (1024 * 1024) << "MiB of the arena";
+    }
     std::uint64_t base = 0;
     {
       const std::lock_guard lock(queue.mutex);
@@ -2576,16 +2673,19 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
     std::size_t offset;
     std::function<void()> host;
     std::size_t level;
+    // the node of the graph
+    std::size_t node;
   };
   std::vector<Pending> work;
   std::size_t kernargBytes = 0;
+  std::size_t currentNode = 0;
   const auto addKernel = [&](const KernelInfo& kernel,
                              dim3 grid,
                              dim3 block,
                              std::size_t sharedMemBytes,
                              void** args,
                              std::size_t nodeLevel) {
-    Pending item{&kernel, grid, block, sharedMemBytes, {}, 0, {}, nodeLevel};
+    Pending item{&kernel, grid, block, sharedMemBytes, {}, 0, {}, nodeLevel, currentNode};
     item.kernargs.resize(std::max<std::size_t>(kernel.kernargSize, 1));
     queue.fillKernargs(kernel, item.kernargs.data(), grid, block, sharedMemBytes, args);
     for (const auto& arg : kernel.args) {
@@ -2600,6 +2700,7 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
 
   for (const auto i : order) {
     const auto node = nodes[i];
+    currentNode = i;
     hipGraphNodeType type{};
     APIWRAP(hipGraphNodeGetType(node, &type));
     switch (type) {
@@ -2670,6 +2771,7 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
       Pending item{};
       item.host = [fn = params.fn, data = params.userData]() { fn(data); };
       item.level = level[i];
+      item.node = i;
       work.push_back(std::move(item));
       break;
     }
@@ -2687,7 +2789,6 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
     kernargs_ = allocKernargMemory(kernargBytes);
   }
   // the helper lanes, and which level runs on which lanes (see Program)
-  utils::Env env("DEVICE_");
   schedule_ = Runtime::instance().schedule;
   const auto laneCount = Runtime::instance().barrierValue && !schedule_
                              ? env.get<unsigned>("OWN_QUEUE_GRAPH_LANES", 0U)
@@ -2846,6 +2947,112 @@ Program::Program(Queue& queue, hipGraph_t graph) : queue_(queue) {
     levelJoins_.resize(levels_.size());
     levelJoinCounts_.resize(levels_.size());
   }
+  // the work packets each one waits for directly, through the nodes without work
+  const auto findDependencies = [&]() {
+    std::vector<std::ptrdiff_t> workOfNode(count, -1);
+    for (std::size_t k = 0; k < work.size(); ++k) {
+      workOfNode[work[k].node] = static_cast<std::ptrdiff_t>(k);
+    }
+    std::vector<std::vector<std::size_t>> before(count);
+    for (const auto i : order) {
+      std::vector<std::size_t> found;
+      for (const auto p : predecessors[i]) {
+        if (workOfNode[p] >= 0) {
+          found.push_back(static_cast<std::size_t>(workOfNode[p]));
+        } else {
+          found.insert(found.end(), before[p].begin(), before[p].end());
+        }
+      }
+      std::sort(found.begin(), found.end());
+      found.erase(std::unique(found.begin(), found.end()), found.end());
+      before[i] = std::move(found);
+    }
+    dependencies_.resize(work.size());
+    for (std::size_t k = 0; k < work.size(); ++k) {
+      dependencies_[k] = before[work[k].node];
+    }
+  };
+  // lanes of their own only for programs of kernels (a host function would wait for all lanes), not
+  // with the lanes of levels or the schedule
+  const bool anyHost = std::any_of(
+      work.begin(), work.end(), [](const Pending& item) { return static_cast<bool>(item.host); });
+  const bool ownLanes =
+      Runtime::instance().barrierValue && laneCount == 0 && !schedule_ && !anyHost;
+  const auto waits = env.get<std::string>("OWN_QUEUE_GRAPH_SPREAD_WAITS", "packet");
+  spreadKernelWaits_ = waits == "kernel";
+  joinKernelWaits_ = waits == "kernel" || waits == "join";
+  // each packet back on the queue of the stream whose work it is (see noteOrigin())
+  if (byOrigin && ownLanes) {
+    findDependencies();
+    // the queues with the most work get lanes of their own, up to OWN_QUEUE_GRAPH_ORIGIN_LANES
+    // with that of the program; the others, and the queue of the program, run on lane 0
+    const auto maxLanes = env.get<std::size_t>("OWN_QUEUE_GRAPH_ORIGIN_LANES", std::size_t{0});
+    std::vector<int> originOf(work.size(), std::numeric_limits<int>::min());
+    std::map<int, std::size_t> workOf;
+    for (std::size_t k = 0; k < work.size(); ++k) {
+      if (const auto found = origins.find(nodes[work[k].node]); found != origins.end()) {
+        originOf[k] = found->second;
+        ++workOf[found->second];
+      }
+    }
+    std::vector<std::pair<std::size_t, int>> byWork;
+    for (const auto& [number, packets] : workOf) {
+      if (number != queue.number()) {
+        byWork.emplace_back(packets, number);
+      }
+    }
+    std::stable_sort(byWork.begin(), byWork.end(), [](const auto& a, const auto& b) {
+      return a.first > b.first;
+    });
+    std::map<int, unsigned> laneOfQueue{{queue.number(), 0U}};
+    for (const auto& [packets, number] : byWork) {
+      if (maxLanes == 0 || lanes_.size() < maxLanes) {
+        laneOfQueue[number] = static_cast<unsigned>(lanes_.size());
+        lanes_.push_back(&Runtime::instance().queue(number));
+      } else {
+        laneOfQueue[number] = 0;
+      }
+    }
+    // (work of streams that are not own ones goes with the first packet it depends on)
+    std::vector<unsigned> laneOf(work.size(), 0);
+    for (std::size_t k = 0; k < work.size(); ++k) {
+      if (originOf[k] != std::numeric_limits<int>::min()) {
+        laneOf[k] = laneOfQueue.at(originOf[k]);
+      } else if (!dependencies_[k].empty()) {
+        laneOf[k] = laneOf[dependencies_[k].front()];
+      }
+    }
+    if (lanes_.size() >= 2) {
+      spread_ = static_cast<unsigned>(lanes_.size());
+      const auto waitCount = buildLanes(
+          laneOf, std::vector<double>(work.size(), 0.0), std::vector<double>(work.size(), 0.0));
+      if (env.get<bool>("OWN_QUEUE_VERBOSE", false)) {
+        std::string text;
+        for (const auto& [number, lane] : laneOfQueue) {
+          text += " " + std::to_string(number) + "->" + std::to_string(lane);
+        }
+        logInfo() << "Own queue" << queue.number() << ": a graph of" << work.size()
+                  << "kernels back on the queues of their streams (queue->lane:" << text.c_str()
+                  << "), with" << waitCount << "waits on other lanes";
+      }
+    } else {
+      lanes_.resize(1);
+    }
+  }
+  // spread over helper queues once the durations are known (see buildSpread())
+  const auto spread = env.get<unsigned>("OWN_QUEUE_GRAPH_SPREAD", 0U);
+  if (spread_ == 0 && spread >= 2 && ownLanes &&
+      work.size() >= env.get<std::size_t>("OWN_QUEUE_GRAPH_SPREAD_MIN", std::size_t{32})) {
+    spread_ = spread;
+    spreadLatency_ = env.get<double>("OWN_QUEUE_GRAPH_SPREAD_LATENCY_US", 5.0) * 1e-6;
+    findDependencies();
+    estimates_.assign(packets_.size(), 0.0);
+    for (unsigned lane = 1; lane < spread_; ++lane) {
+      lanes_.push_back(&Runtime::instance().queue(helperQueueNumber(queue.number(), lane)));
+    }
+    const std::lock_guard lock(queue.mutex);
+    queue.enableProfiling();
+  }
   if (utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
     std::map<std::size_t, std::size_t> kernelsPerLevel;
     for (const auto& item : work) {
@@ -2901,6 +3108,15 @@ Program::~Program() {
       hsa_signal_destroy(signal);
     }
   }
+  // (the queue has waited for the lanes at the join of the last replay)
+  for (const auto signal : laneCounters_) {
+    if (signal.handle != 0) {
+      hsa_signal_destroy(signal);
+    }
+  }
+  if (spreadFork_.handle != 0) {
+    hsa_signal_destroy(spreadFork_);
+  }
 }
 
 void Program::push(unsigned lane, const PacketImage& image) {
@@ -2921,10 +3137,34 @@ void Program::push(unsigned lane, const PacketImage& image) {
 
 void Program::waitOnLanes(hsa_signal_t signal,
                           std::int64_t count,
-                          const std::vector<unsigned>& lanes) {
+                          const std::vector<unsigned>& lanes,
+                          bool byKernel) {
   // it has counted down `count` times once it is below the start minus the times before
   const auto below = CounterStart - count + 1;
   for (const auto lane : lanes) {
+    if (byKernel) {
+      // a wave that waits instead of the command processor (see
+      // DEVICE_OWN_QUEUE_GRAPH_SPREAD_WAITS)
+      auto& value = signalValues_[signal.handle];
+      if (value == nullptr) {
+        volatile hsa_signal_value_t* pointer = nullptr;
+        check(hsa_amd_signal_value_pointer(signal, &pointer), "hsa_amd_signal_value_pointer");
+        value = const_cast<const std::int64_t*>(pointer);
+      }
+      auto* queue = laneQueues_[lane] == nullptr ? &queue_ : laneQueues_[lane];
+      auto argument = value;
+      auto bound = below;
+      void* args[] = {&argument, &bound};
+      const auto& kernel =
+          Runtime::instance().kernel(reinterpret_cast<const void*>(ownHipWaitBelow));
+      if (queue == &queue_) {
+        queue->dispatch(kernel, dim3(1), dim3(1), 0, args, QueueWaitFences, hsa_signal_t{0});
+      } else {
+        const std::lock_guard lock(queue->mutex);
+        queue->dispatch(kernel, dim3(1), dim3(1), 0, args, QueueWaitFences, hsa_signal_t{0});
+      }
+      continue;
+    }
     PacketImage packet;
     auto& barrier = packet.as<hsa_amd_barrier_value_packet_t>();
     barrier.signal = signal;
@@ -2942,6 +3182,22 @@ void Program::waitOnLanes(hsa_signal_t signal,
 std::uint64_t Program::submit() {
   if (schedule_) {
     return submitScheduled();
+  }
+  // spread: the first replays run on the queue, the first one of them with the times of its
+  // kernels taken; once they are there, the program gets spread
+  bool measure = false;
+  if (spread_ >= 2) {
+    harvest();
+    if (spreadItems_.empty() && measuring_.empty() && spreadReplays_ > 0) {
+      buildSpread();
+    }
+    if (!spreadItems_.empty()) {
+      return submitSpread();
+    }
+    measure = measuring_.empty() && spreadReplays_ == 0;
+    if (measure) {
+      ++spreadReplays_;
+    }
   }
   laneQueues_.assign(lanes_.begin(), lanes_.end());
   std::vector<std::unique_lock<std::mutex>> borrowed;
@@ -3014,8 +3270,284 @@ std::uint64_t Program::submit() {
     } else {
       PacketImage image;
       image.as<hsa_kernel_dispatch_packet_t>() = packet.packet;
+      if (measure) {
+        const auto signal = Runtime::instance().traceSignal();
+        image.as<hsa_kernel_dispatch_packet_t>().completion_signal = signal;
+        measuring_.emplace_back(static_cast<std::size_t>(&packet - packets_.data()), signal);
+      }
       image.setHeader(packet.header, packet.rest);
       push(packet.lane, image);
+    }
+  }
+  lastIndex_ = queue_.created();
+  return lastIndex_;
+}
+
+void Program::countDownOn(unsigned lane, hsa_signal_t signal) {
+  constexpr std::uint16_t LaneFences = fenceBits(HSA_FENCE_SCOPE_NONE, HSA_FENCE_SCOPE_AGENT);
+  PacketImage packet;
+  packet.as<hsa_barrier_and_packet_t>().completion_signal = signal;
+  packet.setHeader(
+      static_cast<std::uint16_t>((HSA_PACKET_TYPE_BARRIER_AND << HSA_PACKET_HEADER_TYPE) |
+                                 BarrierBit | LaneFences),
+      0);
+  push(lane, packet);
+}
+
+/**
+ * Spreads the program over its queue and spread_ - 1 helper queues of its own, once the durations
+ * of its packets have been measured: each packet, in the order of the program, goes to the lane
+ * where it would end first (EFT), with spreadLatency_ for each packet it depends on on another
+ * lane; so a packet stays on the lane of what it waits for, unless another lane is free earlier.
+ * Each lane runs its packets one after the other (barrier bits). Before a packet, its lane waits
+ * for the latest packet it depends on of each other lane (a barrier-value packet on a signal that
+ * the packet counts down, unless the lane has waited for that one or a later one of it before). The
+ * helper lanes start once the queue has done the work before the program (a fork), and the queue
+ * goes on once they are done (a join). The graph of a super-timestep of SeisSol on one MI300A
+ * (DAG logs of TPV5 and TPV13, simulated): one queue takes the work of all of it (2.4 and 3.9 s),
+ * the queues it came from 1.24 and 2.13 s, four lanes this way 1.05 and 1.54 s, its longest path.
+ */
+void Program::buildSpread() {
+  auto& runtime = Runtime::instance();
+  const auto n = packets_.size();
+  std::vector<double> finish(n, 0.0);
+  std::vector<unsigned> laneOf(n, 0);
+  std::vector<double> laneFree(spread_, 0.0);
+  std::vector<double> durations(n, 0.0);
+  double work = 0;
+  for (std::size_t k = 0; k < n; ++k) {
+    auto duration = estimates_[k];
+    if (duration <= 0) {
+      duration = runtime.kernelEstimate(packets_[k].packet.kernel_object);
+    }
+    if (duration <= 0) {
+      duration = 10e-6;
+    }
+    durations[k] = duration;
+    work += duration;
+    unsigned best = 0;
+    double bestEnd = std::numeric_limits<double>::infinity();
+    for (unsigned lane = 0; lane < spread_; ++lane) {
+      double ready = laneFree[lane];
+      for (const auto p : dependencies_[k]) {
+        ready = std::max(ready, finish[p] + (laneOf[p] != lane ? spreadLatency_ : 0.0));
+      }
+      if (ready + duration < bestEnd) {
+        bestEnd = ready + duration;
+        best = lane;
+      }
+    }
+    laneOf[k] = best;
+    finish[k] = bestEnd;
+    laneFree[best] = bestEnd;
+  }
+  const auto waits = buildLanes(laneOf, durations, finish);
+  spreadReplays_ = 0;
+  if (utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
+    std::vector<std::size_t> sizes(spread_, 0);
+    for (std::size_t k = 0; k < n; ++k) {
+      ++sizes[laneOf[k]];
+    }
+    std::string lanes;
+    for (unsigned lane = 0; lane < spread_; ++lane) {
+      lanes += " " + std::to_string(sizes[lane]);
+    }
+    logInfo() << "Own queue" << queue_.number() << ": a graph of" << n << "kernels spread over"
+              << spread_ << "lanes (kernels:" << lanes.c_str() << "), with" << waits
+              << "waits on other lanes; predicted"
+              << *std::max_element(finish.begin(), finish.end()) * 1e3 << "ms for" << work * 1e3
+              << "ms of work";
+  }
+}
+
+/**
+ * Each lane runs its packets one after the other (barrier bits), and each of its kernels counts
+ * down a signal of the lane. Before a packet, its lane waits for the latest packet it depends on of
+ * each other lane (a barrier-value packet on the signal of that lane, unless the lane has waited
+ * for that one or a later one of it before). The other lanes start once the queue has done the work
+ * before the program (a fork), and the queue goes on once they are done (a join).
+ *
+ * The waits are on signals that keep changing while the lanes work: on the MI300A, a queue that
+ * waits in the command processor for a signal that does not change slows down the kernels of the
+ * other queues (one such queue next to SeisSol: 43-56 % longer), one that waits for a signal that
+ * changes with each kernel of another queue hardly does. So before the fork, a lane waits for the
+ * other lanes to be done with the replay before (as the fork would), and the queue waits for the
+ * lanes by their signals as well.
+ */
+std::size_t Program::buildLanes(const std::vector<unsigned>& laneOf,
+                                const std::vector<double>& durations,
+                                const std::vector<double>& finish) {
+  auto& runtime = Runtime::instance();
+  const auto n = packets_.size();
+  laneOf_ = laneOf;
+  positions_.assign(n, 0);
+  laneKernels_.assign(spread_, 0);
+  for (std::size_t k = 0; k < n; ++k) {
+    positions_[k] = laneKernels_[laneOf[k]]++;
+  }
+  for (unsigned lane = 1; lane < spread_; ++lane) {
+    if (laneKernels_[lane] > 0) {
+      spreadHelpers_.push_back(lane);
+    }
+  }
+  // the latest position of each other lane that a lane has waited for
+  std::vector<std::vector<std::ptrdiff_t>> waited(spread_,
+                                                  std::vector<std::ptrdiff_t>(spread_, -1));
+  std::size_t waits = 0;
+  spreadItems_.push_back({SpreadItem::Kind::Fork});
+  for (std::size_t k = 0; k < n; ++k) {
+    const auto lane = laneOf[k];
+    std::vector<std::ptrdiff_t> latest(spread_, -1);
+    for (const auto p : dependencies_[k]) {
+      if (laneOf[p] != lane) {
+        latest[laneOf[p]] = std::max(latest[laneOf[p]], static_cast<std::ptrdiff_t>(p));
+      }
+    }
+    for (unsigned other = 0; other < spread_; ++other) {
+      const auto p = latest[other];
+      if (p < 0 || static_cast<std::ptrdiff_t>(positions_[p]) <= waited[lane][other]) {
+        continue;
+      }
+      SpreadItem wait;
+      wait.kind = SpreadItem::Kind::Wait;
+      wait.index = static_cast<std::size_t>(p);
+      wait.lane = lane;
+      spreadItems_.push_back(wait);
+      waited[lane][other] = static_cast<std::ptrdiff_t>(positions_[p]);
+      ++waits;
+    }
+    SpreadItem item;
+    item.index = k;
+    item.lane = lane;
+    spreadItems_.push_back(item);
+  }
+  spreadItems_.push_back({SpreadItem::Kind::Join});
+  // (each signal gets counted down by one queue only)
+  const auto newSignal = []() {
+    hsa_signal_t signal{};
+    check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
+          "hsa_amd_signal_create");
+    return signal;
+  };
+  for (unsigned lane = 0; lane < spread_; ++lane) {
+    laneCounters_.push_back(laneKernels_[lane] > 0 ? newSignal() : hsa_signal_t{});
+  }
+  spreadFork_ = newSignal();
+  if (dagLog().on()) {
+    // Y program packet lane duration finish name dependencies...; X program kind lane index
+    for (std::size_t k = 0; k < n; ++k) {
+      std::string dependencies;
+      for (const auto p : dependencies_[k]) {
+        dependencies += " " + std::to_string(p);
+      }
+      dagLog().line("Y %p %zu %u %lld %lld %s%s\n",
+                    static_cast<void*>(this),
+                    k,
+                    laneOf[k],
+                    static_cast<long long>(durations[k] * 1e9),
+                    static_cast<long long>(finish[k] * 1e9),
+                    runtime.kernelName(packets_[k].packet.kernel_object).c_str(),
+                    dependencies.c_str());
+    }
+    for (const auto& item : spreadItems_) {
+      dagLog().line("X %p %d %u %zu\n",
+                    static_cast<void*>(this),
+                    static_cast<int>(item.kind),
+                    item.lane,
+                    item.index);
+    }
+  }
+  return waits;
+}
+
+std::uint64_t Program::submitSpread() {
+  const auto count = static_cast<std::int64_t>(++spreadReplays_);
+  laneQueues_.assign(lanes_.begin(), lanes_.end());
+  // (for the DAG log: where the packets of each lane begin on its queue)
+  std::vector<std::uint64_t> firsts;
+  const bool logged = dagLog().on();
+  if (logged) {
+    for (auto* queue : laneQueues_) {
+      if (queue == nullptr || queue == &queue_) {
+        firsts.push_back(queue_.created());
+      } else {
+        const std::lock_guard lock(queue->mutex);
+        firsts.push_back(queue->created());
+      }
+    }
+  }
+  const bool tracing = Runtime::instance().tracing.load(std::memory_order_relaxed);
+  const auto replay = static_cast<std::size_t>(count);
+  for (const auto& item : spreadItems_) {
+    switch (item.kind) {
+    case SpreadItem::Kind::Fork:
+      if (!spreadHelpers_.empty()) {
+        countDownOn(0, spreadFork_);
+        for (const auto helper : spreadHelpers_) {
+          // (while the others are still busy with the replay before; see buildLanes())
+          for (unsigned lane = 0; replay > 1 && lane < spread_; ++lane) {
+            if (lane != helper && laneKernels_[lane] > 0) {
+              waitOnLanes(laneCounters_[lane],
+                          static_cast<std::int64_t>((replay - 1) * laneKernels_[lane]),
+                          {helper},
+                          spreadKernelWaits_);
+            }
+          }
+          waitOnLanes(spreadFork_, count, {helper}, spreadKernelWaits_);
+        }
+      }
+      break;
+    case SpreadItem::Kind::Wait: {
+      const auto other = laneOf_[item.index];
+      waitOnLanes(laneCounters_[other],
+                  static_cast<std::int64_t>((replay - 1) * laneKernels_[other] +
+                                            positions_[item.index] + 1),
+                  {item.lane},
+                  spreadKernelWaits_);
+      break;
+    }
+    case SpreadItem::Kind::Work: {
+      const auto& packet = packets_[item.index];
+      PacketImage image;
+      image.as<hsa_kernel_dispatch_packet_t>() = packet.packet;
+      if (!tracing) {
+        image.as<hsa_kernel_dispatch_packet_t>().completion_signal = laneCounters_[item.lane];
+      }
+      image.setHeader(static_cast<std::uint16_t>(packet.header | BarrierBit), packet.rest);
+      push(item.lane, image);
+      if (tracing) {
+        // (the kernel gets a signal of the trace instead)
+        countDownOn(item.lane, laneCounters_[item.lane]);
+      }
+      break;
+    }
+    case SpreadItem::Kind::Join:
+      for (const auto helper : spreadHelpers_) {
+        waitOnLanes(laneCounters_[helper],
+                    static_cast<std::int64_t>(replay * laneKernels_[helper]),
+                    {0},
+                    joinKernelWaits_);
+      }
+      break;
+    }
+  }
+  if (logged) {
+    // Z program lane queue first last: the packets first+1..last of a lane in this replay
+    for (std::size_t lane = 0; lane < laneQueues_.size(); ++lane) {
+      auto* queue = laneQueues_[lane] == nullptr ? &queue_ : laneQueues_[lane];
+      std::uint64_t last = 0;
+      if (queue == &queue_) {
+        last = queue_.created();
+      } else {
+        const std::lock_guard lock(queue->mutex);
+        last = queue->created();
+      }
+      dagLog().line("Z %p %zu %d %llu %llu\n",
+                    static_cast<void*>(this),
+                    lane,
+                    queue->number(),
+                    static_cast<unsigned long long>(firsts[lane]),
+                    static_cast<unsigned long long>(last));
     }
   }
   lastIndex_ = queue_.created();
@@ -3824,7 +4356,7 @@ void launchGraph(Programs& programs, hipGraph_t graph, void* handle) {
     const std::lock_guard lock(programs.impl->mutex);
     auto& entry = programs.impl->byQueue[&queue];
     if (entry == nullptr) {
-      entry = std::make_unique<Program>(queue, graph);
+      entry = std::make_unique<Program>(queue, graph, programs.impl->origins);
     }
     program = entry.get();
   }
@@ -3844,6 +4376,12 @@ void launchGraph(Programs& programs, hipGraph_t graph, void* handle) {
                   static_cast<unsigned long long>(stream->lastIndex),
                   static_cast<void*>(program));
   }
+}
+
+bool noteOrigin(Programs& programs, hipGraphNode_t node, void* handle) {
+  auto* stream = streamOf(handle);
+  const std::lock_guard lock(programs.impl->mutex);
+  return programs.impl->origins.emplace(node, stream->queue->number()).second;
 }
 
 void syncAll() {

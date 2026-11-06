@@ -18,6 +18,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -263,6 +264,9 @@ struct DeviceGraph {
   // translated into packets for the own queues it gets launched on (see OwnQueues.h)
   ownqueues::Programs programs;
 
+  // the native nodes that the node being captured on each stream depends on (see noteOrigins())
+  std::unordered_map<void*, std::vector<hipGraphNode_t>> begun;
+
   DeviceGraph() = default;
   DeviceGraph(const DeviceGraph&) = delete;
   DeviceGraph& operator=(const DeviceGraph&) = delete;
@@ -297,6 +301,35 @@ bool ConcreteAPI::isCapableOfGraphNodes() {
   return false;
 #endif
 }
+
+#ifdef DEVICE_USE_HIP_GRAPHS
+namespace {
+/// notes the own stream whose work the native nodes are that the capture of a node has added:
+/// those before what it produced, back to what it began after (see ownqueues::noteOrigin())
+void noteOrigins(DeviceGraph& graph,
+                 const std::vector<hipGraphNode_t>& produced,
+                 const std::vector<hipGraphNode_t>& begun,
+                 void* streamPtr) {
+  const std::unordered_set<hipGraphNode_t> before(begun.begin(), begun.end());
+  std::vector<hipGraphNode_t> pending(produced);
+  std::vector<hipGraphNode_t> dependencies;
+  while (!pending.empty()) {
+    const auto node = pending.back();
+    pending.pop_back();
+    if (before.count(node) > 0 || !ownqueues::noteOrigin(graph.programs, node, streamPtr)) {
+      continue;
+    }
+    std::size_t count = 0;
+    APIWRAP(hipGraphNodeGetDependencies(node, nullptr, &count));
+    dependencies.resize(count);
+    if (count > 0) {
+      APIWRAP(hipGraphNodeGetDependencies(node, dependencies.data(), &count));
+    }
+    pending.insert(pending.end(), dependencies.begin(), dependencies.end());
+  }
+}
+} // namespace
+#endif
 
 DeviceGraphHandle ConcreteAPI::streamBeginCapture(const std::vector<void*>& streamPtrs) {
 #ifdef DEVICE_USE_HIP_GRAPHS
@@ -379,6 +412,9 @@ void ConcreteAPI::graphBeginNode(const DeviceGraphHandle& graphHandle,
                                        nativeDependencies.size(),
                                        hipStreamCaptureModeThreadLocal));
   ownqueues::beginCapture(streamPtr);
+  if (ownqueues::enabled() && ownqueues::isTagged(streamPtr)) {
+    graphInstance->begun[streamPtr] = std::move(nativeDependencies);
+  }
 #endif
 }
 
@@ -395,6 +431,11 @@ DeviceGraphNodeHandle ConcreteAPI::graphEndNode(const DeviceGraphHandle& graphHa
   APIWRAP(hipStreamEndCapture(stream, &endedGraph));
   ownqueues::endCapture(streamPtr);
   assert(endedGraph == graphInstance->graph && "capturing into a graph hands that same graph back");
+  if (const auto begun = graphInstance->begun.find(streamPtr);
+      begun != graphInstance->begun.end()) {
+    noteOrigins(*graphInstance, produced, begun->second, streamPtr);
+    graphInstance->begun.erase(begun);
+  }
 
   graphInstance->nodes.emplace_back(std::move(produced));
   return DeviceGraphNodeHandle(graphInstance->nodes.size() - 1);

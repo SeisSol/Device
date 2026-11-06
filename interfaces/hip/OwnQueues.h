@@ -144,6 +144,9 @@ struct Programs {
   std::unique_ptr<struct ProgramsImpl> impl;
 };
 void launchGraph(Programs& programs, hipGraph_t graph, void* stream);
+/// notes that a node of the graph is work of an own stream: with DEVICE_OWN_QUEUE_GRAPH_ORIGIN=1,
+/// the translation puts it back onto the queue of that stream; false if it has been noted before
+bool noteOrigin(Programs& programs, hipGraphNode_t node, void* stream);
 
 /// waits until all own queues are done
 void syncAll();
