@@ -65,7 +65,8 @@ else()
     option(DEVICE_HIP_OWN_QUEUES "Build the streams on HSA queues of our own (AMD GPUs)" ON)
 endif()
 if (DEVICE_HIP_OWN_QUEUES)
-    set(DEVICE_OWN_QUEUE_SOURCES interfaces/hip/ownqueues/Common.cpp
+    set(DEVICE_OWN_QUEUE_SOURCES interfaces/hip/ownqueues/Arch.cpp
+                                 interfaces/hip/ownqueues/Common.cpp
                                  interfaces/hip/ownqueues/Kernels.cpp
                                  interfaces/hip/ownqueues/Metadata.cpp
                                  interfaces/hip/ownqueues/OwnQueues.cpp

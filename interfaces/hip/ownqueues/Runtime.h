@@ -5,6 +5,7 @@
 #ifndef SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_RUNTIME_H_
 #define SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_RUNTIME_H_
 
+#include "Arch.h"
 #include "Common.h"
 #include "HostThread.h"
 
@@ -157,10 +158,11 @@ class Runtime {
   std::mutex mutex_;
   std::unordered_map<const void*, const KernelInfo*> kernels_;
   std::map<int, std::unique_ptr<Queue>> queues_;
-  // the name of the device (e.g. gfx90a), and whether the log has the description already: it gets
-  // written with the first queue, not when set up, as a program may tell the logger its rank only
-  // later (SeisSol sets up the device before MPI_Init), and every process would write it then
-  std::string deviceName_;
+  // what the table of architectures says about the device (see Arch.h), and whether the log has the
+  // description already: it gets written with the first queue, not when set up, as a program may
+  // tell the logger its rank only later (SeisSol sets up the device before MPI_Init), and every
+  // process would write it then
+  ArchTraits arch_;
   bool described_{false};
   // the pipes found so far (see placeQueue()): an idle queue on each, and the own queues on it
   struct Pipe {

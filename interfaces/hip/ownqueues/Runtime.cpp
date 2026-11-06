@@ -283,11 +283,12 @@ bool Runtime::setUp() {
   }
   char name[64] = {};
   hsa_agent_get_info(gpu, HSA_AGENT_INFO_NAME, name);
-  // the command processors of MI200 and MI300 wait for signal values (barrier-value packets; CLR
-  // uses them only there), that of gfx1150 rejects them as malformed, the other ones are untried;
-  // DEVICE_OWN_QUEUE_WAITS=kernel|packet decides otherwise
-  const std::string arch(name);
-  barrierValue = arch == "gfx90a" || arch.rfind("gfx94", 0) == 0 || arch == "gfx950";
+  // what the command processor of the device takes, and the defaults that measurements chose for it
+  // (see Arch.cpp)
+  arch_ = archTraits(name);
+  // waits for other queues: by barrier-value packets where the table knows the command processor
+  // takes them; DEVICE_OWN_QUEUE_WAITS=kernel|packet decides otherwise
+  barrierValue = arch_.barrierValue;
   utils::Env env("DEVICE_");
   const auto waits = env.get<std::string>("OWN_QUEUE_WAITS", "");
   if (waits == "kernel") {
@@ -308,9 +309,10 @@ bool Runtime::setUp() {
       env.get<std::uint64_t>("OWN_QUEUE_KERNARG_MIB", std::uint64_t{DefaultKernargRingMiB}) << 20;
   timing = env.get<bool>("OWN_QUEUE_TIMING", false);
   hipWaitsOnDevice = env.get<std::string>("OWN_QUEUE_HIP_WAITS", "device") != "host";
-  // the pipes of the command processor (see Runtime::placeQueue()): own queues spread over them on
-  // the MI250X (measured there), DEVICE_OWN_QUEUE_PIPES=spread|check|any decides otherwise
-  const auto pipes = env.get<std::string>("OWN_QUEUE_PIPES", arch == "gfx90a" ? "spread" : "any");
+  // the pipes of the command processor (see Runtime::placeQueue()): own queues spread over them
+  // where the table says that queues share them, DEVICE_OWN_QUEUE_PIPES=spread|check|any decides
+  // otherwise
+  const auto pipes = env.get<std::string>("OWN_QUEUE_PIPES", arch_.spreadPipes ? "spread" : "any");
   pipeCheck = pipes == "check";
   pipeSpread = pipes == "spread";
   schedule = barrierValue && env.get<bool>("OWN_QUEUE_SCHEDULE", false);
@@ -332,14 +334,12 @@ bool Runtime::setUp() {
     timestampFrequency = 1;
   }
   hsa_system_get_info(HSA_SYSTEM_INFO_TIMESTAMP, &startTimestamp);
-  // where the kernel arguments go: device memory that the host writes, or host memory. On MI250X
-  // and MI300 (gfx90a, gfx94x), device memory by default: on an MI300A, TPV5 and TPV13 took 9-10 %
-  // less on four ranks, TPV5 8 % less on one, and 21 % less with recorded super-timesteps (where
-  // the kernels read the same arguments again and again); on two nodes of MI250X, TPV13 1.7 % less
-  // (TPV5 the same).
-  const bool deviceByDefault = arch == "gfx90a" || arch.rfind("gfx94", 0) == 0;
+  // where the kernel arguments go: device memory that the host writes, or host memory, as the table
+  // says (on an MI300A, TPV5 and TPV13 took 9-10 % less with device memory on four ranks, TPV5 8 %
+  // less on one, and 21 % less with recorded super-timesteps, where the kernels read the same
+  // arguments again and again; on two nodes of MI250X, TPV13 1.7 % less, TPV5 the same)
   const auto kernargs =
-      env.get<std::string>("OWN_QUEUE_KERNARGS", deviceByDefault ? "device" : "host");
+      env.get<std::string>("OWN_QUEUE_KERNARGS", arch_.deviceKernargs ? "device" : "host");
   if (kernargs == "device") {
     check(hsa_amd_agent_iterate_memory_pools(gpu, visitDevicePool, this),
           "hsa_amd_agent_iterate_memory_pools");
@@ -396,12 +396,20 @@ bool Runtime::setUp() {
       computeUnitMasks[std::stoi(entry.substr(0, colon))] = mask;
     }
   }
-  deviceName_ = arch;
   return true;
 }
 
 void Runtime::describe() {
-  logInfo() << "Own queues on" << deviceName_ << "; queues wait for other queues by"
+  if (!arch_.known) {
+    logWarning() << "Own queues: the architecture" << arch_.name
+                 << "is not in their table (ownqueues/Arch.cpp); queues wait by kernels, keep the "
+                    "kernel arguments in host memory and go to any pipe, unless "
+                    "DEVICE_OWN_QUEUE_WAITS, _KERNARGS and _PIPES say otherwise.";
+  } else if (arch_.tested != ArchTraits::Tested::Runs) {
+    logWarning() << "Own queues: no program has run on" << arch_.name << "with them yet ("
+                 << arch_.note << ").";
+  }
+  logInfo() << "Own queues on" << arch_.name << "; queues wait for other queues by"
             << (barrierValue ? "barrier-value packets" : "kernels") << "; work after the host sees"
             << "its data by" << (acquireByKernel ? "a fence in a kernel" : "packet fences")
             << "; kernel arguments in" << (deviceKernargs ? "device memory" : "host memory")
