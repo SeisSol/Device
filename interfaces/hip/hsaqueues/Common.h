@@ -2,8 +2,10 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#ifndef SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_COMMON_H_
-#define SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_COMMON_H_
+#ifndef SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_COMMON_H_
+#define SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_COMMON_H_
+
+#include "utils/stringutils.h"
 
 #include <amd_comgr/amd_comgr.h>
 #include <array>
@@ -15,15 +17,16 @@
 #include <hsa/hsa.h>
 #include <hsa/hsa_ext_amd.h>
 #include <hsa/hsa_ven_amd_loader.h>
+#include <optional>
 #include <string>
 #include <vector>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 // the marks of a queue count its counter down from here; only one queue may count a signal down
 // (the command processors of gfx90a lose decrements of a signal that several queues count down)
 constexpr std::int64_t CounterStart = std::int64_t{1} << 62;
-// the most packets an own queue holds, and the default memory for the arguments of its kernels: the
+// the most packets an HSA queue holds, and the default memory for the arguments of its kernels: the
 // host must never wait for space while the queue waits for work the host has yet to enqueue (e.g.
 // for halo data that MPI receives on the host), so both should hold the work of an epoch
 constexpr std::uint32_t MaxQueuePackets = 1U << 17;
@@ -58,7 +61,7 @@ constexpr std::uint16_t KernelFences = fenceBits(HSA_FENCE_SCOPE_AGENT, HSA_FENC
 constexpr std::uint16_t MarkFences = fenceBits(HSA_FENCE_SCOPE_NONE, HSA_FENCE_SCOPE_SYSTEM);
 // a wait for the host (or work that it stands for, e.g. data from MPI)
 constexpr std::uint16_t WaitFences = fenceBits(HSA_FENCE_SCOPE_SYSTEM, HSA_FENCE_SCOPE_NONE);
-// a wait for another own queue, i.e. for work of the same device: the scope of the device is
+// a wait for another HSA queue, i.e. for work of the same device: the scope of the device is
 // enough, while one of the system invalidates its L2 cache, at the expense of the kernels of all
 // queues (actor-mpi of SeisSol on the MI250X: a fifth of its time)
 constexpr std::uint16_t QueueWaitFences = fenceBits(HSA_FENCE_SCOPE_AGENT, HSA_FENCE_SCOPE_NONE);
@@ -73,6 +76,17 @@ void check(hsa_status_t status, const char* call);
 void checkComgr(amd_comgr_status_t status, const char* call);
 /// a warning, once per message
 void warnOnce(const std::string& message);
+
+/// the value of setting `name`: the environment variable DEVICE_HSA_QUEUE_<name>, or the deprecated
+/// DEVICE_OWN_QUEUE_<name> of before (with a warning, once per variable)
+std::optional<std::string> settingText(const std::string& name);
+
+/// setting `name` (see settingText()) as a T, or `fallback` where it is not set
+template <typename T>
+T setting(const std::string& name, T fallback) {
+  const auto text = settingText(name);
+  return text.has_value() ? utils::StringUtils::parse<T>(*text) : fallback;
+}
 
 /// the device can access the host memory: its address there, otherwise nullptr
 const void* deviceAddress(const void* ptr);
@@ -136,6 +150,6 @@ struct PacketImage {
   }
 };
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues
 
-#endif // SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_COMMON_H_
+#endif // SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_COMMON_H_

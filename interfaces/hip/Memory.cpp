@@ -5,7 +5,7 @@
 #include "HipWrappedAPI.h"
 #include "Internals.h"
 #include "hip/hip_runtime.h"
-#include "ownqueues/OwnQueues.h"
+#include "hsaqueues/HsaQueues.h"
 #include "utils/logger.h"
 
 #include <assert.h>
@@ -109,24 +109,24 @@ void* ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
   if (size == 0) {
     return nullptr;
   }
-  if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
-    return ownqueues::allocAsync(size, streamPtr);
+  if (hsaqueues::isTagged(streamPtr) && !hsaqueues::capturing(streamPtr)) {
+    return hsaqueues::allocAsync(size, streamPtr);
   }
-  // while an own stream gets captured, the graph gets an allocation of its own, which the
+  // while an HSA stream gets captured, the graph gets an allocation of its own, which the
   // translation of the graph moves to memory of the queue that it runs on
   void* ptr;
-  APIWRAP(hipMallocAsync(&ptr, size, ownqueues::vehicle(streamPtr)));
+  APIWRAP(hipMallocAsync(&ptr, size, hsaqueues::vehicle(streamPtr)));
   return ptr;
 }
 void ConcreteAPI::freeMemAsync(void* devPtr, void* streamPtr) {
   if (devPtr == nullptr) {
     return;
   }
-  if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
-    ownqueues::freeAsync(devPtr, streamPtr);
+  if (hsaqueues::isTagged(streamPtr) && !hsaqueues::capturing(streamPtr)) {
+    hsaqueues::freeAsync(devPtr, streamPtr);
     return;
   }
-  APIWRAP(hipFreeAsync(devPtr, ownqueues::vehicle(streamPtr)));
+  APIWRAP(hipFreeAsync(devPtr, hsaqueues::vehicle(streamPtr)));
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {
@@ -165,7 +165,7 @@ void ConcreteAPI::unpinMemory(void* ptr) {
 
 void* ConcreteAPI::devicePointer(void* ptr) {
   isFlagSet<DeviceSelected>(status);
-  if (ownqueues::isCounter(ptr)) {
+  if (hsaqueues::isCounter(ptr)) {
     // (the memory of a signal is at the same address on the device)
     return ptr;
   }

@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#ifndef SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_PROGRAM_H_
-#define SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_PROGRAM_H_
+#ifndef SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_PROGRAM_H_
+#define SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_PROGRAM_H_
 
 #include "Common.h"
-#include "OwnQueues.h"
+#include "HsaQueues.h"
 #include "Queue.h"
 
 #include <algorithm>
@@ -40,7 +40,7 @@
 #include <utility>
 #include <vector>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 struct ProgramPacket {
   hsa_kernel_dispatch_packet_t packet{};
@@ -59,7 +59,7 @@ struct ProgramPacket {
   std::size_t level{0};
 };
 
-/// the own queue number of helper lane `lane` of the programs of queue `queue`
+/// the HSA queue number of helper lane `lane` of the programs of queue `queue`
 inline int helperQueueNumber(int queue, unsigned lane) {
   return FirstHelperQueue + (queue + 1000) * 16 + static_cast<int>(lane);
 }
@@ -67,21 +67,21 @@ inline int helperQueueNumber(int queue, unsigned lane) {
 /**
  * A graph translated for a queue. The kernels of a level of the graph are independent of each
  * other; a queue runs them one after the other though, also without barriers in between (MI250X,
- * ROCm 6.3). With DEVICE_OWN_QUEUE_GRAPH_LANES=k, the levels with at least
- * DEVICE_OWN_QUEUE_GRAPH_LANE_MIN kernels (3 by default) get spread over the queue and k helper
+ * ROCm 6.3). With DEVICE_HSA_QUEUE_GRAPH_LANES=k, the levels with at least
+ * DEVICE_HSA_QUEUE_GRAPH_LANE_MIN kernels (3 by default) get spread over the queue and k helper
  * queues of its own (lanes), the largest kernels first onto the lane with the least so far; the
  * helpers start the level once the queue has reached it (a fork), and the queue goes on once the
  * helpers are done with it (a join), by signals of the program that each replay counts down. That
  * pays off only with pipes of the command processor left for the helpers (see
- * Runtime::placeQueue()): on the MI250X, with two own queues (TPV13 2.16 s instead of 2.74), not
- * with four (2.87 instead of 1.92). With DEVICE_OWN_QUEUE_GRAPH_BORROW=1, the lanes go to other own
+ * Runtime::placeQueue()): on the MI250X, with two HSA queues (TPV13 2.16 s instead of 2.74), not
+ * with four (2.87 instead of 1.92). With DEVICE_HSA_QUEUE_GRAPH_BORROW=1, the lanes go to other HSA
  * queues instead, those that are idle at each replay (and only while the queue of the program is
- * idle as well, unless DEVICE_OWN_QUEUE_GRAPH_BORROW_IDLE=0); on four queues, that made no
+ * idle as well, unless DEVICE_HSA_QUEUE_GRAPH_BORROW_IDLE=0); on four queues, that made no
  * difference (1.94 s), and coupled the queues without the condition (2.03 s).
  */
 class Program {
   public:
-  /// `origins`: the own queue of the stream whose work each node is, where known (see noteOrigin())
+  /// `origins`: the HSA queue of the stream whose work each node is, where known (see noteOrigin())
   Program(Queue& queue, hipGraph_t graph, const std::unordered_map<hipGraphNode_t, int>& origins);
   ~Program();
 
@@ -115,7 +115,7 @@ class Program {
   void* kernargs_{nullptr};
   std::uint64_t lastIndex_{0};
   // lane 0 is the queue of the program; the others are helper queues of their own, or (borrow_)
-  // other own queues that are idle when the program gets enqueued, chosen anew each time
+  // other HSA queues that are idle when the program gets enqueued, chosen anew each time
   std::vector<Queue*> lanes_;
   bool borrow_{false};
   // the queue of each lane in submit() (none: the lane runs on the queue of the program)
@@ -126,7 +126,7 @@ class Program {
   std::vector<std::int64_t> forkCounts_;
   std::vector<std::vector<std::int64_t>> joinCounts_;
 
-  // DEVICE_OWN_QUEUE_SCHEDULE (see submitScheduled()): the levels (packets first..first+count-1),
+  // DEVICE_HSA_QUEUE_SCHEDULE (see submitScheduled()): the levels (packets first..first+count-1),
   // the learned duration of each packet (s, 0: unknown), the signals of a replay that measures them
   struct Level {
     std::size_t first{0};
@@ -146,7 +146,7 @@ class Program {
   std::vector<std::vector<hsa_signal_t>> levelJoins_;
   std::vector<std::vector<std::int64_t>> levelJoinCounts_;
 
-  // DEVICE_OWN_QUEUE_GRAPH_SPREAD=k (see buildSpread()): the work packets each one depends on
+  // DEVICE_HSA_QUEUE_GRAPH_SPREAD=k (see buildSpread()): the work packets each one depends on
   // directly (through nodes without work), and once their durations have been measured, the
   // program spread over the queue and k-1 helper queues of its own
   struct SpreadItem {
@@ -165,7 +165,7 @@ class Program {
   void countDownOn(unsigned lane, hsa_signal_t signal);
   unsigned spread_{0};
   // the waits of the lanes (or only those of lane 0 for the others at the end) by kernels that spin
-  // on the signal (DEVICE_OWN_QUEUE_GRAPH_SPREAD_WAITS=kernel or join)
+  // on the signal (DEVICE_HSA_QUEUE_GRAPH_SPREAD_WAITS=kernel or join)
   bool spreadKernelWaits_{false};
   bool joinKernelWaits_{false};
   std::unordered_map<std::uint64_t, const std::int64_t*> signalValues_;
@@ -186,10 +186,10 @@ class Program {
 struct ProgramsImpl {
   std::mutex mutex;
   std::map<Queue*, std::unique_ptr<Program>> byQueue;
-  // the own queue of the stream whose work each node is (see noteOrigin())
+  // the HSA queue of the stream whose work each node is (see noteOrigin())
   std::unordered_map<hipGraphNode_t, int> origins;
 };
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues
 
-#endif // SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_PROGRAM_H_
+#endif // SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_PROGRAM_H_

@@ -9,7 +9,6 @@
 #include "Kernels.h"
 #include "Queue.h"
 #include "Trace.h"
-#include "utils/env.h"
 #include "utils/logger.h"
 
 #include <algorithm>
@@ -44,7 +43,7 @@
 #include <utility>
 #include <vector>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 namespace {
 
@@ -99,7 +98,7 @@ hsa_status_t visitDevicePool(hsa_amd_memory_pool_t pool, void* data) {
 void queueError(hsa_status_t status, hsa_queue_t* queue, void* /*data*/) {
   const char* text = nullptr;
   hsa_status_string(status, &text);
-  logError() << "Own queues: the queue" << static_cast<const void*>(queue) << "failed with"
+  logError() << "HSA queues: the queue" << static_cast<const void*>(queue) << "failed with"
              << (text != nullptr ? text : "?");
 }
 
@@ -192,8 +191,8 @@ void dispatchAlone(hsa_queue_t* queue,
  */
 bool samePipe(hsa_queue_t* first, hsa_queue_t* second) {
   auto& runtime = Runtime::instance();
-  const auto& spin = runtime.kernel(reinterpret_cast<const void*>(ownSpin));
-  const auto& stamp = runtime.kernel(reinterpret_cast<const void*>(ownStamp));
+  const auto& spin = runtime.kernel(reinterpret_cast<const void*>(hsaSpin));
+  const auto& stamp = runtime.kernel(reinterpret_cast<const void*>(hsaStamp));
   // (the hidden arguments stay zero: the kernels do not read them)
   static const auto* spinArgs = [&]() {
     int rate = 0;
@@ -267,18 +266,18 @@ bool Runtime::setUp() {
   }
   check(hsa_iterate_agents(visitAgent, this), "hsa_iterate_agents");
   if (gpu.handle == 0 || cpu.handle == 0) {
-    logWarning() << "Own queues: no HSA agent for the device.";
+    logWarning() << "HSA queues: no HSA agent for the device.";
     return false;
   }
   check(hsa_amd_agent_iterate_memory_pools(cpu, visitPool, this),
         "hsa_amd_agent_iterate_memory_pools");
   if (!havePool) {
-    logWarning() << "Own queues: no memory for kernel arguments.";
+    logWarning() << "HSA queues: no memory for kernel arguments.";
     return false;
   }
   if (hsa_system_get_major_extension_table(HSA_EXTENSION_AMD_LOADER, 1, sizeof(loader), &loader) !=
       HSA_STATUS_SUCCESS) {
-    logWarning() << "Own queues: no loader extension.";
+    logWarning() << "HSA queues: no loader extension.";
     return false;
   }
   char name[64] = {};
@@ -287,10 +286,9 @@ bool Runtime::setUp() {
   // (see Arch.cpp)
   arch_ = archTraits(name);
   // waits for other queues: by barrier-value packets where the table knows the command processor
-  // takes them; DEVICE_OWN_QUEUE_WAITS=kernel|packet decides otherwise
+  // takes them; DEVICE_HSA_QUEUE_WAITS=kernel|packet decides otherwise
   barrierValue = arch_.barrierValue;
-  utils::Env env("DEVICE_");
-  const auto waits = env.get<std::string>("OWN_QUEUE_WAITS", "");
+  const auto waits = setting<std::string>("WAITS", "");
   if (waits == "kernel") {
     barrierValue = false;
   } else if (waits == "packet") {
@@ -302,24 +300,23 @@ bool Runtime::setUp() {
   }
   std::uint32_t maxPackets = 0;
   hsa_agent_get_info(gpu, HSA_AGENT_INFO_QUEUE_MAX_SIZE, &maxPackets);
-  queuePackets =
-      std::min(env.get<std::uint32_t>("OWN_QUEUE_PACKETS", std::uint32_t{MaxQueuePackets}),
-               maxPackets > 0 ? maxPackets : MaxQueuePackets);
-  kernargRingBytes =
-      env.get<std::uint64_t>("OWN_QUEUE_KERNARG_MIB", std::uint64_t{DefaultKernargRingMiB}) << 20;
-  timing = env.get<bool>("OWN_QUEUE_TIMING", false);
-  hipWaitsOnDevice = env.get<std::string>("OWN_QUEUE_HIP_WAITS", "device") != "host";
-  // the pipes of the command processor (see Runtime::placeQueue()): own queues spread over them
-  // where the table says that queues share them, DEVICE_OWN_QUEUE_PIPES=spread|check|any decides
+  queuePackets = std::min(setting<std::uint32_t>("PACKETS", std::uint32_t{MaxQueuePackets}),
+                          maxPackets > 0 ? maxPackets : MaxQueuePackets);
+  kernargRingBytes = setting<std::uint64_t>("KERNARG_MIB", std::uint64_t{DefaultKernargRingMiB})
+                     << 20;
+  timing = setting<bool>("TIMING", false);
+  hipWaitsOnDevice = setting<std::string>("HIP_WAITS", "device") != "host";
+  // the pipes of the command processor (see Runtime::placeQueue()): HSA queues spread over them
+  // where the table says that queues share them, DEVICE_HSA_QUEUE_PIPES=spread|check|any decides
   // otherwise
-  const auto pipes = env.get<std::string>("OWN_QUEUE_PIPES", arch_.spreadPipes ? "spread" : "any");
+  const auto pipes = setting<std::string>("PIPES", arch_.spreadPipes ? "spread" : "any");
   pipeCheck = pipes == "check";
   pipeSpread = pipes == "spread";
-  schedule = barrierValue && env.get<bool>("OWN_QUEUE_SCHEDULE", false);
-  scheduleMinWork = env.get<double>("OWN_QUEUE_SCHEDULE_MIN_US", 120.0) * 1e-6;
-  forkSeconds = env.get<double>("OWN_QUEUE_SCHEDULE_FORK_US", 5.0) * 1e-6;
+  schedule = barrierValue && setting<bool>("SCHEDULE", false);
+  scheduleMinWork = setting<double>("SCHEDULE_MIN_US", 120.0) * 1e-6;
+  forkSeconds = setting<double>("SCHEDULE_FORK_US", 5.0) * 1e-6;
   {
-    const auto light = env.get<std::string>("OWN_QUEUE_LIGHT", "");
+    const auto light = setting<std::string>("LIGHT", "");
     std::size_t position = 0;
     while (position < light.size()) {
       const auto end = std::min(light.find(',', position), light.size());
@@ -338,37 +335,34 @@ bool Runtime::setUp() {
   // says (on an MI300A, TPV5 and TPV13 took 9-10 % less with device memory on four ranks, TPV5 8 %
   // less on one, and 21 % less with recorded super-timesteps, where the kernels read the same
   // arguments again and again; on two nodes of MI250X, TPV13 1.7 % less, TPV5 the same)
-  const auto kernargs =
-      env.get<std::string>("OWN_QUEUE_KERNARGS", arch_.deviceKernargs ? "device" : "host");
+  const auto kernargs = setting<std::string>("KERNARGS", arch_.deviceKernargs ? "device" : "host");
   if (kernargs == "device") {
     check(hsa_amd_agent_iterate_memory_pools(gpu, visitDevicePool, this),
           "hsa_amd_agent_iterate_memory_pools");
     deviceKernargs = haveDevicePool;
     if (!haveDevicePool) {
-      logWarning() << "Own queues: no fine-grained device memory for the kernel arguments; they "
+      logWarning() << "HSA queues: no fine-grained device memory for the kernel arguments; they "
                       "stay in host memory.";
     }
   }
   const auto scope = [&](const char* name, hsa_fence_scope_t fallback) {
-    const auto value = env.get<std::string>(name, "");
+    const auto value = setting<std::string>(name, "");
     return value == "agent"    ? HSA_FENCE_SCOPE_AGENT
            : value == "system" ? HSA_FENCE_SCOPE_SYSTEM
                                : fallback;
   };
-  markFences =
-      fenceBits(HSA_FENCE_SCOPE_NONE, scope("OWN_QUEUE_MARK_SCOPE", HSA_FENCE_SCOPE_SYSTEM));
-  waitFences =
-      fenceBits(scope("OWN_QUEUE_WAIT_SCOPE", HSA_FENCE_SCOPE_AGENT), HSA_FENCE_SCOPE_NONE);
-  acquireByKernel = env.get<std::string>("OWN_QUEUE_HOST_ACQUIRE", "kernel") != "packet";
+  markFences = fenceBits(HSA_FENCE_SCOPE_NONE, scope("MARK_SCOPE", HSA_FENCE_SCOPE_SYSTEM));
+  waitFences = fenceBits(scope("WAIT_SCOPE", HSA_FENCE_SCOPE_AGENT), HSA_FENCE_SCOPE_NONE);
+  acquireByKernel = setting<std::string>("HOST_ACQUIRE", "kernel") != "packet";
   hsa_agent_get_info(
       gpu, static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_COMPUTE_UNIT_COUNT), &computeUnits);
   // (about a workgroup for each compute unit: kernels that wait for latencies more than for the
   // device; the MI250X has 110)
-  scheduleMaxBlocks = env.get<std::uint64_t>("OWN_QUEUE_SCHEDULE_MAX_BLOCKS",
-                                             computeUnits > 0 ? computeUnits : 128);
+  scheduleMaxBlocks =
+      setting<std::uint64_t>("SCHEDULE_MAX_BLOCKS", computeUnits > 0 ? computeUnits : 128);
   {
     // "<queue>:<first>-<last>[+<first>-<last>...];..."
-    const auto masks = env.get<std::string>("OWN_QUEUE_CU_MASKS", "");
+    const auto masks = setting<std::string>("CU_MASKS", "");
     std::size_t position = 0;
     while (position < masks.size()) {
       const auto end = std::min(masks.find(';', position), masks.size());
@@ -401,15 +395,15 @@ bool Runtime::setUp() {
 
 void Runtime::describe() {
   if (!arch_.known) {
-    logWarning() << "Own queues: the architecture" << arch_.name
-                 << "is not in their table (ownqueues/Arch.cpp); queues wait by kernels, keep the "
+    logWarning() << "HSA queues: the architecture" << arch_.name
+                 << "is not in their table (hsaqueues/Arch.cpp); queues wait by kernels, keep the "
                     "kernel arguments in host memory and go to any pipe, unless "
-                    "DEVICE_OWN_QUEUE_WAITS, _KERNARGS and _PIPES say otherwise.";
+                    "DEVICE_HSA_QUEUE_WAITS, _KERNARGS and _PIPES say otherwise.";
   } else if (arch_.tested != ArchTraits::Tested::Runs) {
-    logWarning() << "Own queues: no program has run on" << arch_.name << "with them yet ("
+    logWarning() << "HSA queues: no program has run on" << arch_.name << "with them yet ("
                  << arch_.note << ").";
   }
-  logInfo() << "Own queues on" << arch_.name << "; queues wait for other queues by"
+  logInfo() << "HSA queues on" << arch_.name << "; queues wait for other queues by"
             << (barrierValue ? "barrier-value packets" : "kernels") << "; work after the host sees"
             << "its data by" << (acquireByKernel ? "a fence in a kernel" : "packet fences")
             << "; kernel arguments in" << (deviceKernargs ? "device memory" : "host memory")
@@ -433,7 +427,7 @@ const KernelInfo& Runtime::kernel(const void* function) {
   static_cast<void>(hipFuncGetAttributes(&attributes, function));
   const char* name = hipKernelNameRefByPtr(function, nullptr);
   if (name == nullptr) {
-    logError() << "Own queues: HIP does not know the kernel" << function;
+    logError() << "HSA queues: HIP does not know the kernel" << function;
   }
   const auto symbol = std::string(name) + ".kd";
   auto known = symbols.find(symbol);
@@ -442,10 +436,10 @@ const KernelInfo& Runtime::kernel(const void* function) {
     known = symbols.find(symbol);
   }
   if (known == symbols.end() || known->second.object == 0) {
-    logError() << "Own queues: no kernel object for" << name;
+    logError() << "HSA queues: no kernel object for" << name;
   }
   if (!known->second.metadata) {
-    logError() << "Own queues: no metadata for the kernel" << name
+    logError() << "HSA queues: no metadata for the kernel" << name
                << "(its code object was not loaded from memory)";
   }
   if (known->second.name.empty()) {
@@ -547,10 +541,10 @@ hsa_queue_t* Runtime::placeQueue(int number) {
     pipesKnown_ = true;
     if (pipes_.size() >= MaxPipes) {
       // (queues that do not hold each other up)
-      logWarning() << "Own queues: the queues do not seem to share pipes; they go anywhere";
+      logWarning() << "HSA queues: the queues do not seem to share pipes; they go anywhere";
       pipeSpread = false;
     } else {
-      logInfo() << "Own queues: the command processor serves the queues of the process on"
+      logInfo() << "HSA queues: the command processor serves the queues of the process on"
                 << pipes_.size() << "pipes";
     }
   }
@@ -584,7 +578,7 @@ hsa_queue_t* Runtime::placeQueue(int number) {
       queue = nullptr;
     }
     if (queue == nullptr) {
-      logWarning() << "Own queue" << number << "found no pipe as little busy as" << least.first;
+      logWarning() << "HSA queue" << number << "found no pipe as little busy as" << least.first;
       queue = createHsaQueue();
       pipe = pipeOf(queue);
     }
@@ -599,8 +593,8 @@ hsa_queue_t* Runtime::placeQueue(int number) {
     }
     pipes_[pipe].queues.push_back(number);
   }
-  if (pipeCheck || utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
-    logInfo() << "Own queue" << number << "on pipe" << pipe << "with own queues"
+  if (pipeCheck || setting<bool>("VERBOSE", false)) {
+    logInfo() << "HSA queue" << number << "on pipe" << pipe << "with HSA queues"
               << (others.empty() ? std::string(" none") : others) << "(" << spareQueues_.size()
               << "spare queues so far)";
   }
@@ -706,4 +700,4 @@ void Runtime::finalize() {
   spareQueues_.clear();
 }
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-// Tests the own queues of the Device library (HIP): kernels, copies, events across queues, graphs
+// Tests the HSA queues of the Device library (HIP): kernels, copies, events across queues, graphs
 // built node by node (with temporary allocations), host functions, the mix with HIP streams, and
 // the host time of launches.
 #include <atomic>
@@ -55,8 +55,8 @@ int main() {
   auto& api = device.api();
   api.setDevice(0);
   api.initialize();
-  if (!api.enableOwnQueues()) {
-    std::printf("own queues not available\n");
+  if (!api.enableHsaQueues()) {
+    std::printf("HSA queues not available\n");
     return 1;
   }
   const int n = 1 << 16;
@@ -66,12 +66,12 @@ int main() {
   auto* pinned = static_cast<float*>(api.allocPinnedMem(bytes, false, device::Destination::Host));
   std::vector<float> pageable(n);
 
-  void* s1 = api.createStreamOnOwnQueue(1);
-  void* s2 = api.createStreamOnOwnQueue(2);
-  void* s1b = api.createStreamOnOwnQueue(1);
+  void* s1 = api.createStreamOnHsaQueue(1);
+  void* s2 = api.createStreamOnHsaQueue(2);
+  void* s1b = api.createStreamOnHsaQueue(1);
   void* hipStream = api.createStream();
 
-  // (1) kernels and copies on one own stream
+  // (1) kernels and copies on one HSA stream
   for (int i = 0; i < n; ++i) {
     pinned[i] = static_cast<float>(i);
   }
@@ -83,7 +83,7 @@ int main() {
   for (int i = 0; i < n; ++i) {
     ok = ok && pinned[i] == static_cast<float>(i) + 1.0f;
   }
-  expect(ok, "copy to, kernel, copy from on an own stream");
+  expect(ok, "copy to, kernel, copy from on an HSA stream");
 
   // pageable copies
   for (int i = 0; i < n; ++i) {
@@ -98,7 +98,7 @@ int main() {
   for (int i = 0; i < n; ++i) {
     ok = ok && back[i] == 2.0f * i;
   }
-  expect(ok, "pageable copies and a device copy on another own stream");
+  expect(ok, "pageable copies and a device copy on another HSA stream");
 
   // (2) events across queues: s2 waits for a slow kernel on s1
   void* event = api.createEvent(false);
@@ -116,7 +116,7 @@ int main() {
   expect(ok, "a stream waits for an event of another queue");
   expect(api.isEventCompleted(event), "the event has completed");
 
-  // a HIP stream waits for an own event, and an own stream for a HIP event
+  // a HIP stream waits for an HSA event, and an HSA stream for a HIP event
   void* event2 = api.createEvent(false);
   addValue<<<n / 256, 256, 0, static_cast<hipStream_t>(s1)>>>(a, 1.0f, n);
   api.recordEventOnStream(event2, s1);
@@ -130,9 +130,9 @@ int main() {
   for (int i = 0; i < n; ++i) {
     ok = ok && pinned[i] == (2.0f * i + 5.0f) * 0.5f + 2.0f;
   }
-  expect(ok, "own and HIP streams wait for each other");
+  expect(ok, "HSA and HIP streams wait for each other");
 
-  // (3) a graph built node by node on an own stream, with a temporary allocation, replayed
+  // (3) a graph built node by node on an HSA stream, with a temporary allocation, replayed
   auto graph = api.graphCreate();
   api.graphBeginNode(graph, {}, s1);
   auto* tmp = static_cast<float*>(api.allocMemAsync(bytes, s1));
@@ -170,7 +170,7 @@ int main() {
     const float aBefore = start[i] + 10.0f * (replays - 1);
     ok = ok && resultB[i] == 2.0f * aBefore + 4.0f && pinned[i] == start[i] + 10.0f * replays;
   }
-  expect(ok, "a graph with a temporary allocation and branches, replayed on an own stream");
+  expect(ok, "a graph with a temporary allocation and branches, replayed on an HSA stream");
 
   // the same graph on a HIP stream
   api.launchGraph(graph, hipStream);
@@ -236,7 +236,7 @@ int main() {
     api.freePinnedMem(counter);
   }
 
-  // (5c) a counter of the device API (a signal with own queues): the command processor waits for
+  // (5c) a counter of the device API (a signal with HSA queues): the command processor waits for
   // it; the host stores into it like into memory
   {
     auto* counter = api.allocCounter();
@@ -261,7 +261,7 @@ int main() {
     api.freeCounter(counter);
   }
 
-  // (6) host time of launches: own stream vs stream of HIP, kernels and the graph
+  // (6) host time of launches: HSA stream vs stream of HIP, kernels and the graph
   for (int round = 0; round < 2; ++round) {
     const int count = 20000;
     const auto time = [&](void* stream, bool graphs) {
@@ -280,19 +280,19 @@ int main() {
       return std::make_pair(std::chrono::duration<double, std::micro>(t1 - t0).count() / count,
                             std::chrono::duration<double, std::micro>(t2 - t0).count() / count);
     };
-    const auto ownKernels = time(s1b, false);
+    const auto hsaKernels = time(s1b, false);
     const auto hipKernels = time(hipStream, false);
-    const auto ownGraphs = time(s1b, true);
+    const auto hsaGraphs = time(s1b, true);
     const auto hipGraphs = time(hipStream, true);
-    std::printf("round %d: kernel launch host/total us: own %.2f/%.2f, HIP %.2f/%.2f; graph (5 "
-                "kernels) own %.2f/%.2f, HIP %.2f/%.2f\n",
+    std::printf("round %d: kernel launch host/total us: HSA %.2f/%.2f, HIP %.2f/%.2f; graph (5 "
+                "kernels) HSA %.2f/%.2f, HIP %.2f/%.2f\n",
                 round,
-                ownKernels.first,
-                ownKernels.second,
+                hsaKernels.first,
+                hsaKernels.second,
                 hipKernels.first,
                 hipKernels.second,
-                ownGraphs.first,
-                ownGraphs.second,
+                hsaGraphs.first,
+                hsaGraphs.second,
                 hipGraphs.first,
                 hipGraphs.second);
   }
@@ -313,12 +313,12 @@ int main() {
                    .count() /
                100;
       };
-      const double own = time(s1b);
+      const double hsa = time(s1b);
       const double hip = time(hipStream);
-      std::printf("round %d: large kernel (%d blocks) us: own %.1f, HIP %.1f\n",
+      std::printf("round %d: large kernel (%d blocks) us: HSA %.1f, HIP %.1f\n",
                   round,
                   big / 256,
-                  own,
+                  hsa,
                   hip);
     }
     api.freeGlobMem(data);

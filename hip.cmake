@@ -56,25 +56,25 @@ if (DEVICE_KERNEL_SAVETEMPS)
 endif()
 
 
-# Streams on HSA queues of our own (see interfaces/hip/ownqueues/OwnQueues.h): a module of the HIP
-# interface that only programs enable that ask for it (AbstractAPI::enableOwnQueues()); without it,
+# Streams on HSA queues of our own (see interfaces/hip/hsaqueues/HsaQueues.h): a module of the HIP
+# interface that only programs enable that ask for it (AbstractAPI::enableHsaQueues()); without it,
 # a stub that never enables them
 if (IS_NVCC_PLATFORM)
-    set(DEVICE_HIP_OWN_QUEUES OFF)
+    set(DEVICE_HIP_HSA_QUEUES OFF)
 else()
-    option(DEVICE_HIP_OWN_QUEUES "Build the streams on HSA queues of our own (AMD GPUs)" ON)
+    option(DEVICE_HIP_HSA_QUEUES "Build the streams on HSA queues of our own (AMD GPUs)" ON)
 endif()
-if (DEVICE_HIP_OWN_QUEUES)
-    set(DEVICE_OWN_QUEUE_SOURCES interfaces/hip/ownqueues/Arch.cpp
-                                 interfaces/hip/ownqueues/Common.cpp
-                                 interfaces/hip/ownqueues/Kernels.cpp
-                                 interfaces/hip/ownqueues/Metadata.cpp
-                                 interfaces/hip/ownqueues/OwnQueues.cpp
-                                 interfaces/hip/ownqueues/Program.cpp
-                                 interfaces/hip/ownqueues/Runtime.cpp
-                                 interfaces/hip/ownqueues/Trace.cpp)
+if (DEVICE_HIP_HSA_QUEUES)
+    set(DEVICE_HSA_QUEUE_SOURCES interfaces/hip/hsaqueues/Arch.cpp
+                                 interfaces/hip/hsaqueues/Common.cpp
+                                 interfaces/hip/hsaqueues/Kernels.cpp
+                                 interfaces/hip/hsaqueues/Metadata.cpp
+                                 interfaces/hip/hsaqueues/HsaQueues.cpp
+                                 interfaces/hip/hsaqueues/Program.cpp
+                                 interfaces/hip/hsaqueues/Runtime.cpp
+                                 interfaces/hip/hsaqueues/Trace.cpp)
 else()
-    set(DEVICE_OWN_QUEUE_SOURCES interfaces/hip/ownqueues/Disabled.cpp)
+    set(DEVICE_HSA_QUEUE_SOURCES interfaces/hip/hsaqueues/Disabled.cpp)
 endif()
 
 set(DEVICE_SOURCE_FILES device.cpp
@@ -85,7 +85,7 @@ set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Memory.cpp
                         interfaces/hip/Streams.cpp
                         interfaces/hip/Graphs.cpp
-                        ${DEVICE_OWN_QUEUE_SOURCES}
+                        ${DEVICE_HSA_QUEUE_SOURCES}
                         algorithms/cudahip/ArrayManip.cpp
                         algorithms/cudahip/BatchManip.cpp
                         algorithms/cudahip/Debugging.cpp
@@ -108,26 +108,26 @@ if (IS_NVCC_PLATFORM)
 else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
 endif()
-if (DEVICE_HIP_OWN_QUEUES)
+if (DEVICE_HIP_HSA_QUEUES)
     target_link_libraries(device PRIVATE ${HIP_PATH}/lib/libhsa-runtime64.so ${HIP_PATH}/lib/libamd_comgr.so)
 endif()
 
-# The launch hook for own queues, to be compiled into the program itself (see
-# interfaces/hip/ownqueues/Hook.cpp): link this target to the executable. Without own queues, it
+# The launch hook for HSA queues, to be compiled into the program itself (see
+# interfaces/hip/hsaqueues/Hook.cpp): link this target to the executable. Without HSA queues, it
 # brings nothing.
-add_library(device-own-queue-hook INTERFACE)
-if (DEVICE_HIP_OWN_QUEUES)
-    target_sources(device-own-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip/ownqueues/Hook.cpp)
-    target_include_directories(device-own-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip/ownqueues ${HIP_PATH}/include)
-    target_compile_definitions(device-own-queue-hook INTERFACE __HIP_PLATFORM_AMD__)
-    target_link_libraries(device-own-queue-hook INTERFACE device ${CMAKE_DL_LIBS})
+add_library(device-hsa-queue-hook INTERFACE)
+if (DEVICE_HIP_HSA_QUEUES)
+    target_sources(device-hsa-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip/hsaqueues/Hook.cpp)
+    target_include_directories(device-hsa-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip/hsaqueues ${HIP_PATH}/include)
+    target_compile_definitions(device-hsa-queue-hook INTERFACE __HIP_PLATFORM_AMD__)
+    target_link_libraries(device-hsa-queue-hook INTERFACE device ${CMAKE_DL_LIBS})
 endif()
 
-# the test and the probes of own queues (see tests/ownqueues/README.md)
-if (DEVICE_HIP_OWN_QUEUES)
-    option(DEVICE_OWN_QUEUE_TESTS "Build the test and the probes of own queues" OFF)
-    if (DEVICE_OWN_QUEUE_TESTS)
-        include(${CMAKE_CURRENT_SOURCE_DIR}/tests/ownqueues/ownqueues.cmake)
+# the test and the probes of HSA queues (see tests/hsaqueues/README.md)
+if (DEVICE_HIP_HSA_QUEUES)
+    option(DEVICE_HSA_QUEUE_TESTS "Build the test and the probes of HSA queues" OFF)
+    if (DEVICE_HSA_QUEUE_TESTS)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/tests/hsaqueues/hsaqueues.cmake)
     endif()
 endif()
 

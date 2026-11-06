@@ -7,7 +7,7 @@
 // one kind, as fast as it can. All work gets enqueued behind a gate first.
 //
 //   none            the other queue idles
-//   packet-acquire  barrier-AND packets with an acquire fence (agent, system), as the own queues
+//   packet-acquire  barrier-AND packets with an acquire fence (agent, system), as the HSA queues
 //                   wait for other queues and for the host
 //   packet-release  barrier-AND packets with a release fence (agent, system), as marks
 //   kernel-acquire  a tiny kernel (packet fences of the agent) that fences in the shader:

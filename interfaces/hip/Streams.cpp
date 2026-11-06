@@ -4,7 +4,7 @@
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
-#include "ownqueues/OwnQueues.h"
+#include "hsaqueues/HsaQueues.h"
 #include "utils/logger.h"
 
 #include <algorithm>
@@ -37,23 +37,23 @@ void* ConcreteAPI::createStream(double priority) {
   return reinterpret_cast<void*>(stream);
 }
 
-bool ConcreteAPI::enableOwnQueues() {
+bool ConcreteAPI::enableHsaQueues() {
   isFlagSet<InterfaceInitialized>(status);
-  return ownqueues::enable();
+  return hsaqueues::enable();
 }
 
-void* ConcreteAPI::createStreamOnOwnQueue(int queue, double priority) {
+void* ConcreteAPI::createStreamOnHsaQueue(int queue, double priority) {
   isFlagSet<InterfaceInitialized>(status);
-  if (!ownqueues::enabled()) {
+  if (!hsaqueues::enabled()) {
     return createStream(NAN);
   }
-  return ownqueues::createStream(queue, priority);
+  return hsaqueues::createStream(queue, priority);
 }
 
 void ConcreteAPI::destroyGenericStream(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
-  if (ownqueues::isTagged(streamPtr)) {
-    ownqueues::destroyStream(streamPtr);
+  if (hsaqueues::isTagged(streamPtr)) {
+    hsaqueues::destroyStream(streamPtr);
     return;
   }
   const std::lock_guard<std::mutex> lock(apiMutex);
@@ -75,8 +75,8 @@ void ConcreteAPI::destroyGenericStream(void* streamPtr) {
 
 void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
-  if (ownqueues::isTagged(streamPtr)) {
-    ownqueues::syncStream(streamPtr);
+  if (hsaqueues::isTagged(streamPtr)) {
+    hsaqueues::syncStream(streamPtr);
     return;
   }
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
@@ -88,8 +88,8 @@ void ConcreteAPI::syncStreamWithHost(void* streamPtr) {
 
 bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
   isFlagSet<InterfaceInitialized>(status);
-  if (ownqueues::isTagged(streamPtr)) {
-    return ownqueues::streamDone(streamPtr);
+  if (hsaqueues::isTagged(streamPtr)) {
+    return hsaqueues::streamDone(streamPtr);
   }
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
   auto streamStatus = APIWRAPX(hipStreamQuery(stream), {hipErrorNotReady});
@@ -99,8 +99,8 @@ bool ConcreteAPI::isStreamWorkDone(void* streamPtr) {
 
 void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   isFlagSet<InterfaceInitialized>(status);
-  if (ownqueues::isTagged(streamPtr) || ownqueues::isTagged(eventPtr)) {
-    ownqueues::streamWaitEvent(streamPtr, eventPtr);
+  if (hsaqueues::isTagged(streamPtr) || hsaqueues::isTagged(eventPtr)) {
+    hsaqueues::streamWaitEvent(streamPtr, eventPtr);
     return;
   }
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
@@ -125,11 +125,11 @@ void streamCallbackRecorded(void* data) {
 } // namespace
 
 void ConcreteAPI::streamHostFunction(void* streamPtr, const std::function<void()>& function) {
-  if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
-    ownqueues::hostFunction(streamPtr, function);
+  if (hsaqueues::isTagged(streamPtr) && !hsaqueues::capturing(streamPtr)) {
+    hsaqueues::hostFunction(streamPtr, function);
     return;
   }
-  hipStream_t stream = ownqueues::vehicle(streamPtr);
+  hipStream_t stream = hsaqueues::vehicle(streamPtr);
 
   const auto capture = internals::captureState(stream);
   if (capture.status == hipStreamCaptureStatusInvalidated) {
@@ -162,35 +162,35 @@ __global__ void spinloop(uint32_t* location, uint32_t value) {
 } // namespace
 
 uint32_t* ConcreteAPI::allocCounter() {
-  if (ownqueues::enabled()) {
-    return ownqueues::allocCounter();
+  if (hsaqueues::enabled()) {
+    return hsaqueues::allocCounter();
   }
   return AbstractAPI::allocCounter();
 }
 
-bool ConcreteAPI::traceDevice(DeviceTraceSink sink) { return ownqueues::trace(sink); }
+bool ConcreteAPI::traceDevice(DeviceTraceSink sink) { return hsaqueues::trace(sink); }
 
 void ConcreteAPI::nameStream(void* streamPtr, const std::string& name) {
-  if (ownqueues::enabled()) {
-    ownqueues::nameStream(streamPtr, name);
+  if (hsaqueues::enabled()) {
+    hsaqueues::nameStream(streamPtr, name);
   }
 }
 
 void ConcreteAPI::freeCounter(uint32_t* counter) {
-  if (ownqueues::isCounter(counter)) {
-    ownqueues::freeCounter(counter);
+  if (hsaqueues::isCounter(counter)) {
+    hsaqueues::freeCounter(counter);
     return;
   }
   AbstractAPI::freeCounter(counter);
 }
 
 void ConcreteAPI::streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) {
-  if (ownqueues::isTagged(streamPtr) && !ownqueues::capturing(streamPtr)) {
-    ownqueues::waitMemory(streamPtr, location, value);
+  if (hsaqueues::isTagged(streamPtr) && !hsaqueues::capturing(streamPtr)) {
+    hsaqueues::waitMemory(streamPtr, location, value);
     return;
   }
-  hipStream_t stream = ownqueues::vehicle(streamPtr);
-  if (ownqueues::isCounter(location)) {
+  hipStream_t stream = hsaqueues::vehicle(streamPtr);
+  if (hsaqueues::isCounter(location)) {
     // a signal, at the same address on the device; HIP does not know it
     spinloop<<<1, 1, 0, stream>>>(location, value);
     return;

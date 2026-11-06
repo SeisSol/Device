@@ -5,7 +5,7 @@
 #include "HipWrappedAPI.h"
 #include "Internals.h"
 #include "hip/hip_runtime.h"
-#include "ownqueues/OwnQueues.h"
+#include "hsaqueues/HsaQueues.h"
 #include "utils/logger.h"
 
 #include <algorithm>
@@ -16,8 +16,8 @@
 using namespace device;
 
 void* ConcreteAPI::createEvent(bool withTiming) {
-  if (ownqueues::enabled()) {
-    return ownqueues::createEvent(withTiming);
+  if (hsaqueues::enabled()) {
+    return hsaqueues::createEvent(withTiming);
   }
   hipEvent_t event;
   if (withTiming) {
@@ -29,9 +29,9 @@ void* ConcreteAPI::createEvent(bool withTiming) {
 }
 
 double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
-  if (ownqueues::isTagged(eventPtrStart) || ownqueues::isTagged(eventPtrEnd)) {
-    if (ownqueues::isTagged(eventPtrStart) && ownqueues::isTagged(eventPtrEnd)) {
-      return ownqueues::timespan(eventPtrStart, eventPtrEnd);
+  if (hsaqueues::isTagged(eventPtrStart) || hsaqueues::isTagged(eventPtrEnd)) {
+    if (hsaqueues::isTagged(eventPtrStart) && hsaqueues::isTagged(eventPtrEnd)) {
+      return hsaqueues::timespan(eventPtrStart, eventPtrEnd);
     }
     return 0;
   }
@@ -43,13 +43,13 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
 }
 
 bool ConcreteAPI::isCapableOfEventTiming() {
-  // own queues take the time only on request: by a kernel for each event with timing
-  return !ownqueues::enabled() || ownqueues::timing();
+  // HSA queues take the time only on request: by a kernel for each event with timing
+  return !hsaqueues::enabled() || hsaqueues::timing();
 }
 
 void ConcreteAPI::destroyEvent(void* eventPtr) {
-  if (ownqueues::isTagged(eventPtr)) {
-    ownqueues::destroyEvent(eventPtr);
+  if (hsaqueues::isTagged(eventPtr)) {
+    hsaqueues::destroyEvent(eventPtr);
     return;
   }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
@@ -58,8 +58,8 @@ void ConcreteAPI::destroyEvent(void* eventPtr) {
 }
 
 void ConcreteAPI::syncEventWithHost(void* eventPtr) {
-  if (ownqueues::isTagged(eventPtr)) {
-    ownqueues::syncEvent(eventPtr);
+  if (hsaqueues::isTagged(eventPtr)) {
+    hsaqueues::syncEvent(eventPtr);
     return;
   }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
@@ -70,8 +70,8 @@ void ConcreteAPI::syncEventWithHost(void* eventPtr) {
 }
 
 bool ConcreteAPI::isEventCompleted(void* eventPtr) {
-  if (ownqueues::isTagged(eventPtr)) {
-    return ownqueues::eventDone(eventPtr);
+  if (hsaqueues::isTagged(eventPtr)) {
+    return hsaqueues::eventDone(eventPtr);
   }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   auto result = APIWRAPX(hipEventQuery(event), {hipErrorNotReady});
@@ -79,8 +79,8 @@ bool ConcreteAPI::isEventCompleted(void* eventPtr) {
 }
 
 void ConcreteAPI::recordEventOnHost(void* eventPtr) {
-  if (ownqueues::isTagged(eventPtr)) {
-    ownqueues::recordEventOnHost(eventPtr);
+  if (hsaqueues::isTagged(eventPtr)) {
+    hsaqueues::recordEventOnHost(eventPtr);
     return;
   }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
@@ -89,13 +89,13 @@ void ConcreteAPI::recordEventOnHost(void* eventPtr) {
 }
 
 void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
-  if (ownqueues::isTagged(eventPtr)) {
-    ownqueues::recordEvent(eventPtr, streamPtr);
+  if (hsaqueues::isTagged(eventPtr)) {
+    hsaqueues::recordEvent(eventPtr, streamPtr);
     return;
   }
-  if (ownqueues::isTagged(streamPtr)) {
-    logError() << "An event of HIP cannot be recorded on an own stream; create the events after "
-                  "enabling own queues.";
+  if (hsaqueues::isTagged(streamPtr)) {
+    logError() << "An event of HIP cannot be recorded on an HSA stream; create the events after "
+                  "enabling HSA queues.";
   }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);

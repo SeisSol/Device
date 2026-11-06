@@ -8,12 +8,12 @@
 #include <cstdint>
 #include <hip/hip_runtime.h>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 // ------------------------------------------------------------------------------------------------
 // kernels of our own: copies, fills, and waits where the command processor cannot wait
 
-__global__ void ownCopy(char* dst, const char* src, std::size_t bytes) {
+__global__ void hsaCopy(char* dst, const char* src, std::size_t bytes) {
   const std::size_t stride = static_cast<std::size_t>(gridDim.x) * blockDim.x;
   const std::size_t start = static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
   if (((reinterpret_cast<std::uintptr_t>(dst) | reinterpret_cast<std::uintptr_t>(src)) & 15U) ==
@@ -35,7 +35,7 @@ __global__ void ownCopy(char* dst, const char* src, std::size_t bytes) {
 }
 
 // `width` elements of `elementSize` bytes (1, 2 or 4) in each of `height` rows, `pitch` bytes apart
-__global__ void ownFill(char* dst,
+__global__ void hsaFill(char* dst,
                         std::uint32_t value,
                         std::uint32_t elementSize,
                         std::size_t width,
@@ -56,14 +56,14 @@ __global__ void ownFill(char* dst,
 }
 
 // until the value of a signal is below `below`
-__global__ void ownWaitBelow(const volatile std::int64_t* value, std::int64_t below) {
+__global__ void hsaWaitBelow(const volatile std::int64_t* value, std::int64_t below) {
   while (*value >= below) {
     __builtin_amdgcn_s_sleep(2);
   }
 }
 
 // until the value of a signal is at least `atLeast`
-__global__ void ownWaitAtLeast(const volatile std::int64_t* value, std::int64_t atLeast) {
+__global__ void hsaWaitAtLeast(const volatile std::int64_t* value, std::int64_t atLeast) {
   while (*value < atLeast) {
     __builtin_amdgcn_s_sleep(2);
   }
@@ -71,35 +71,35 @@ __global__ void ownWaitAtLeast(const volatile std::int64_t* value, std::int64_t 
 
 // until a counter in host memory is at least `atLeast`
 // takes the time (by its completion signal, on a queue with profiling)
-__global__ void ownStamp() {}
+__global__ void hsaStamp() {}
 
 // keeps a compute unit busy for `ticks` of the constant clock (see samePipe())
-__global__ void ownSpin(std::uint64_t ticks) {
+__global__ void hsaSpin(std::uint64_t ticks) {
   const auto start = wall_clock64();
   while (static_cast<std::uint64_t>(wall_clock64() - start) < ticks) {
     __builtin_amdgcn_s_sleep(1);
   }
 }
 
-__global__ void ownWaitHost(const volatile std::uint32_t* counter, std::uint32_t atLeast) {
+__global__ void hsaWaitHost(const volatile std::uint32_t* counter, std::uint32_t atLeast) {
   while (*counter < atLeast) {
     __builtin_amdgcn_s_sleep(2);
   }
 }
 
 // on a stream of HIP, which cannot wait for a signal of ours: until the counter of the marks of an
-// own queue is below `below` (loads of the system read past the L2 caches, which the command
+// HSA queue is below `below` (loads of the system read past the L2 caches, which the command
 // processor does not update)
-__global__ void ownHipWaitBelow(const std::int64_t* value, std::int64_t below) {
+__global__ void hsaHipWaitBelow(const std::int64_t* value, std::int64_t below) {
   while (__hip_atomic_load(value, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM) >= below) {
     __builtin_amdgcn_s_sleep(2);
   }
   __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "");
 }
 
-// on a stream of HIP, after the work before it there: sets a counter that own queues wait for (see
+// on a stream of HIP, after the work before it there: sets a counter that HSA queues wait for (see
 // recordEvent())
-__global__ void ownWriteCounter(std::uint32_t* counter, std::uint32_t value) {
+__global__ void hsaWriteCounter(std::uint32_t* counter, std::uint32_t value) {
   __hip_atomic_store(counter, value, __ATOMIC_RELEASE, __HIP_MEMORY_SCOPE_SYSTEM);
 }
 
@@ -110,6 +110,6 @@ __global__ void ownWriteCounter(std::uint32_t* counter, std::uint32_t value) {
 // while that of a packet drops all of them, at the expense of the kernels of all queues (on the
 // MI250X, a kernel that read 4 MiB again and again took 3.3 times as long next to a queue of such
 // packets, and 1.1 times next to one of such kernels)
-__global__ void ownAcquireSystem() { __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, ""); }
+__global__ void hsaAcquireSystem() { __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, ""); }
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues

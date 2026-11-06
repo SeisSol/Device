@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-// The interface of own queues in a build without them (DEVICE_HIP_OWN_QUEUES=OFF): they never get
-// enabled, so no handle of an own stream or event ever exists, and nothing but enable(), enabled(),
+// The interface of HSA queues in a build without them (DEVICE_HIP_HSA_QUEUES=OFF): they never get
+// enabled, so no handle of an HSA stream or event ever exists, and nothing but enable(), enabled(),
 // registerLaunchHook() and the other calls that make sense without them gets called.
 
-#include "OwnQueues.h"
+#include "HsaQueues.h"
 #include "utils/logger.h"
 
 #include <cstddef>
@@ -16,11 +16,11 @@
 #include <memory>
 #include <string>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 namespace {
 [[noreturn]] void unavailable(const char* call) {
-  logError() << "Own queues are not built (DEVICE_HIP_OWN_QUEUES=OFF), but" << call
+  logError() << "HSA queues are not built (DEVICE_HIP_HSA_QUEUES=OFF), but" << call
              << "got called.";
   std::abort();
 }
@@ -34,7 +34,7 @@ Programs::~Programs() = default;
 void registerLaunchHook(LaunchFunction /*hipLaunch*/) {}
 
 bool enable() {
-  logWarning() << "Own queues are not built (DEVICE_HIP_OWN_QUEUES=OFF); the streams stay those of "
+  logWarning() << "HSA queues are not built (DEVICE_HIP_HSA_QUEUES=OFF); the streams stay those of "
                   "HIP.";
   return false;
 }
@@ -89,4 +89,4 @@ bool noteOrigin(Programs& /*programs*/, hipGraphNode_t /*node*/, void* /*stream*
 void syncAll() {}
 void finalize() {}
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues

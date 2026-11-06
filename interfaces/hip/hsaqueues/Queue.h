@@ -2,14 +2,13 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#ifndef SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_QUEUE_H_
-#define SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_QUEUE_H_
+#ifndef SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_QUEUE_H_
+#define SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_QUEUE_H_
 
 #include "Common.h"
 #include "Internals.h"
 #include "Kernels.h"
 #include "Runtime.h"
-#include "utils/env.h"
 #include "utils/logger.h"
 
 #include <algorithm>
@@ -43,7 +42,7 @@
 #include <utility>
 #include <vector>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 /**
  * An HSA queue of our own. Its marks (barrier packets that wait for all work before them) count its
@@ -79,8 +78,8 @@ class Queue {
     ringBytes_ = runtime.kernargRingBytes;
     ring_ = static_cast<char*>(allocKernargMemory(ringBytes_));
     APIWRAP(hipStreamCreateWithFlags(&helper_, hipStreamNonBlocking));
-    if (utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
-      logInfo() << "Own queue" << number << ": packets at" << queue_->base_address
+    if (setting<bool>("VERBOSE", false)) {
+      logInfo() << "HSA queue" << number << ": packets at" << queue_->base_address
                 << ", marks count" << reinterpret_cast<void*>(counter_.handle);
     }
   }
@@ -202,7 +201,7 @@ class Queue {
       return;
     }
     if (overflow_.empty()) {
-      warnOnce("an own queue is full, its packets wait in host memory (DEVICE_OWN_QUEUE_PACKETS)");
+      warnOnce("an HSA queue is full, its packets wait in host memory (DEVICE_HSA_QUEUE_PACKETS)");
       runtime_.hostThread.drainUntilEmpty(this, [this]() {
         const std::lock_guard lock(mutex);
         return drain();
@@ -236,8 +235,8 @@ class Queue {
       }
       reclaim();
     }
-    warnOnce("the memory for kernel arguments of an own queue is used up; further arguments get "
-             "memory of their own (DEVICE_OWN_QUEUE_KERNARG_MIB)");
+    warnOnce("the memory for kernel arguments of an HSA queue is used up; further arguments get "
+             "memory of their own (DEVICE_HSA_QUEUE_KERNARG_MIB)");
     void* memory = allocKernargMemory(size);
     ownKernargs_.push_back(memory);
     return memory;
@@ -290,7 +289,7 @@ class Queue {
   }
 
   // the time (s of steady_clock) by which the queue is predicted to have done all it got, for
-  // DEVICE_OWN_QUEUE_SCHEDULE (see Program::submitScheduled()): its work as learned or guessed, and
+  // DEVICE_HSA_QUEUE_SCHEDULE (see Program::submitScheduled()): its work as learned or guessed, and
   // the predicted work of the queues it waits for (all of it: a bound)
 
   /// with `mutex` held
@@ -387,7 +386,7 @@ class Queue {
   /// after a packet that waited for the host: lets the work after it see what the host wrote
   void acquireFromHost() {
     if (runtime_.acquireByKernel) {
-      dispatch(kernelOf(reinterpret_cast<const void*>(ownAcquireSystem)),
+      dispatch(kernelOf(reinterpret_cast<const void*>(hsaAcquireSystem)),
                dim3(1),
                dim3(1),
                0,
@@ -422,7 +421,7 @@ class Queue {
       // the command processor does not wait for values: a kernel does
       const auto* value = const_cast<const std::int64_t*>(other.counterValue_);
       void* args[] = {&value, const_cast<std::int64_t*>(&below)};
-      dispatch(kernelOf(reinterpret_cast<const void*>(ownWaitBelow)),
+      dispatch(kernelOf(reinterpret_cast<const void*>(hsaWaitBelow)),
                dim3(1),
                dim3(1),
                0,
@@ -529,7 +528,7 @@ class Queue {
                 hsa_signal_t completion) {
     if (kernel.unsupported) {
       warnOnce("the kernel " + kernel.name +
-               " may use printf, hostcalls, the device heap or device enqueue, which own queues do "
+               " may use printf, hostcalls, the device heap or device enqueue, which HSA queues do "
                "not provide");
     }
     void* kernargs = this->kernargs(kernel.kernargSize, kernel.kernargAlign);
@@ -575,7 +574,7 @@ class Queue {
       const auto* value = const_cast<const std::int64_t*>(gateValue);
       std::int64_t atLeast = 1;
       void* args[] = {&value, &atLeast};
-      dispatch(kernelOf(reinterpret_cast<const void*>(ownWaitAtLeast)),
+      dispatch(kernelOf(reinterpret_cast<const void*>(hsaWaitAtLeast)),
                dim3(1),
                dim3(1),
                0,
@@ -595,7 +594,7 @@ class Queue {
       profiling_ = true;
     }
     hsa_signal_store_relaxed(signal, 1);
-    dispatch(kernelOf(reinterpret_cast<const void*>(ownStamp)),
+    dispatch(kernelOf(reinterpret_cast<const void*>(hsaStamp)),
              dim3(1),
              dim3(1),
              0,
@@ -704,6 +703,6 @@ class Queue {
   std::size_t arenaBytes_{0};
 };
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues
 
-#endif // SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_QUEUE_H_
+#endif // SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_QUEUE_H_

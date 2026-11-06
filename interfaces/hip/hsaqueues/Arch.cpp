@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 namespace {
 struct Entry {
@@ -85,8 +85,8 @@ ArchTraits archTraits(std::string_view name) {
       return traits;
     }
   }
-  traits.note = "not in the table of own queues (ownqueues/Arch.cpp): the cautious defaults";
+  traits.note = "not in the table of HSA queues (hsaqueues/Arch.cpp): the cautious defaults";
   return traits;
 }
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues

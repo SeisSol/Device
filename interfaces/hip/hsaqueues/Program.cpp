@@ -10,7 +10,6 @@
 #include "Queue.h"
 #include "Runtime.h"
 #include "Trace.h"
-#include "utils/env.h"
 #include "utils/logger.h"
 
 #include <algorithm>
@@ -44,7 +43,7 @@
 #include <utility>
 #include <vector>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 Programs::Programs() : impl(std::make_unique<ProgramsImpl>()) {}
 Programs::~Programs() = default;
@@ -129,17 +128,16 @@ Program::Program(Queue& queue,
     }
   }
   if (order.size() != count) {
-    logError() << "Own queues: a graph has a cycle.";
+    logError() << "HSA queues: a graph has a cycle.";
   }
   // with each node back on the queue of its stream (see below), the lanes run their packets in the
   // order the nodes got added to the graph, as the streams would have (topologically, the earliest
   // added ready node first; HIP lists the nodes in that order): the work of a stream stays
   // together, e.g. that of one cluster, instead of taking turns level by level with the other
   // streams of the queue (TPV5 on one MI300A: 1.78 s by levels)
-  utils::Env env("DEVICE_");
-  const bool byOrigin = env.get<bool>("OWN_QUEUE_GRAPH_ORIGIN", false) && !origins.empty() &&
+  const bool byOrigin = setting<bool>("GRAPH_ORIGIN", false) && !origins.empty() &&
                         Runtime::instance().barrierValue && !Runtime::instance().schedule &&
-                        env.get<unsigned>("OWN_QUEUE_GRAPH_LANES", 0U) == 0 &&
+                        setting<unsigned>("GRAPH_LANES", 0U) == 0 &&
                         std::none_of(nodes.begin(), nodes.end(), [](hipGraphNode_t node) {
                           hipGraphNodeType type{};
                           APIWRAP(hipGraphNodeGetType(node, &type));
@@ -188,14 +186,14 @@ Program::Program(Queue& queue,
     }
   }
   if (!allocations.empty()) {
-    if (utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
+    if (setting<bool>("VERBOSE", false)) {
       std::set<std::uint64_t> distinct;
       std::uint64_t largest = 0;
       for (const auto& allocation : allocations) {
         distinct.insert(allocation.begin);
         largest = std::max(largest, allocation.end - allocation.begin);
       }
-      logInfo() << "Own queue" << queue.number() << ": a graph allocates" << allocations.size()
+      logInfo() << "HSA queue" << queue.number() << ": a graph allocates" << allocations.size()
                 << "times (" << distinct.size() << "distinct addresses, the largest"
                 << largest / 1024 << "KiB):" << arenaBytes / (1024 * 1024) << "MiB of the arena";
     }
@@ -266,7 +264,7 @@ Program::Program(Queue& queue,
       APIWRAP(hipGraphMemcpyNodeGetParams(node, &params));
       if (params.srcArray != nullptr || params.dstArray != nullptr || params.extent.height > 1 ||
           params.extent.depth > 1 || params.srcPos.x != 0 || params.dstPos.x != 0) {
-        logError() << "Own queues: only plain copies are supported in graphs.";
+        logError() << "HSA queues: only plain copies are supported in graphs.";
       }
       auto* dst = reinterpret_cast<void*>(
           relocate(allocations, reinterpret_cast<std::uint64_t>(params.dstPtr.ptr)));
@@ -275,14 +273,14 @@ Program::Program(Queue& queue,
       const auto* dstDevice = deviceAddress(dst);
       const auto* srcDevice = deviceAddress(src);
       if (dstDevice == nullptr || srcDevice == nullptr) {
-        logError() << "Own queues: a graph copies from or to host memory that the device cannot "
+        logError() << "HSA queues: a graph copies from or to host memory that the device cannot "
                       "access (pageable memory).";
       }
       auto bytes = params.extent.width;
       const auto blocks = static_cast<std::uint32_t>(std::min<std::size_t>(
           MaxCopyBlocks, std::max<std::size_t>(1, bytes / (16 * CopyThreads))));
       void* args[] = {&dstDevice, &srcDevice, &bytes};
-      addKernel(Queue::kernelOf(reinterpret_cast<const void*>(ownCopy)),
+      addKernel(Queue::kernelOf(reinterpret_cast<const void*>(hsaCopy)),
                 dim3(blocks),
                 dim3(CopyThreads),
                 0,
@@ -303,7 +301,7 @@ Program::Program(Queue& queue,
       const auto blocks = static_cast<std::uint32_t>(std::min<std::size_t>(
           MaxCopyBlocks, std::max<std::size_t>(1, width * height / (4 * CopyThreads))));
       void* args[] = {&dst, &value, &elementSize, &width, &height, &pitch};
-      addKernel(Queue::kernelOf(reinterpret_cast<const void*>(ownFill)),
+      addKernel(Queue::kernelOf(reinterpret_cast<const void*>(hsaFill)),
                 dim3(blocks),
                 dim3(CopyThreads),
                 0,
@@ -326,7 +324,7 @@ Program::Program(Queue& queue,
     case hipGraphNodeTypeMemFree:
       break;
     default:
-      logError() << "Own queues: graph nodes of type" << static_cast<int>(type)
+      logError() << "HSA queues: graph nodes of type" << static_cast<int>(type)
                  << "are not supported.";
     }
   }
@@ -336,11 +334,10 @@ Program::Program(Queue& queue,
   }
   // the helper lanes, and which level runs on which lanes (see Program)
   schedule_ = Runtime::instance().schedule;
-  const auto laneCount = Runtime::instance().barrierValue && !schedule_
-                             ? env.get<unsigned>("OWN_QUEUE_GRAPH_LANES", 0U)
-                             : 0U;
-  const auto laneMinimum = env.get<std::size_t>("OWN_QUEUE_GRAPH_LANE_MIN", std::size_t{3});
-  borrow_ = laneCount > 0 && env.get<bool>("OWN_QUEUE_GRAPH_BORROW", false);
+  const auto laneCount =
+      Runtime::instance().barrierValue && !schedule_ ? setting<unsigned>("GRAPH_LANES", 0U) : 0U;
+  const auto laneMinimum = setting<std::size_t>("GRAPH_LANE_MIN", std::size_t{3});
+  borrow_ = laneCount > 0 && setting<bool>("GRAPH_BORROW", false);
   lanes_.push_back(&queue);
   for (unsigned lane = 1; lane <= laneCount; ++lane) {
     lanes_.push_back(borrow_ ? nullptr
@@ -454,7 +451,7 @@ Program::Program(Queue& queue,
       packet.rest = static_cast<std::uint16_t>(3U << HSA_KERNEL_DISPATCH_PACKET_SETUP_DIMENSIONS);
       if (kernel.unsupported) {
         warnOnce("the kernel " + kernel.name +
-                 " may use printf, hostcalls, the device heap or device enqueue, which own "
+                 " may use printf, hostcalls, the device heap or device enqueue, which HSA "
                  "queues do not provide");
       }
     }
@@ -524,15 +521,16 @@ Program::Program(Queue& queue,
       work.begin(), work.end(), [](const Pending& item) { return static_cast<bool>(item.host); });
   const bool ownLanes =
       Runtime::instance().barrierValue && laneCount == 0 && !schedule_ && !anyHost;
-  const auto waits = env.get<std::string>("OWN_QUEUE_GRAPH_SPREAD_WAITS", "packet");
+  const auto waits = setting<std::string>("GRAPH_SPREAD_WAITS", "packet");
   spreadKernelWaits_ = waits == "kernel";
   joinKernelWaits_ = waits == "kernel" || waits == "join";
   // each packet back on the queue of the stream whose work it is (see noteOrigin())
   if (byOrigin && ownLanes) {
     findDependencies();
-    // the queues with the most work get lanes of their own, up to OWN_QUEUE_GRAPH_ORIGIN_LANES
-    // with that of the program; the others, and the queue of the program, run on lane 0
-    const auto maxLanes = env.get<std::size_t>("OWN_QUEUE_GRAPH_ORIGIN_LANES", std::size_t{0});
+    // the queues with the most work get lanes of their own, up to
+    // DEVICE_HSA_QUEUE_GRAPH_ORIGIN_LANES with that of the program; the others, and the queue of
+    // the program, run on lane 0
+    const auto maxLanes = setting<std::size_t>("GRAPH_ORIGIN_LANES", std::size_t{0});
     std::vector<int> originOf(work.size(), std::numeric_limits<int>::min());
     std::map<int, std::size_t> workOf;
     for (std::size_t k = 0; k < work.size(); ++k) {
@@ -559,7 +557,7 @@ Program::Program(Queue& queue,
         laneOfQueue[number] = 0;
       }
     }
-    // (work of streams that are not own ones goes with the first packet it depends on)
+    // (work of streams that are not HSA streams goes with the first packet it depends on)
     std::vector<unsigned> laneOf(work.size(), 0);
     for (std::size_t k = 0; k < work.size(); ++k) {
       if (originOf[k] != std::numeric_limits<int>::min()) {
@@ -572,12 +570,12 @@ Program::Program(Queue& queue,
       spread_ = static_cast<unsigned>(lanes_.size());
       const auto waitCount = buildLanes(
           laneOf, std::vector<double>(work.size(), 0.0), std::vector<double>(work.size(), 0.0));
-      if (env.get<bool>("OWN_QUEUE_VERBOSE", false)) {
+      if (setting<bool>("VERBOSE", false)) {
         std::string text;
         for (const auto& [number, lane] : laneOfQueue) {
           text += " " + std::to_string(number) + "->" + std::to_string(lane);
         }
-        logInfo() << "Own queue" << queue.number() << ": a graph of" << work.size()
+        logInfo() << "HSA queue" << queue.number() << ": a graph of" << work.size()
                   << "kernels back on the queues of their streams (queue->lane:" << text.c_str()
                   << "), with" << waitCount << "waits on other lanes";
       }
@@ -586,11 +584,11 @@ Program::Program(Queue& queue,
     }
   }
   // spread over helper queues once the durations are known (see buildSpread())
-  const auto spread = env.get<unsigned>("OWN_QUEUE_GRAPH_SPREAD", 0U);
+  const auto spread = setting<unsigned>("GRAPH_SPREAD", 0U);
   if (spread_ == 0 && spread >= 2 && ownLanes &&
-      work.size() >= env.get<std::size_t>("OWN_QUEUE_GRAPH_SPREAD_MIN", std::size_t{32})) {
+      work.size() >= setting<std::size_t>("GRAPH_SPREAD_MIN", std::size_t{32})) {
     spread_ = spread;
-    spreadLatency_ = env.get<double>("OWN_QUEUE_GRAPH_SPREAD_LATENCY_US", 5.0) * 1e-6;
+    spreadLatency_ = setting<double>("GRAPH_SPREAD_LATENCY_US", 5.0) * 1e-6;
     findDependencies();
     estimates_.assign(packets_.size(), 0.0);
     for (unsigned lane = 1; lane < spread_; ++lane) {
@@ -599,7 +597,7 @@ Program::Program(Queue& queue,
     const std::lock_guard lock(queue.mutex);
     queue.enableProfiling();
   }
-  if (utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
+  if (setting<bool>("VERBOSE", false)) {
     std::map<std::size_t, std::size_t> kernelsPerLevel;
     for (const auto& item : work) {
       if (!item.host) {
@@ -610,11 +608,11 @@ Program::Program(Queue& queue,
     for (const auto& [lvl, kernels] : kernelsPerLevel) {
       widest = std::max(widest, kernels);
     }
-    logInfo() << "Own queue" << queue.number() << ": a graph of" << count << "nodes and"
+    logInfo() << "HSA queue" << queue.number() << ": a graph of" << count << "nodes and"
               << edgeCount << "edges became" << work.size() << "packets in"
               << kernelsPerLevel.size() << "levels of up to" << widest << "kernels;" << splitLevels
               << "of them spread over" << laneCount
-              << (borrow_ ? "other own queues while idle" : "helper queues");
+              << (borrow_ ? "other HSA queues while idle" : "helper queues");
   }
 }
 
@@ -690,7 +688,7 @@ void Program::waitOnLanes(hsa_signal_t signal,
   for (const auto lane : lanes) {
     if (byKernel) {
       // a wave that waits instead of the command processor (see
-      // DEVICE_OWN_QUEUE_GRAPH_SPREAD_WAITS)
+      // DEVICE_HSA_QUEUE_GRAPH_SPREAD_WAITS)
       auto& value = signalValues_[signal.handle];
       if (value == nullptr) {
         volatile hsa_signal_value_t* pointer = nullptr;
@@ -702,7 +700,7 @@ void Program::waitOnLanes(hsa_signal_t signal,
       auto bound = below;
       void* args[] = {&argument, &bound};
       const auto& kernel =
-          Runtime::instance().kernel(reinterpret_cast<const void*>(ownHipWaitBelow));
+          Runtime::instance().kernel(reinterpret_cast<const void*>(hsaHipWaitBelow));
       if (queue == &queue_) {
         queue->dispatch(kernel, dim3(1), dim3(1), 0, args, QueueWaitFences, hsa_signal_t{0});
       } else {
@@ -749,12 +747,11 @@ std::uint64_t Program::submit() {
   std::vector<std::unique_lock<std::mutex>> borrowed;
   static std::atomic<std::uint64_t> submits{0};
   static std::atomic<std::uint64_t> lent{0};
-  static const bool borrowWhenIdle =
-      utils::Env("DEVICE_").get<bool>("OWN_QUEUE_GRAPH_BORROW_IDLE", true);
-  static const bool verbose = utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false);
+  static const bool borrowWhenIdle = setting<bool>("GRAPH_BORROW_IDLE", true);
+  static const bool verbose = setting<bool>("VERBOSE", false);
   const bool borrowNow = borrow_ && (!borrowWhenIdle || queue_.idleLocked());
   if (borrowNow) {
-    // other own queues on other pipes that have nothing to do (with the queue of the program idle
+    // other HSA queues on other pipes that have nothing to do (with the queue of the program idle
     // as well: the level starts right away, and the helpers hold up the work of their own queue as
     // little as they can); a lane without one runs on the queue of the program (its mutex is held:
     // the others only get tried, never waited for)
@@ -776,7 +773,7 @@ std::uint64_t Program::submit() {
     const auto count = ++submits;
     lent += borrowed.size();
     if (count % 20000 == 0) {
-      logInfo() << "Own queues: graphs borrowed" << lent.load() << "lanes in" << count << "replays";
+      logInfo() << "HSA queues: graphs borrowed" << lent.load() << "lanes in" << count << "replays";
     }
   }
   constexpr std::uint16_t LaneFences = fenceBits(HSA_FENCE_SCOPE_NONE, HSA_FENCE_SCOPE_AGENT);
@@ -889,7 +886,7 @@ void Program::buildSpread() {
   }
   const auto waits = buildLanes(laneOf, durations, finish);
   spreadReplays_ = 0;
-  if (utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false)) {
+  if (setting<bool>("VERBOSE", false)) {
     std::vector<std::size_t> sizes(spread_, 0);
     for (std::size_t k = 0; k < n; ++k) {
       ++sizes[laneOf[k]];
@@ -898,7 +895,7 @@ void Program::buildSpread() {
     for (unsigned lane = 0; lane < spread_; ++lane) {
       lanes += " " + std::to_string(sizes[lane]);
     }
-    logInfo() << "Own queue" << queue_.number() << ": a graph of" << n << "kernels spread over"
+    logInfo() << "HSA queue" << queue_.number() << ": a graph of" << n << "kernels spread over"
               << spread_ << "lanes (kernels:" << lanes.c_str() << "), with" << waits
               << "waits on other lanes; predicted"
               << *std::max_element(finish.begin(), finish.end()) * 1e3 << "ms for" << work * 1e3
@@ -1144,8 +1141,8 @@ void Program::ensureLevelSignals(std::size_t level, std::size_t helpers) {
 }
 
 /**
- * Enqueues the program level by level (DEVICE_OWN_QUEUE_SCHEDULE): a level of independent kernels
- * goes onto the queue of the program, or, where that ends it earlier, partly onto own queues on
+ * Enqueues the program level by level (DEVICE_HSA_QUEUE_SCHEDULE): a level of independent kernels
+ * goes onto the queue of the program, or, where that ends it earlier, partly onto HSA queues on
  * other pipes (the queues of a pipe run one kernel after the other): the longest kernel first onto
  * the queue that ends it first, by the durations the program has measured and the predicted work of
  * the queues, with a fork (the others start the level once the queue of the program has reached it)
@@ -1354,7 +1351,7 @@ std::uint64_t Program::submitScheduled() {
       helpers[k]->predictUntil(helperFree[k]);
     }
   }
-  static const bool verbose = utils::Env("DEVICE_").get<bool>("OWN_QUEUE_VERBOSE", false);
+  static const bool verbose = setting<bool>("VERBOSE", false);
   if (verbose) {
     static std::atomic<std::uint64_t> replays{0};
     static std::atomic<std::uint64_t> splits{0};
@@ -1362,7 +1359,7 @@ std::uint64_t Program::submitScheduled() {
     splits += splitLevels;
     moved += movedKernels;
     if (++replays % 20000 == 0) {
-      logInfo() << "Own queues: in" << replays.load() << "replays, graphs spread" << splits.load()
+      logInfo() << "HSA queues: in" << replays.load() << "replays, graphs spread" << splits.load()
                 << "levels, with" << moved.load() << "kernels on other queues";
     }
   }
@@ -1370,4 +1367,4 @@ std::uint64_t Program::submitScheduled() {
   return lastIndex_;
 }
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues

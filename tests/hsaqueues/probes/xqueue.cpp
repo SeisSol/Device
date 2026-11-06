@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-// Latencies of dependencies on own HSA queues: a chain of tiny kernels on one queue (barrier bit),
+// Latencies of dependencies on HSA queues: a chain of tiny kernels on one queue (barrier bit),
 // a ping-pong between two queues (barrier-AND on the completion signal of the other queue), a
 // queue that waits for a value the host writes (barrier-value packet), and for comparison HIP
 // streams with events.
@@ -291,7 +291,7 @@ int main(int argc, char** argv) {
       hsa_signal_destroy(s);
     }
 
-    // (5) ping-pong as the own queues of the Device library do it: a kernel and a mark that counts
+    // (5) ping-pong as the HSA queues of the Device library do it: a kernel and a mark that counts
     // the counter of its queue down, and a barrier-value packet on the other queue that waits for
     // it
     double valueHop = 0;
@@ -387,7 +387,7 @@ int main(int argc, char** argv) {
     HIPCHECK(hipStreamDestroy(s1));
     HIPCHECK(hipStreamDestroy(s2));
 
-    std::printf("round %d (%d kernels): own queue chain %.2f us/kernel; two own queues ping-pong "
+    std::printf("round %d (%d kernels): HSA queue chain %.2f us/kernel; two HSA queues ping-pong "
                 "%.2f us/hop; host wakes a waiting queue %.2f us (until its kernel is done); HIP "
                 "stream chain %.2f us/kernel, two streams ping-pong %.2f us/hop\n",
                 round,

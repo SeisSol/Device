@@ -162,25 +162,26 @@ struct AbstractAPI {
   virtual void* createStream(double priority = NAN) = 0;
 
   /**
-   * Streams on queues of their own: the device runs the work of such a stream on a hardware queue
-   * that only the streams with the same queue number share, in the order it gets enqueued, so that
-   * a stream that waits holds up no other ones. (HIP puts all streams onto a few hardware queues
-   * that they share; its backend runs own streams on HSA queues outside of HIP, see
-   * interfaces/hip/OwnQueues.h, and needs the target device-own-queue-hook in the program.)
+   * Streams on HSA queues (HSA streams): the device runs the work of such a stream on a hardware
+   * queue that only the streams with the same queue number share, in the order it gets enqueued, so
+   * that a stream that waits holds up no other ones. (HIP puts all streams onto a few hardware
+   * queues that they share; its backend creates HSA queues of its own and runs these streams there,
+   * outside of HIP, see interfaces/hip/hsaqueues/HsaQueues.h, and needs the target
+   * device-hsa-queue-hook in the program.)
    *
    * Enables them, and returns whether the device has them; call it before any stream or event gets
    * created. Then, events can be recorded on and waited for by streams of either kind; events time
-   * only what is between two of them recorded on own streams, and only on request (HIP:
-   * DEVICE_OWN_QUEUE_TIMING=1, see isCapableOfEventTiming()).
+   * only what is between two of them recorded on HSA streams, and only on request (HIP:
+   * DEVICE_HSA_QUEUE_TIMING=1, see isCapableOfEventTiming()).
    */
-  virtual bool enableOwnQueues() { return false; }
+  virtual bool enableHsaQueues() { return false; }
 
   /**
-   * A stream on the own queue `queue` (see enableOwnQueues()); without own queues, an ordinary one.
+   * A stream on the HSA queue `queue` (see enableHsaQueues()); without HSA queues, an ordinary one.
    * A priority (0 lowest, 1 highest) applies to the whole queue: its work gets taken up before that
    * of queues of a lower priority.
    */
-  virtual void* createStreamOnOwnQueue(int /*queue*/, double /*priority*/ = NAN) {
+  virtual void* createStreamOnHsaQueue(int /*queue*/, double /*priority*/ = NAN) {
     return createStream();
   }
 
@@ -199,8 +200,8 @@ struct AbstractAPI {
 
   /**
    * A counter in host memory, 0 at first, that the host and the device (by its address from
-   * devicePointer()) read and write, and that streams wait for (see streamWaitMemory()). Own
-   * streams (HIP, see enableOwnQueues()) wait for it in the command processor of the device, as
+   * devicePointer()) read and write, and that streams wait for (see streamWaitMemory()). HSA
+   * streams (HIP, see enableHsaQueues()) wait for it in the command processor of the device, as
    * for a signal of HSA, instead of with a kernel that polls it.
    */
   virtual uint32_t* allocCounter() {
@@ -212,8 +213,8 @@ struct AbstractAPI {
   virtual void freeCounter(uint32_t* counter) { freePinnedMem(counter); }
 
   /**
-   * Traces the work of the device piece by piece (HIP with own queues: each kernel and each wait of
-   * an own queue): calls `sink` with its name, the number of its queue, and its begin and end on
+   * Traces the work of the device piece by piece (HIP with HSA queues: each kernel and each wait of
+   * an HSA queue): calls `sink` with its name, the number of its queue, and its begin and end on
    * the clock of the host, from a thread of the library, some time after it ran. Returns whether
    * the device traces. An empty sink stops tracing, once the work traced so far has been reported.
    * Tracing costs the device a little for each kernel.
@@ -223,7 +224,7 @@ struct AbstractAPI {
                                              std::chrono::steady_clock::time_point begin,
                                              std::chrono::steady_clock::time_point end)>;
   virtual bool traceDevice(DeviceTraceSink /*sink*/) { return false; }
-  /// names a stream for the logs of the device (e.g. the DAG log of own queues of HIP)
+  /// names a stream for the logs of the device (HIP: the DAG log of the HSA queues)
   virtual void nameStream(void* /*streamPtr*/, const std::string& /*name*/) {}
 
   virtual void* createEvent(bool withTiming = false) = 0;

@@ -4,7 +4,7 @@
 
 #include "Trace.h"
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 DagLog& dagLog() {
   static DagLog log;
@@ -16,4 +16,4 @@ Tracer& tracer() {
   return tracer;
 }
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "OwnQueues.h"
+#include "HsaQueues.h"
 
 #include "Common.h"
 #include "Internals.h"
@@ -11,7 +11,6 @@
 #include "Queue.h"
 #include "Runtime.h"
 #include "Trace.h"
-#include "utils/env.h"
 #include "utils/logger.h"
 
 #include <algorithm>
@@ -45,7 +44,7 @@
 #include <utility>
 #include <vector>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 namespace {
 
@@ -65,10 +64,10 @@ struct Stream {
 
 struct Event {
   hipEvent_t hip{nullptr};
-  // recorded on an own stream: the mark of the queue
+  // recorded on an HSA stream: the mark of the queue
   Queue* queue{nullptr};
   std::uint64_t mark{0};
-  // with timing, on an own stream: the signal of a kernel that took the time there
+  // with timing, on an HSA stream: the signal of a kernel that took the time there
   bool timing{false};
   hsa_signal_t stamp{};
   bool stamped{false};
@@ -116,7 +115,7 @@ void dispatchCopy(Queue& queue, void* dst, const void* src, std::size_t bytes) {
   const auto acquire = fromForeign && !Runtime::instance().acquireByKernel ? HSA_FENCE_SCOPE_SYSTEM
                                                                            : HSA_FENCE_SCOPE_AGENT;
   const auto release = foreignMemory(dst) ? HSA_FENCE_SCOPE_SYSTEM : HSA_FENCE_SCOPE_AGENT;
-  queue.dispatch(Queue::kernelOf(reinterpret_cast<const void*>(ownCopy)),
+  queue.dispatch(Queue::kernelOf(reinterpret_cast<const void*>(hsaCopy)),
                  dim3(blocks),
                  dim3(CopyThreads),
                  0,
@@ -156,7 +155,7 @@ bool enable() {
     return true;
   }
   if (hipLaunch == nullptr) {
-    logWarning() << "Own queues need the launch hook in the program (Hook.cpp).";
+    logWarning() << "HSA queues need the launch hook in the program (Hook.cpp).";
     return false;
   }
   if (!Runtime::instance().setUp()) {
@@ -342,7 +341,7 @@ void waitMemory(void* handle, std::uint32_t* location, std::uint32_t value) {
   void* args[] = {&counter, &value};
   const std::lock_guard lock(queue.mutex);
   const auto first = queue.created();
-  queue.dispatch(Queue::kernelOf(reinterpret_cast<const void*>(ownWaitHost)),
+  queue.dispatch(Queue::kernelOf(reinterpret_cast<const void*>(hsaWaitHost)),
                  dim3(1),
                  dim3(1),
                  0,
@@ -423,7 +422,7 @@ void waitOnHipStream(const Queue& queue, std::uint64_t mark, hipStream_t stream)
   std::int64_t below = CounterStart - static_cast<std::int64_t>(mark) + 1;
   void* args[] = {&value, &below};
   APIWRAP(
-      hipLaunch(reinterpret_cast<const void*>(ownHipWaitBelow), dim3(1), dim3(1), args, 0, stream));
+      hipLaunch(reinterpret_cast<const void*>(hsaHipWaitBelow), dim3(1), dim3(1), args, 0, stream));
 }
 } // namespace
 
@@ -489,7 +488,7 @@ void recordEvent(void* eventHandle, void* streamHandle) {
   internals::anchorCapture(hipStream);
   if (Runtime::instance().hipWaitsOnDevice && !isTagged(streamHandle) &&
       internals::captureState(hipStream).status != hipStreamCaptureStatusActive) {
-    // own streams wait for the event by a counter that a kernel of ours sets after it (CLR does not
+    // HSA streams wait for the event by a counter that a kernel of ours sets after it (CLR does not
     // give the signal of an event)
     const std::lock_guard lock(hipCounterMutex);
     auto& counter = hipCounters[hipStream];
@@ -502,7 +501,7 @@ void recordEvent(void* eventHandle, void* streamHandle) {
     std::uint32_t value = ++counter.value;
     void* args[] = {&location, &value};
     APIWRAP(hipLaunch(
-        reinterpret_cast<const void*>(ownWriteCounter), dim3(1), dim3(1), args, 0, hipStream));
+        reinterpret_cast<const void*>(hsaWriteCounter), dim3(1), dim3(1), args, 0, hipStream));
     event->hipCounter = location;
     event->hipValue = value;
     return;
@@ -586,7 +585,7 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
   if (isTagged(streamHandle) && !capturing(streamHandle)) {
     auto* stream = streamOf(streamHandle);
     if (!isTagged(eventHandle)) {
-      warnOnce("own streams wait for events of HIP on the host");
+      warnOnce("HSA streams wait for events of HIP on the host");
       APIWRAP(hipEventSynchronize(static_cast<hipEvent_t>(eventHandle)));
       return;
     }
@@ -597,7 +596,7 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
         waitMemory(streamHandle, event->hipCounter, event->hipValue);
         return;
       }
-      warnOnce("own streams wait for events recorded on streams of HIP on the host");
+      warnOnce("HSA streams wait for events recorded on streams of HIP on the host");
       APIWRAP(hipEventSynchronize(event->hip));
       return;
     }
@@ -618,13 +617,13 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
   if (isTagged(eventHandle) && eventOf(eventHandle)->queue != nullptr) {
     auto* event = eventOf(eventHandle);
     if (internals::captureState(hipStream).status == hipStreamCaptureStatusActive) {
-      logError() << "Own queues: a stream that gets captured cannot wait for an own stream.";
+      logError() << "HSA queues: a stream that gets captured cannot wait for an HSA stream.";
     }
     if (Runtime::instance().hipWaitsOnDevice) {
       waitOnHipStream(*event->queue, event->mark, hipStream);
       return;
     }
-    warnOnce("streams of HIP wait for events of own streams on the host");
+    warnOnce("streams of HIP wait for events of HSA streams on the host");
     event->queue->wait(event->mark);
     return;
   }
@@ -710,4 +709,4 @@ void finalize() {
   enabledFlag.store(false);
 }
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues

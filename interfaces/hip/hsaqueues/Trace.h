@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#ifndef SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_TRACE_H_
-#define SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_TRACE_H_
+#ifndef SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_TRACE_H_
+#define SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_TRACE_H_
 
-#include "OwnQueues.h"
+#include "Common.h"
+#include "HsaQueues.h"
 #include "Queue.h"
 #include "Runtime.h"
-#include "utils/env.h"
 
 #include <algorithm>
 #include <array>
@@ -42,10 +42,10 @@
 #include <utility>
 #include <vector>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 /**
- * DEVICE_OWN_QUEUE_DAG_LOG=<prefix>: while the kernels get traced (see trace()), what the streams
+ * DEVICE_HSA_QUEUE_DAG_LOG=<prefix>: while the kernels get traced (see trace()), what the streams
  * do and when the kernels ran, per process in <prefix>-<rank>.txt (the rank from SLURM_PROCID,
  * PMI_RANK or OMPI_COMM_WORLD_RANK, else the process id), as the work and its dependencies for a
  * schedule over the queues. Times in ns of steady_clock, the packets of a queue counted from 1; a
@@ -60,7 +60,7 @@ namespace device::ownqueues {
  * - A queue index start end target: the times of a wait (target: a queue, or -1 for the host)
  * - N stream name: the name of a stream (see nameStream())
  * - S t program queue level start end alone: a level that a graph spreads over queues
- *   (DEVICE_OWN_QUEUE_SCHEDULE), its predicted start and end, and its end on its queue alone
+ *   (DEVICE_HSA_QUEUE_SCHEDULE), its predicted start and end, and its end on its queue alone
  * - F queue index program level free: a wait of a queue for the fork of such a level, and when
  *   the queue was predicted to be free
  * - J queue index program level: a wait of the queue of the level for the join of a helper
@@ -116,7 +116,7 @@ class DagLog {
   }
 
   private:
-  std::string prefix_{utils::Env("DEVICE_").get<std::string>("OWN_QUEUE_DAG_LOG", "")};
+  std::string prefix_{setting<std::string>("DAG_LOG", "")};
   std::mutex mutex_;
   std::FILE* file_{nullptr};
   std::unordered_set<const void*> described_;
@@ -249,6 +249,6 @@ class Tracer {
 
 Tracer& tracer();
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues
 
-#endif // SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_TRACE_H_
+#endif // SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_TRACE_H_

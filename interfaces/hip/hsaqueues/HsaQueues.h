@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#ifndef SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_H_
-#define SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_H_
+#ifndef SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_HSAQUEUES_H_
+#define SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_HSAQUEUES_H_
 
 #include <chrono>
 #include <cstddef>
@@ -23,7 +23,7 @@
  * ~12 us (MI250X, ROCm 6.3). A GCD has 24 hardware queues only; with more, the queues that wait may
  * keep the ones they wait for from getting a slot.
  *
- * An own stream runs its work on an HSA queue that only the own streams with the same queue number
+ * An HSA stream runs its work on an HSA queue that only the HSA streams with the same queue number
  * share, in the order it got enqueued. Kernels become AQL dispatch packets that we write ourselves:
  * the kernel object comes from the loader, the layout of the arguments from the metadata of the
  * code object (with the hidden arguments filled in as HIP does). A wait for another queue is a
@@ -31,32 +31,32 @@
  * work before it on its queue has). Copies and fills are kernels of our own; a host function runs
  * on a thread of our own, while its queue waits for it.
  *
- * The handle of an own stream is a tagged pointer (bit 0 set), which no HIP call must get: kernel
+ * The handle of an HSA stream is a tagged pointer (bit 0 set), which no HIP call must get: kernel
  * launches reach launch() through hipLaunchKernel, which the program defines itself (see
- * Hook.cpp). While an own stream gets captured into a graph, all of its work goes to a
- * stream of HIP that stands in for it (its vehicle). A graph that gets launched on an own stream
+ * Hook.cpp). While an HSA stream gets captured into a graph, all of its work goes to a
+ * stream of HIP that stands in for it (its vehicle). A graph that gets launched on an HSA stream
  * gets translated into packets, once per graph and queue; its temporary allocations (hipMallocAsync
  * while capturing) get memory of the queue instead, which the translation puts into the arguments.
  *
- * Events are tagged pointers as well, once own queues are enabled: recorded on an own stream, an
+ * Events are tagged pointers as well, once HSA queues are enabled: recorded on an HSA stream, an
  * event is a mark of its queue; recorded on a stream of HIP, an event of HIP. With
- * DEVICE_OWN_QUEUE_TIMING=1, events with timing take the time by a kernel each.
+ * DEVICE_HSA_QUEUE_TIMING=1, events with timing take the time by a kernel each.
  *
- * Own streams and streams of HIP (e.g. those that NCCL gets) wait for each other on the device: a
+ * HSA streams and streams of HIP (e.g. those that NCCL gets) wait for each other on the device: a
  * stream of HIP waits for a mark by a kernel of ours that waits for the counter of the marks, and
  * after each event recorded on a stream of HIP, a kernel of ours sets a counter of that stream,
- * which own streams wait for by a barrier-value packet (DEVICE_OWN_QUEUE_HIP_WAITS=host waits on
+ * which HSA streams wait for by a barrier-value packet (DEVICE_HSA_QUEUE_HIP_WAITS=host waits on
  * the host instead).
  *
  * Fences: a mark writes back the L2 cache (release of the system), for the host and for MPI, which
- * read device memory past it. Kernels and waits for other own queues only fence for the device
+ * read device memory past it. Kernels and waits for other HSA queues only fence for the device
  * (agent): an acquire of the system in a packet drops the whole L2 cache, at the expense of the
  * kernels of all queues. Where the work has to see what the host wrote (after a wait for a counter
  * or a host function, and in copies from host memory), a kernel of our own fences in the shader
- * instead, which drops only the lines that may be stale (DEVICE_OWN_QUEUE_HOST_ACQUIRE=packet and
- * DEVICE_OWN_QUEUE_WAIT_SCOPE=system go back to fences of packets).
+ * instead, which drops only the lines that may be stale (DEVICE_HSA_QUEUE_HOST_ACQUIRE=packet and
+ * DEVICE_HSA_QUEUE_WAIT_SCOPE=system go back to fences of packets).
  */
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 inline bool isTagged(const void* handle) {
   return (reinterpret_cast<std::uintptr_t>(handle) & 1U) != 0;
@@ -68,19 +68,19 @@ using LaunchFunction = hipError_t (*)(const void*, dim3, dim3, void**, std::size
 /// called by the hook in the program (see Hook.cpp), at its start
 void registerLaunchHook(LaunchFunction hipLaunch);
 
-/// enables own queues, if HSA and the launch hook are there; returns whether they are enabled
+/// enables HSA queues, if HSA and the launch hook are there; returns whether they are enabled
 bool enable();
 bool enabled();
 
-/// a stream on the own queue with the given number (created on demand); a priority (0 to 1, unless
+/// a stream on the HSA queue with the given number (created on demand); a priority (0 to 1, unless
 /// NAN) applies to the whole queue
 void* createStream(int queue, double priority);
 void destroyStream(void* stream);
 
-/// the stream of HIP that stands in for an own stream while it gets captured; HIP streams stay
+/// the stream of HIP that stands in for an HSA stream while it gets captured; HIP streams stay
 hipStream_t vehicle(void* stream);
 
-/// whether the own stream gets captured into a graph right now (see beginCapture())
+/// whether the HSA stream gets captured into a graph right now (see beginCapture())
 bool capturing(void* stream);
 void beginCapture(void* stream);
 void endCapture(void* stream);
@@ -112,24 +112,24 @@ void freeAsync(void* ptr, void* stream);
 
 void* createEvent(bool withTiming);
 void destroyEvent(void* event);
-/// the event of HIP of an own event (for streams of HIP); HIP events stay
+/// the event of HIP of an HSA event (for streams of HIP); HIP events stay
 hipEvent_t hipEventOf(void* event);
 void recordEvent(void* event, void* stream);
 void recordEventOnHost(void* event);
 void streamWaitEvent(void* stream, void* event);
-/// the time between two events, in seconds: by the kernels that took it for own events with timing
+/// the time between two events, in seconds: by the kernels that took it for HSA events with timing
 double timespan(void* start, void* end);
-/// whether events with timing take the time on own streams (DEVICE_OWN_QUEUE_TIMING=1)
+/// whether events with timing take the time on HSA streams (DEVICE_HSA_QUEUE_TIMING=1)
 bool timing();
 
-/// the trace of the kernels and waits of the own queues (see AbstractAPI::traceDevice()); an
-/// empty sink stops it; false without own queues
+/// the trace of the kernels and waits of the HSA queues (see AbstractAPI::traceDevice()); an
+/// empty sink stops it; false without HSA queues
 using TraceSink = std::function<void(std::string_view name,
                                      int queue,
                                      std::chrono::steady_clock::time_point begin,
                                      std::chrono::steady_clock::time_point end)>;
 bool trace(const TraceSink& sink);
-/// names an own stream for the DAG log (see DEVICE_OWN_QUEUE_DAG_LOG); others stay unnamed
+/// names an HSA stream for the DAG log (see DEVICE_HSA_QUEUE_DAG_LOG); others stay unnamed
 void nameStream(void* stream, const std::string& name);
 bool eventDone(void* event);
 void syncEvent(void* event);
@@ -144,15 +144,15 @@ struct Programs {
   std::unique_ptr<struct ProgramsImpl> impl;
 };
 void launchGraph(Programs& programs, hipGraph_t graph, void* stream);
-/// notes that a node of the graph is work of an own stream: with DEVICE_OWN_QUEUE_GRAPH_ORIGIN=1,
+/// notes that a node of the graph is work of an HSA stream: with DEVICE_HSA_QUEUE_GRAPH_ORIGIN=1,
 /// the translation puts it back onto the queue of that stream; false if it has been noted before
 bool noteOrigin(Programs& programs, hipGraphNode_t node, void* stream);
 
-/// waits until all own queues are done
+/// waits until all HSA queues are done
 void syncAll();
 
 void finalize();
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues
 
-#endif // SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_H_
+#endif // SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_HSAQUEUES_H_

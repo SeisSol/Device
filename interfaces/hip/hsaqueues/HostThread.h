@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#ifndef SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_HOSTTHREAD_H_
-#define SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_HOSTTHREAD_H_
+#ifndef SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_HOSTTHREAD_H_
+#define SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_HOSTTHREAD_H_
 
 #include "Common.h"
 
@@ -38,7 +38,7 @@
 #include <utility>
 #include <vector>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 /**
  * Runs host functions for the queues: each once its queue has reached it (`reach` drops to 0), in
@@ -182,6 +182,6 @@ class HostThread {
   bool stop_{false};
 };
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues
 
-#endif // SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_HOSTTHREAD_H_
+#endif // SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_HOSTTHREAD_H_

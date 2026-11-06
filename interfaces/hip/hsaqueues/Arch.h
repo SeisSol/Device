@@ -2,32 +2,32 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-#ifndef SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_ARCH_H_
-#define SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_ARCH_H_
+#ifndef SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_ARCH_H_
+#define SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_ARCH_H_
 
 #include <cstdint>
 #include <string>
 #include <string_view>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 /**
- * What own queues know of an architecture of AMD GPUs: what its command processor takes, and the
+ * What HSA queues know of an architecture of AMD GPUs: what its command processor takes, and the
  * defaults that measurements there chose (see the table in Arch.cpp). An architecture that the
  * table lacks gets the cautious defaults: waits by kernels, kernel arguments in host memory, queues
- * anywhere. The environment decides otherwise in any case (DEVICE_OWN_QUEUE_WAITS, _PIPES and
+ * anywhere. The environment decides otherwise in any case (DEVICE_HSA_QUEUE_WAITS, _PIPES and
  * _KERNARGS).
  *
- * For a new architecture: run the test of own queues and its benchmarks there (barrier-value
+ * For a new architecture: run the test of HSA queues and its benchmarks there (barrier-value
  * packets, the pipes that queues share, the costs of fences), then add a line to the table.
  */
 struct ArchTraits {
   enum class Tested : std::uint8_t {
     // nothing ran there
     No,
-    // the test of own queues ran there
+    // the test of HSA queues ran there
     UnitTest,
-    // programs ran there with own queues, bitwise as without
+    // programs ran there with HSA queues, bitwise as without
     Runs
   };
 
@@ -39,7 +39,7 @@ struct ArchTraits {
   /// whether the command processor waits for signal values (barrier-value packets), instead of a
   /// kernel that waits
   bool barrierValue{false};
-  /// whether own queues get spread over the pipes of the command processor that the queues of a
+  /// whether HSA queues get spread over the pipes of the command processor that the queues of a
   /// process share (see Runtime::placeQueue()), instead of going anywhere
   bool spreadPipes{false};
   /// whether the kernel arguments go into fine-grained device memory by default, instead of host
@@ -52,6 +52,6 @@ struct ArchTraits {
 /// the traits of the architecture `name` (e.g. gfx90a, or gfx90a:sramecc+:xnack-)
 ArchTraits archTraits(std::string_view name);
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues
 
-#endif // SEISSOLDEVICE_INTERFACES_HIP_OWNQUEUES_ARCH_H_
+#endif // SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_ARCH_H_

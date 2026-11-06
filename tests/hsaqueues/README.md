@@ -4,21 +4,21 @@
     SPDX-License-Identifier: BSD-3-Clause
 -->
 
-# Tests and probes of own queues
+# Tests and probes of HSA queues
 
-Built with `-DDEVICE_BACKEND=hip -DDEVICE_OWN_QUEUE_TESTS=ON` (and own queues,
-the default on AMD GPUs, see `interfaces/hip/ownqueues/OwnQueues.h`). Run them
+Built with `-DDEVICE_BACKEND=hip -DDEVICE_HSA_QUEUE_TESTS=ON` (and HSA queues,
+the default on AMD GPUs, see `interfaces/hip/hsaqueues/HsaQueues.h`). Run them
 on a GPU of their own: they keep several queues busy at once.
 
-`own-queues-test` runs the own queues through the Device library and the launch
-hook: kernels and copies, events across queues, own streams and streams of HIP
+`hsa-queues-test` runs the HSA queues through the Device library and the launch
+hook: kernels and copies, events across queues, HSA streams and streams of HIP
 waiting for each other, a graph with a temporary allocation and branches, host
 functions, 200000 launches, launches behind a wait for the host, counters; then
 the host and device time of launches against HIP. It exits with 1 if a check
 fails.
 
-The probes `own-queues-probe-*` use HSA alone. They measure what the table of
-architectures (`interfaces/hip/ownqueues/Arch.cpp`) says about a new one:
+The probes `hsa-queues-probe-*` use HSA alone. They measure what the table of
+architectures (`interfaces/hip/hsaqueues/Arch.cpp`) says about a new one:
 
 - `waitlat`: the latency of a wait for another queue, by kind, and whether the
   command processor takes barrier-value packets (else INVALID_PACKET_FORMAT):
@@ -37,4 +37,4 @@ architectures (`interfaces/hip/ownqueues/Arch.cpp`) says about a new one:
   HIP (an overview).
 
 The time of kernel arguments in device memory (`deviceKernargs`) shows in the
-last part of `own-queues-test` (large kernels) and in programs.
+last part of `hsa-queues-test` (large kernels) and in programs.

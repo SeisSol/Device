@@ -16,7 +16,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace device::ownqueues {
+namespace device::hsaqueues {
 
 namespace {
 
@@ -211,4 +211,4 @@ hsa_status_t visitExecutable(hsa_executable_t executable, void* data) {
   return HSA_STATUS_SUCCESS;
 }
 
-} // namespace device::ownqueues
+} // namespace device::hsaqueues

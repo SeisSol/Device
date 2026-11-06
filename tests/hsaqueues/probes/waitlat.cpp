@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-// Latency of a dependency between two own HSA queues, by the kind of wait: a ping-pong of tiny
+// Latency of a dependency between two HSA queues, by the kind of wait: a ping-pong of tiny
 // kernels, each waiting for the one before it on the other queue. All work gets enqueued behind a
 // gate first, so that the time from opening the gate to the end is the device's alone.
 //
@@ -11,8 +11,8 @@
 //   and-mark     a mark after the kernel (barrier-AND without dependencies) completes a signal of
 //                its own; the other queue waits for it with barrier-AND (a signal per mark)
 //   value-mark   the mark counts a counter of its queue down; the other queue waits for it with a
-//                barrier-value packet (the own queues of the Device library on gfx90a)
-//   kernel-mark  as value-mark, but a kernel polls the counter (the own queues on gfx11)
+//                barrier-value packet (the HSA queues of the Device library on gfx90a)
+//   kernel-mark  as value-mark, but a kernel polls the counter (the HSA queues on gfx11)
 //   hip          two streams with events, gated and not
 //
 // Signals with interrupts (hsa_signal_create) or without (GPU_ONLY); fences of the agent or the
@@ -58,7 +58,7 @@ extern "C" __global__ void tick(unsigned* counter) {
   }
 }
 
-// as ownWaitBelow of the own queues
+// as hsaWaitBelow of the HSA queues
 extern "C" __global__ void waitBelow(const volatile std::int64_t* value, std::int64_t below) {
   while (*value >= below) {
     __builtin_amdgcn_s_sleep(2);
@@ -301,8 +301,8 @@ int main(int argc, char** argv) {
       {"and-mark, GPU_ONLY signals, system/system", Wait::AndMark, false, System, System},
       {"and-mark, interrupt signals, system/system", Wait::AndMark, true, System, System},
       {"value-mark, agent/agent", Wait::ValueMark, false, Agent, Agent},
-      {"value-mark, system/system (own queues, gfx90a)", Wait::ValueMark, false, System, System},
-      {"kernel-mark, system/system (own queues, gfx11)", Wait::KernelMark, false, System, System},
+      {"value-mark, system/system (HSA queues, gfx90a)", Wait::ValueMark, false, System, System},
+      {"kernel-mark, system/system (HSA queues, gfx11)", Wait::KernelMark, false, System, System},
   };
   constexpr std::int64_t Start = std::int64_t{1} << 62;
   std::printf("%s, %d hops; device time per hop after opening the gate (host enqueue time per "
