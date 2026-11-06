@@ -123,6 +123,14 @@ if (DEVICE_HIP_OWN_QUEUES)
     target_link_libraries(device-own-queue-hook INTERFACE device ${CMAKE_DL_LIBS})
 endif()
 
+# the test and the probes of own queues (see tests/ownqueues/README.md)
+if (DEVICE_HIP_OWN_QUEUES)
+    option(DEVICE_OWN_QUEUE_TESTS "Build the test and the probes of own queues" OFF)
+    if (DEVICE_OWN_QUEUE_TESTS)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/tests/ownqueues/ownqueues.cmake)
+    endif()
+endif()
+
 if (ENABLE_PROFILING_MARKERS)
     # cf. https://github.com/ROCm/rocprofiler/blob/amd-master/tests-v2/featuretests/tracer/CMakeLists.txt
     find_library(ROCTX_LIBRARY NAMES roctx64 HINTS ${ROCM_PATH}/lib)
