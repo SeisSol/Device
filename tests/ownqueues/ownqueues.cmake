@@ -14,6 +14,8 @@ set_source_files_properties(${OWN_QUEUE_TEST_DIR}/OwnQueuesTest.cpp PROPERTIES H
 hip_add_executable(own-queues-test ${OWN_QUEUE_TEST_DIR}/OwnQueuesTest.cpp HIPCC_OPTIONS ${OWN_QUEUE_HIPCC})
 set_property(TARGET own-queues-test PROPERTY HIP_ARCHITECTURES OFF)
 target_link_libraries(own-queues-test PRIVATE device device-own-queue-hook)
+# (the link of hip_add_executable sets no run path: the library of the build tree)
+target_link_options(own-queues-test PRIVATE "-Wl,-rpath,$<TARGET_FILE_DIR:device>")
 
 # the probes: HSA alone
 foreach(probe waitlat concurrent l2damage pipemap pollstall sigdec xqueue)
