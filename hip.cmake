@@ -56,6 +56,26 @@ if (DEVICE_KERNEL_SAVETEMPS)
 endif()
 
 
+# Streams on HSA queues of our own (see interfaces/hip/ownqueues/OwnQueues.h): a module of the HIP
+# interface that only programs enable that ask for it (AbstractAPI::enableOwnQueues()); without it,
+# a stub that never enables them
+if (IS_NVCC_PLATFORM)
+    set(DEVICE_HIP_OWN_QUEUES OFF)
+else()
+    option(DEVICE_HIP_OWN_QUEUES "Build the streams on HSA queues of our own (AMD GPUs)" ON)
+endif()
+if (DEVICE_HIP_OWN_QUEUES)
+    set(DEVICE_OWN_QUEUE_SOURCES interfaces/hip/ownqueues/Common.cpp
+                                 interfaces/hip/ownqueues/Kernels.cpp
+                                 interfaces/hip/ownqueues/Metadata.cpp
+                                 interfaces/hip/ownqueues/OwnQueues.cpp
+                                 interfaces/hip/ownqueues/Program.cpp
+                                 interfaces/hip/ownqueues/Runtime.cpp
+                                 interfaces/hip/ownqueues/Trace.cpp)
+else()
+    set(DEVICE_OWN_QUEUE_SOURCES interfaces/hip/ownqueues/Disabled.cpp)
+endif()
+
 set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Control.cpp
                         interfaces/hip/Copy.cpp
@@ -64,7 +84,7 @@ set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Memory.cpp
                         interfaces/hip/Streams.cpp
                         interfaces/hip/Graphs.cpp
-                        interfaces/hip/OwnQueues.cpp
+                        ${DEVICE_OWN_QUEUE_SOURCES}
                         algorithms/cudahip/ArrayManip.cpp
                         algorithms/cudahip/BatchManip.cpp
                         algorithms/cudahip/Debugging.cpp
@@ -86,16 +106,18 @@ if (IS_NVCC_PLATFORM)
     target_link_options(device PRIVATE -arch=${DEVICE_ARCH})
 else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
-    # own queues (see interfaces/hip/OwnQueues.h)
+endif()
+if (DEVICE_HIP_OWN_QUEUES)
     target_link_libraries(device PRIVATE ${HIP_PATH}/lib/libhsa-runtime64.so ${HIP_PATH}/lib/libamd_comgr.so)
 endif()
 
 # The launch hook for own queues, to be compiled into the program itself (see
-# interfaces/hip/OwnQueueHook.cpp): link this target to the executable.
+# interfaces/hip/ownqueues/Hook.cpp): link this target to the executable. Without own queues, it
+# brings nothing.
 add_library(device-own-queue-hook INTERFACE)
-if (NOT IS_NVCC_PLATFORM)
-    target_sources(device-own-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip/OwnQueueHook.cpp)
-    target_include_directories(device-own-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip ${HIP_PATH}/include)
+if (DEVICE_HIP_OWN_QUEUES)
+    target_sources(device-own-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip/ownqueues/Hook.cpp)
+    target_include_directories(device-own-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip/ownqueues ${HIP_PATH}/include)
     target_compile_definitions(device-own-queue-hook INTERFACE __HIP_PLATFORM_AMD__)
     target_link_libraries(device-own-queue-hook INTERFACE device ${CMAKE_DL_LIBS})
 endif()

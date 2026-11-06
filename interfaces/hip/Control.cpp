@@ -20,7 +20,7 @@
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
-#include "OwnQueues.h"
+#include "ownqueues/OwnQueues.h"
 
 using namespace device;
 

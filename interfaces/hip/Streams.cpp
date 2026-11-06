@@ -4,7 +4,7 @@
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
-#include "OwnQueues.h"
+#include "ownqueues/OwnQueues.h"
 #include "utils/logger.h"
 
 #include <algorithm>

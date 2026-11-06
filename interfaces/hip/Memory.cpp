@@ -4,8 +4,8 @@
 
 #include "HipWrappedAPI.h"
 #include "Internals.h"
-#include "OwnQueues.h"
 #include "hip/hip_runtime.h"
+#include "ownqueues/OwnQueues.h"
 #include "utils/logger.h"
 
 #include <assert.h>

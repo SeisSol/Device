@@ -33,7 +33,7 @@
  *
  * The handle of an own stream is a tagged pointer (bit 0 set), which no HIP call must get: kernel
  * launches reach launch() through hipLaunchKernel, which the program defines itself (see
- * OwnQueueHook.cpp). While an own stream gets captured into a graph, all of its work goes to a
+ * Hook.cpp). While an own stream gets captured into a graph, all of its work goes to a
  * stream of HIP that stands in for it (its vehicle). A graph that gets launched on an own stream
  * gets translated into packets, once per graph and queue; its temporary allocations (hipMallocAsync
  * while capturing) get memory of the queue instead, which the translation puts into the arguments.
@@ -65,7 +65,7 @@ inline bool isTagged(const void* handle) {
 /// the launch of HIP, which the hook in the program hands on to for streams of HIP
 using LaunchFunction = hipError_t (*)(const void*, dim3, dim3, void**, std::size_t, hipStream_t);
 
-/// called by the hook in the program (see OwnQueueHook.cpp), at its start
+/// called by the hook in the program (see Hook.cpp), at its start
 void registerLaunchHook(LaunchFunction hipLaunch);
 
 /// enables own queues, if HSA and the launch hook are there; returns whether they are enabled
