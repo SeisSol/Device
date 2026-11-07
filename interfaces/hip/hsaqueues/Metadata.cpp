@@ -15,6 +15,9 @@
 #include <hsa/hsa_ven_amd_loader.h>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 namespace device::hsaqueues {
 
@@ -51,11 +54,41 @@ ArgKind argKind(const std::string& kind) {
     return ArgKind::Explicit;
   }
   const auto found = kinds.find(kind);
-  if (found == kinds.end()) {
-    warnOnce("unknown hidden kernel argument " + kind + " left at 0");
-    return ArgKind::Zero;
-  }
-  return found->second;
+  return found == kinds.end() ? ArgKind::Unknown : found->second;
+}
+
+/// the keys of the metadata of a kernel that the HSA queues know (code objects v3 to v6, as LLVM
+/// writes them); a key they do not know may change how the kernel has to be launched
+bool knownKernelKey(const std::string& key) {
+  static const std::unordered_set<std::string> keys{".agpr_count",
+                                                    ".args",
+                                                    ".cluster_dims",
+                                                    ".device_enqueue_symbol",
+                                                    ".group_segment_fixed_size",
+                                                    ".kernarg_segment_align",
+                                                    ".kernarg_segment_size",
+                                                    ".kind",
+                                                    ".language",
+                                                    ".language_version",
+                                                    ".max_flat_workgroup_size",
+                                                    ".max_num_workgroups_x",
+                                                    ".max_num_workgroups_y",
+                                                    ".max_num_workgroups_z",
+                                                    ".name",
+                                                    ".private_segment_fixed_size",
+                                                    ".reqd_workgroup_size",
+                                                    ".sgpr_count",
+                                                    ".sgpr_spill_count",
+                                                    ".symbol",
+                                                    ".uniform_work_group_size",
+                                                    ".uses_dynamic_stack",
+                                                    ".vec_type_hint",
+                                                    ".vgpr_count",
+                                                    ".vgpr_spill_count",
+                                                    ".wavefront_size",
+                                                    ".workgroup_processor_mode",
+                                                    ".workgroup_size_hint"};
+  return keys.count(key) > 0;
 }
 
 std::string metadataString(amd_comgr_metadata_node_t node) {
@@ -89,6 +122,38 @@ std::uint32_t lookupNumber(amd_comgr_metadata_node_t map, const char* key, std::
   return lookupString(map, key, value) ? static_cast<std::uint32_t>(std::stoul(value)) : fallback;
 }
 
+/// the version of the metadata of a code object if the HSA queues know it ([1, 0] to [1, 2]: code
+/// objects v3 to v6), otherwise what is unknown about it
+std::string unknownVersion(amd_comgr_metadata_node_t root) {
+  amd_comgr_metadata_node_t version;
+  if (amd_comgr_metadata_lookup(root, "amdhsa.version", &version) != AMD_COMGR_STATUS_SUCCESS) {
+    return "metadata without a version (code object v2 or older)";
+  }
+  std::string text;
+  std::size_t count = 0;
+  if (amd_comgr_get_metadata_list_size(version, &count) == AMD_COMGR_STATUS_SUCCESS) {
+    for (std::size_t i = 0; i < count; ++i) {
+      amd_comgr_metadata_node_t number;
+      checkComgr(amd_comgr_index_list_metadata(version, i, &number), "index_list_metadata");
+      text += (i > 0 ? "." : "") + metadataString(number);
+      amd_comgr_destroy_metadata(number);
+    }
+  }
+  amd_comgr_destroy_metadata(version);
+  return text == "1.0" || text == "1.1" || text == "1.2" ? std::string()
+                                                         : "the metadata version " + text;
+}
+
+amd_comgr_status_t
+    visitKernelKey(amd_comgr_metadata_node_t key, amd_comgr_metadata_node_t /*value*/, void* data) {
+  auto& unknown = *static_cast<std::vector<std::string>*>(data);
+  auto text = metadataString(key);
+  if (!knownKernelKey(text)) {
+    unknown.push_back(std::move(text));
+  }
+  return AMD_COMGR_STATUS_SUCCESS;
+}
+
 void readMetadata(Runtime& runtime, const void* elf, std::size_t size) {
   amd_comgr_data_t data;
   checkComgr(amd_comgr_create_data(AMD_COMGR_DATA_KIND_EXECUTABLE, &data), "create_data");
@@ -98,6 +163,9 @@ void readMetadata(Runtime& runtime, const void* elf, std::size_t size) {
     amd_comgr_release_data(data);
     return;
   }
+  // what the HSA queues do not know about the launch of a kernel stops them from launching it (see
+  // Runtime::kernel()): a version of the metadata, a hidden argument, workgroup clusters
+  const auto version = unknownVersion(root);
   amd_comgr_metadata_node_t kernels;
   if (amd_comgr_metadata_lookup(root, "amdhsa.kernels", &kernels) == AMD_COMGR_STATUS_SUCCESS) {
     std::size_t count = 0;
@@ -124,6 +192,26 @@ void readMetadata(Runtime& runtime, const void* elf, std::size_t size) {
       std::string stack;
       info.dynamicStack =
           lookupString(kernel, ".uses_dynamic_stack", stack) && (stack == "1" || stack == "true");
+      info.maxWorkgroupSize = lookupNumber(kernel, ".max_flat_workgroup_size", 0);
+      info.unknownLayout = version;
+      amd_comgr_metadata_node_t clusters;
+      if (amd_comgr_metadata_lookup(kernel, ".cluster_dims", &clusters) ==
+          AMD_COMGR_STATUS_SUCCESS) {
+        // (gfx1250 and later: the dispatch would have to give the dimensions of the clusters)
+        if (info.unknownLayout.empty()) {
+          info.unknownLayout = "workgroup clusters (.cluster_dims)";
+        }
+        amd_comgr_destroy_metadata(clusters);
+      }
+      // (keys the HSA queues do not know only get a warning: most of them describe the code)
+      std::vector<std::string> unknownKeys;
+      checkComgr(amd_comgr_iterate_map_metadata(kernel, visitKernelKey, &unknownKeys),
+                 "iterate_map_metadata");
+      for (const auto& key : unknownKeys) {
+        warnOnce("the metadata of kernels has the key " + key +
+                 ", which the HSA queues do not know; check whether it changes how such kernels "
+                 "get launched (hsaqueues/Metadata.cpp)");
+      }
       info.args.clear();
       info.unsupported = false;
       amd_comgr_metadata_node_t args;
@@ -140,6 +228,9 @@ void readMetadata(Runtime& runtime, const void* elf, std::size_t size) {
           argInfo.offset = lookupNumber(arg, ".offset", 0);
           argInfo.size = lookupNumber(arg, ".size", 0);
           info.unsupported = info.unsupported || argInfo.kind == ArgKind::Unsupported;
+          if (argInfo.kind == ArgKind::Unknown && info.unknownLayout.empty()) {
+            info.unknownLayout = "the hidden argument " + kind;
+          }
           info.args.push_back(argInfo);
           amd_comgr_destroy_metadata(arg);
         }

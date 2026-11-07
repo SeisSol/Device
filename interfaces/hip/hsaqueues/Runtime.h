@@ -54,6 +54,8 @@ class Runtime {
   Runtime& operator=(const Runtime&) = delete;
 
   bool setUp();
+  /// the kernel of a function to launch; stops with an error if it cannot be launched here (see
+  /// KernelInfo::unknownLayout)
   const KernelInfo& kernel(const void* function);
   Queue& queue(int number);
   std::vector<Queue*> allQueues();
@@ -170,6 +172,8 @@ class Runtime {
   std::unordered_set<std::uint64_t> parsedCodeObjects;
 
   private:
+  /// the kernel of a function, launchable or not
+  const KernelInfo& resolve(const void* function);
   void scanCodeObjects();
   /// writes what the HSA queues use into the log
   void describe();

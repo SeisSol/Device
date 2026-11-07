@@ -409,6 +409,15 @@ bool Runtime::setUp() {
       computeUnitMasks[std::stoi(entry.substr(0, colon))] = mask;
     }
   }
+  // how the toolchain lays out launches, as the kernels of this library have it (usually compiled
+  // along with the program): one that the HSA queues do not know declines them here, instead of
+  // stopping at the first launch of such a kernel
+  if (const auto& own = resolve(reinterpret_cast<const void*>(hsaCopy));
+      !own.unknownLayout.empty()) {
+    logWarning() << "HSA queues: not enabled, as the kernels of this toolchain need"
+                 << own.unknownLayout << "to be launched, which the HSA queues do not know.";
+    return false;
+  }
   return true;
 }
 
@@ -442,6 +451,17 @@ void Runtime::scanCodeObjects() {
 }
 
 const KernelInfo& Runtime::kernel(const void* function) {
+  const auto& info = resolve(function);
+  if (!info.unknownLayout.empty()) {
+    logError() << "HSA queues: the kernel" << info.name << "needs" << info.unknownLayout
+               << "to be launched, which the HSA queues do not know (from a newer toolchain, or "
+                  "for a newer architecture?); run without HSA queues, or teach "
+                  "hsaqueues/Metadata.cpp and Queue::dispatch() about it.";
+  }
+  return info;
+}
+
+const KernelInfo& Runtime::resolve(const void* function) {
   const std::lock_guard lock(mutex_);
   const auto found = kernels_.find(function);
   if (found != kernels_.end()) {

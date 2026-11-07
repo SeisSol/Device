@@ -663,6 +663,7 @@ class Queue {
         break;
       case ArgKind::Zero:
       case ArgKind::Unsupported:
+      case ArgKind::Unknown:
         break;
       }
     }
@@ -703,6 +704,13 @@ class Queue {
       warnOnce("the kernel " + kernel.name +
                " may use printf, hostcalls, the device heap or device enqueue, which HSA queues do "
                "not provide");
+    }
+    // (HIP refuses such a launch as well)
+    const auto workItems = static_cast<std::uint64_t>(block.x) * block.y * block.z;
+    if (kernel.maxWorkgroupSize > 0 && workItems > kernel.maxWorkgroupSize) {
+      logError() << "HSA queues: the kernel" << kernel.name << "got launched with" << workItems
+                 << "work-items per workgroup, more than the" << kernel.maxWorkgroupSize
+                 << "it was compiled for (__launch_bounds__).";
     }
     void* kernargs = this->kernargs(kernel.kernargSize, kernel.kernargAlign);
     fillKernargs(kernel, kernargs, grid, block, sharedMemBytes, args);

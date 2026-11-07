@@ -109,7 +109,9 @@ enum class ArgKind : std::uint8_t {
   SharedBase,
   Zero,
   // features of HIP that we do not provide (printf, hostcall, heap, multi-grid, device enqueue)
-  Unsupported
+  Unsupported,
+  // a hidden argument that the HSA queues do not know (see KernelInfo::unknownLayout)
+  Unknown
 };
 
 struct ArgInfo {
@@ -131,6 +133,11 @@ struct KernelInfo {
   // another code object has a kernel of the same name (see Runtime::kernel()); the first one keeps
   // its object and metadata here
   bool ambiguous{false};
+  // what the launch of the kernel needs that the HSA queues do not know (a hidden argument, a
+  // version of the metadata, workgroup clusters), or empty; such kernels do not get launched
+  std::string unknownLayout;
+  // the most work-items of a workgroup that the kernel takes (.max_flat_workgroup_size), 0: unknown
+  std::uint32_t maxWorkgroupSize{0};
   std::vector<ArgInfo> args;
 };
 

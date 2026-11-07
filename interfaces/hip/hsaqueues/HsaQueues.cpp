@@ -220,6 +220,10 @@ hipError_t launch(const void* function,
   if (stream->captures > 0) {
     return hipLaunch(function, grid, block, args, sharedMemBytes, stream->vehicle);
   }
+  if (grid.x == 0 || grid.y == 0 || grid.z == 0 || block.x == 0 || block.y == 0 || block.z == 0) {
+    // (as HIP: nothing gets launched)
+    return hipErrorInvalidConfiguration;
+  }
   const auto& kernel = Runtime::instance().kernel(function);
   auto& queue = *stream->queue;
   const std::lock_guard lock(queue.mutex);
