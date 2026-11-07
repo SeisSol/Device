@@ -95,8 +95,8 @@ class ConcreteAPI : public AbstractAPI {
   void graphInstantiate(const DeviceGraphHandle& graphHandle) override;
 
   void* createStream(double priority) override;
-  bool enableHsaQueues() override;
-  void* createStreamOnHsaQueue(int queue, double priority) override;
+  bool enableHardwareQueues() override;
+  void* createStreamOnHardwareQueue(int queue, double priority) override;
   void destroyGenericStream(void* streamPtr) override;
   void syncStreamWithHost(void* streamPtr) override;
   bool isStreamWorkDone(void* streamPtr) override;

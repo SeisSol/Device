@@ -162,26 +162,31 @@ struct AbstractAPI {
   virtual void* createStream(double priority = NAN) = 0;
 
   /**
-   * Streams on HSA queues (HSA streams): the device runs the work of such a stream on a hardware
-   * queue that only the streams with the same queue number share, in the order it gets enqueued, so
-   * that a stream that waits holds up no other ones. (HIP puts all streams onto a few hardware
-   * queues that they share; its backend creates HSA queues of its own and runs these streams there,
-   * outside of HIP, see interfaces/hip/hsaqueues/HsaQueues.h, and needs the target
+   * Streams on hardware queues of their own: the device runs the work of such a stream on a
+   * hardware queue that only the streams with the same queue number share, in the order it gets
+   * enqueued, so that a stream that waits holds up no other ones. (HIP puts all streams onto a few
+   * hardware queues that they share; its backend creates HSA queues of its own and runs these
+   * streams there, outside of HIP, see interfaces/hip/hsaqueues/HsaQueues.h, and needs the target
    * device-hsa-queue-hook in the program.)
    *
    * Enables them, and returns whether the device has them; call it before any stream or event gets
    * created. Then, events can be recorded on and waited for by streams of either kind; events time
-   * only what is between two of them recorded on HSA streams, and only on request (HIP:
-   * DEVICE_HSA_QUEUE_TIMING=1, see isCapableOfEventTiming()).
+   * only what is between two of them recorded on streams on hardware queues, and only on request
+   * (HIP: DEVICE_HSA_QUEUE_TIMING=1, see isCapableOfEventTiming()).
    */
-  virtual bool enableHsaQueues() { return false; }
+  virtual bool enableHardwareQueues() { return false; }
 
   /**
-   * A stream on the HSA queue `queue` (see enableHsaQueues()); without HSA queues, an ordinary one.
-   * A priority (0 lowest, 1 highest) applies to the whole queue: its work gets taken up before that
-   * of queues of a lower priority.
+   * A stream on the hardware queue `queue` (see enableHardwareQueues()); without those, an ordinary
+   * one, with the default priority. A priority (0 lowest, 1 highest) applies to the whole queue:
+   * its work gets taken up before that of queues of a lower priority.
+   *
+   * Its handle is for this API and for kernel launches only: HIP calls and libraries that take a
+   * stream (e.g. hipCUB, rocBLAS, RCCL) need one from createStream(). Kernels on it get neither
+   * device-side printf and assert messages nor malloc (HIP), and profilers that trace the calls of
+   * HIP do not see its launches (traceDevice() reports its work).
    */
-  virtual void* createStreamOnHsaQueue(int /*queue*/, double /*priority*/ = NAN) {
+  virtual void* createStreamOnHardwareQueue(int /*queue*/, double /*priority*/ = NAN) {
     return createStream();
   }
 
@@ -200,9 +205,9 @@ struct AbstractAPI {
 
   /**
    * A counter in host memory, 0 at first, that the host and the device (by its address from
-   * devicePointer()) read and write, and that streams wait for (see streamWaitMemory()). HSA
-   * streams (HIP, see enableHsaQueues()) wait for it in the command processor of the device, as
-   * for a signal of HSA, instead of with a kernel that polls it.
+   * devicePointer()) read and write, and that streams wait for (see streamWaitMemory()). Streams on
+   * hardware queues (HIP: HSA queues, see enableHardwareQueues()) wait for it in the command
+   * processor of the device, as for a signal of HSA, instead of with a kernel that polls it.
    */
   virtual uint32_t* allocCounter() {
     auto* counter =

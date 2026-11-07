@@ -37,12 +37,12 @@ void* ConcreteAPI::createStream(double priority) {
   return reinterpret_cast<void*>(stream);
 }
 
-bool ConcreteAPI::enableHsaQueues() {
+bool ConcreteAPI::enableHardwareQueues() {
   isFlagSet<InterfaceInitialized>(status);
   return hsaqueues::enable();
 }
 
-void* ConcreteAPI::createStreamOnHsaQueue(int queue, double priority) {
+void* ConcreteAPI::createStreamOnHardwareQueue(int queue, double priority) {
   isFlagSet<InterfaceInitialized>(status);
   if (!hsaqueues::enabled()) {
     return createStream(NAN);

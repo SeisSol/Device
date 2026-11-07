@@ -57,8 +57,8 @@ endif()
 
 
 # Streams on HSA queues of our own (see interfaces/hip/hsaqueues/HsaQueues.h): a module of the HIP
-# interface that only programs enable that ask for it (AbstractAPI::enableHsaQueues()); without it,
-# a stub that never enables them
+# interface that only programs enable that ask for it (AbstractAPI::enableHardwareQueues());
+# without it, a stub that never enables them
 if (IS_NVCC_PLATFORM)
     set(DEVICE_HIP_HSA_QUEUES OFF)
 else()

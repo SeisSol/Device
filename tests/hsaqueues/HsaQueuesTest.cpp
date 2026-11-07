@@ -66,7 +66,7 @@ int main() {
   auto& api = device.api();
   api.setDevice(0);
   api.initialize();
-  if (!api.enableHsaQueues()) {
+  if (!api.enableHardwareQueues()) {
     std::printf("HSA queues not available\n");
     return 1;
   }
@@ -77,9 +77,9 @@ int main() {
   auto* pinned = static_cast<float*>(api.allocPinnedMem(bytes, false, device::Destination::Host));
   std::vector<float> pageable(n);
 
-  void* s1 = api.createStreamOnHsaQueue(1);
-  void* s2 = api.createStreamOnHsaQueue(2);
-  void* s1b = api.createStreamOnHsaQueue(1);
+  void* s1 = api.createStreamOnHardwareQueue(1);
+  void* s2 = api.createStreamOnHardwareQueue(2);
+  void* s1b = api.createStreamOnHardwareQueue(1);
   void* hipStream = api.createStream();
 
   // (1) kernels and copies on one HSA stream

@@ -95,7 +95,7 @@ void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   }
   if (hsaqueues::isTagged(streamPtr)) {
     logError() << "An event of HIP cannot be recorded on an HSA stream; create the events after "
-                  "enabling HSA queues.";
+                  "enableHardwareQueues().";
   }
   hipEvent_t event = static_cast<hipEvent_t>(eventPtr);
   hipStream_t stream = static_cast<hipStream_t>(streamPtr);
