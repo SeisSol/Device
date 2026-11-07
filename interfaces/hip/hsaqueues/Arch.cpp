@@ -65,7 +65,32 @@ constexpr std::array Table{
         false,
         false,
         false,
-        "Radeon 890M: the command processor rejects barrier-value packets (INVALID_PACKET_FORMAT)"},
+        "Radeon 890M: the command processor rejects barrier-value packets (INVALID_PACKET_FORMAT); "
+        "queues wait by barrier-AND packets on a signal of each mark, as HIP does"},
+    // (before the other gfx12: gfx1250, gfx1251)
+    Entry{"gfx125",
+          true,
+          Tested::No,
+          false,
+          false,
+          false,
+          "gfx12.5: CLR leaves barrier-value packets off there, keeps kernel arguments in device "
+          "memory, and writes kernels as extended dispatch packets (with a dependent signal); "
+          "untested whether the command processor takes standard dispatch packets"},
+    Entry{"gfx11",
+          true,
+          Tested::No,
+          false,
+          false,
+          false,
+          "RDNA 3: no barrier-value packets (as on the 890M); untested"},
+    Entry{"gfx12",
+          true,
+          Tested::No,
+          false,
+          false,
+          false,
+          "RDNA 4: CLR leaves barrier-value packets off there; untested"},
 };
 } // namespace
 

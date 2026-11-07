@@ -53,6 +53,12 @@ namespace device::hsaqueues {
  * (e.g. for halo data that MPI receives on the host). Packets that find the queue full wait in host
  * memory until the host thread (or the next packet) writes them into it; arguments that find the
  * ring full get memory of their own, which the next mark frees again.
+ *
+ * Where the command processor does not wait for values (Runtime::markSignals), each mark counts
+ * down a signal of its own as well, just before the counter; other queues wait for it by
+ * barrier-AND packets. The signal goes back to the pool once the mark has been reached and the
+ * command processors of the queues that wait for it have passed their packets (by their read
+ * indices).
  */
 class Queue {
   public:
@@ -62,6 +68,8 @@ class Queue {
     if (queue_ == nullptr) {
       queue_ = createHsaQueue();
     }
+    // (a placed queue may have run probes before, see Runtime::placeQueue())
+    writeBase_ = hsa_queue_load_write_index_relaxed(queue_);
     check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &counter_),
           "hsa_amd_signal_create");
     check(hsa_amd_signal_value_pointer(counter_, &counterValue_), "hsa_amd_signal_value_pointer");
@@ -89,6 +97,14 @@ class Queue {
     const auto last = markCoveringLocked(created_);
     wait(last);
     reclaim();
+    {
+      // (queues that wait for them may go later: their signals stay until all have gone)
+      const std::lock_guard lock(signalMutex_);
+      for (const auto& entry : markSignals_) {
+        runtime_.retireMarkSignal(entry.signal);
+      }
+      markSignals_.clear();
+    }
     for (auto* arena : arenas_) {
       static_cast<void>(hipFree(arena));
     }
@@ -247,11 +263,25 @@ class Queue {
    * then makes it visible to the host and other agents. Returns its number.
    */
   std::uint64_t mark() {
+    std::uint16_t counterFences = runtime_.markFences;
+    if (runtime_.markSignals) {
+      // first the signal of the mark, for the queues that wait for it (see waitFor()); then the
+      // counter, which needs no fences of its own after that
+      const auto signal = takeMarkSignal(marks_ + 1);
+      PacketImage own;
+      own.as<hsa_barrier_and_packet_t>().completion_signal = signal;
+      own.setHeader(
+          static_cast<std::uint16_t>((HSA_PACKET_TYPE_BARRIER_AND << HSA_PACKET_HEADER_TYPE) |
+                                     BarrierBit | runtime_.markFences),
+          0);
+      push(own);
+      counterFences = 0;
+    }
     PacketImage packet;
     packet.as<hsa_barrier_and_packet_t>().completion_signal = counter_;
     packet.setHeader(
         static_cast<std::uint16_t>((HSA_PACKET_TYPE_BARRIER_AND << HSA_PACKET_HEADER_TYPE) |
-                                   BarrierBit | runtime_.markFences),
+                                   BarrierBit | counterFences),
         0);
     push(packet);
     ++marks_;
@@ -361,6 +391,31 @@ class Queue {
     }
   }
 
+  /// whether the command processor has passed packet number `index` (see created())
+  [[nodiscard]] bool passed(std::uint64_t index) const {
+    return hsa_queue_load_read_index_scacquire(queue_) > writeBase_ + index - 1;
+  }
+
+  /**
+   * The signal of mark `mark` (Runtime::markSignals), for packet number `index` of `waiter` that is
+   * about to wait for it: the signal stays the mark's until the command processor of the waiter has
+   * passed that packet. Nothing (a handle of 0) if the mark has been reached and its signal given
+   * back. (Locks only the signals of the marks, not `mutex`.)
+   */
+  hsa_signal_t markSignalFor(std::uint64_t mark, const Queue& waiter, std::uint64_t index) {
+    const std::lock_guard lock(signalMutex_);
+    for (auto& entry : markSignals_) {
+      if (entry.mark == mark) {
+        entry.waiters.emplace_back(&waiter, index);
+        return entry.signal;
+      }
+      if (entry.mark > mark) {
+        break;
+      }
+    }
+    return hsa_signal_t{0};
+  }
+
   /// lets the work enqueued from now on wait until the 32-bit counter in the signal reaches `value`
   void waitForCounter(hsa_signal_t signal, std::uint32_t value) {
     PacketImage packet;
@@ -403,6 +458,23 @@ class Queue {
     }
     if (runtime_.schedule) {
       predictUntil(other.predictedFree());
+    }
+    if (runtime_.markSignals) {
+      // (the packet comes next: registered before it gets written, the signal stays the mark's
+      // until the command processor has passed the packet)
+      const auto signal = other.markSignalFor(mark, *this, created_ + 1);
+      if (signal.handle == 0) {
+        // reached, and its signal given back meanwhile
+        return;
+      }
+      PacketImage packet;
+      packet.as<hsa_barrier_and_packet_t>().dep_signal[0] = signal;
+      packet.setHeader(
+          static_cast<std::uint16_t>((HSA_PACKET_TYPE_BARRIER_AND << HSA_PACKET_HEADER_TYPE) |
+                                     BarrierBit | runtime_.waitFences),
+          0);
+      push(packet);
+      return;
     }
     const auto below = CounterStart - static_cast<std::int64_t>(mark) + 1;
     if (runtime_.barrierValue) {
@@ -568,6 +640,17 @@ class Queue {
                                      BarrierBit | hostWaitFences()),
           HSA_AMD_PACKET_TYPE_BARRIER_VALUE);
       push(packet);
+    } else if (runtime_.markSignals) {
+      // the gate drops to 0 there (see HostThread::gateDrops)
+      PacketImage packet;
+      auto& wait = packet.as<hsa_barrier_and_packet_t>();
+      wait.dep_signal[0] = gate;
+      wait.completion_signal = reach;
+      packet.setHeader(
+          static_cast<std::uint16_t>((HSA_PACKET_TYPE_BARRIER_AND << HSA_PACKET_HEADER_TYPE) |
+                                     BarrierBit | hostWaitFences()),
+          0);
+      push(packet);
     } else {
       volatile hsa_signal_value_t* gateValue = nullptr;
       check(hsa_amd_signal_value_pointer(gate, &gateValue), "hsa_amd_signal_value_pointer");
@@ -651,6 +734,35 @@ class Queue {
   std::mutex mutex;
 
   private:
+  /// a signal for mark `mark`, after giving back those that no packet reads any longer
+  hsa_signal_t takeMarkSignal(std::uint64_t mark) {
+    const std::lock_guard lock(signalMutex_);
+    // (the marks reached so far: the counter comes after their signals; nothing goes back while
+    // the queues go, whose read indices the waiters are)
+    const auto reachedMarks =
+        runtime_.finalizing.load(std::memory_order_relaxed)
+            ? std::uint64_t{0}
+            : static_cast<std::uint64_t>(CounterStart - hsa_signal_load_scacquire(counter_));
+    for (auto entry = markSignals_.begin();
+         entry != markSignals_.end() && entry->mark <= reachedMarks;) {
+      auto& waiters = entry->waiters;
+      waiters.erase(
+          std::remove_if(waiters.begin(),
+                         waiters.end(),
+                         [](const auto& waiter) { return waiter.first->passed(waiter.second); }),
+          waiters.end());
+      if (waiters.empty()) {
+        runtime_.freeMarkSignal(entry->signal);
+        entry = markSignals_.erase(entry);
+      } else {
+        ++entry;
+      }
+    }
+    const auto signal = runtime_.markSignal();
+    markSignals_.push_back(MarkSignal{mark, signal, {}});
+    return signal;
+  }
+
   [[nodiscard]] bool space() const {
     return hsa_queue_load_write_index_relaxed(queue_) + 1 -
                hsa_queue_load_read_index_scacquire(queue_) <=
@@ -673,7 +785,19 @@ class Queue {
   Runtime& runtime_;
   int number_;
   hsa_queue_t* queue_{nullptr};
+  // the write index of the HSA queue when it became ours: packet number n has index writeBase_ + n
+  // - 1
+  std::uint64_t writeBase_{0};
   hsa_signal_t counter_{};
+  // the signals of the marks not given back yet (Runtime::markSignals), in the order of the marks,
+  // and the packets of other queues that wait for each (queue, packet number)
+  struct MarkSignal {
+    std::uint64_t mark{0};
+    hsa_signal_t signal{};
+    std::vector<std::pair<const Queue*, std::uint64_t>> waiters;
+  };
+  std::mutex signalMutex_;
+  std::deque<MarkSignal> markSignals_;
   volatile hsa_signal_value_t* counterValue_{nullptr};
   std::uint64_t created_{0};
   std::uint64_t marks_{0};

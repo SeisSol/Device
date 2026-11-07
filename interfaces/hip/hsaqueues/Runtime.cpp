@@ -294,14 +294,19 @@ bool Runtime::setUp() {
     return false;
   }
   // waits for other queues: by barrier-value packets where the table knows the command processor
-  // takes them; DEVICE_HSA_QUEUE_WAITS=kernel|packet decides otherwise
+  // takes them, else by barrier-AND packets on a signal of each mark (as HIP waits there);
+  // DEVICE_HSA_QUEUE_WAITS=packet|signal|kernel decides otherwise (kernel: a kernel waits for the
+  // counter of the other queue)
   barrierValue = arch_.barrierValue;
   const auto waits = setting<std::string>("WAITS", "");
-  if (waits == "kernel") {
+  if (waits == "kernel" || waits == "signal") {
     barrierValue = false;
   } else if (waits == "packet") {
     barrierValue = true;
   }
+  markSignals = waits == "signal" || (waits.empty() && !barrierValue);
+  // (a host function lets its queue go on by a signal that drops to 0 then, see HostThread)
+  hostThread.gateDrops = markSignals;
   std::size_t stack = 0;
   if (hipDeviceGetLimit(&stack, hipLimitStackSize) == hipSuccess && stack > 0) {
     stackSize = static_cast<std::uint32_t>(stack);
@@ -403,16 +408,21 @@ bool Runtime::setUp() {
 
 void Runtime::describe() {
   if (!arch_.known) {
-    logWarning() << "HSA queues: the architecture" << arch_.name
-                 << "is not in their table (hsaqueues/Arch.cpp); queues wait by kernels, keep the "
-                    "kernel arguments in host memory and go to any pipe, unless "
-                    "DEVICE_HSA_QUEUE_WAITS, _KERNARGS and _PIPES say otherwise.";
+    logWarning()
+        << "HSA queues: the architecture" << arch_.name
+        << "is not in their table (hsaqueues/Arch.cpp); queues wait by barrier-AND packets "
+           "on a signal of each mark, keep the kernel arguments in host memory and go to "
+           "any pipe, unless "
+           "DEVICE_HSA_QUEUE_WAITS, _KERNARGS and _PIPES say otherwise.";
   } else if (arch_.tested != ArchTraits::Tested::Runs) {
     logWarning() << "HSA queues: no program has run on" << arch_.name << "with them yet ("
                  << arch_.note << ").";
   }
   logInfo() << "HSA queues on" << arch_.name << "; queues wait for other queues by"
-            << (barrierValue ? "barrier-value packets" : "kernels") << "; work after the host sees"
+            << (barrierValue  ? "barrier-value packets"
+                : markSignals ? "barrier-AND packets on a signal of each mark"
+                              : "kernels")
+            << "; work after the host sees"
             << "its data by" << (acquireByKernel ? "a fence in a kernel" : "packet fences")
             << "; kernel arguments in" << (deviceKernargs ? "device memory" : "host memory")
             << "; queues of" << queuePackets << "packets and" << (kernargRingBytes >> 20)
@@ -692,11 +702,51 @@ void Runtime::freeTraceSignal(hsa_signal_t signal) {
   traceSignals_.push_back(signal);
 }
 
+hsa_signal_t Runtime::markSignal() {
+  {
+    const std::lock_guard lock(markSignalMutex_);
+    if (!freeMarkSignals_.empty()) {
+      const auto signal = freeMarkSignals_.back();
+      freeMarkSignals_.pop_back();
+      return signal;
+    }
+  }
+  // (only command processors wait for it; the host asks the counter of the queue instead)
+  hsa_signal_t signal{};
+  check(hsa_amd_signal_create(1, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
+        "hsa_amd_signal_create");
+  return signal;
+}
+
+void Runtime::freeMarkSignal(hsa_signal_t signal) {
+  hsa_signal_store_relaxed(signal, 1);
+  const std::lock_guard lock(markSignalMutex_);
+  freeMarkSignals_.push_back(signal);
+}
+
+void Runtime::retireMarkSignal(hsa_signal_t signal) {
+  const std::lock_guard lock(markSignalMutex_);
+  retiredMarkSignals_.push_back(signal);
+}
+
 void Runtime::finalize() {
+  finalizing.store(true, std::memory_order_relaxed);
   tracer().stop();
   hostThread.stop();
   const std::lock_guard lock(mutex_);
   queues_.clear();
+  {
+    // (all queues are gone: no packet waits for these any longer)
+    const std::lock_guard signalLock(markSignalMutex_);
+    for (const auto signal : freeMarkSignals_) {
+      hsa_signal_destroy(signal);
+    }
+    for (const auto signal : retiredMarkSignals_) {
+      hsa_signal_destroy(signal);
+    }
+    freeMarkSignals_.clear();
+    retiredMarkSignals_.clear();
+  }
   const std::lock_guard placeLock(placeMutex_);
   for (auto& pipe : pipes_) {
     hsa_queue_destroy(pipe.probe);

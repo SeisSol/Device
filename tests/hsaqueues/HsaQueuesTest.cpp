@@ -43,6 +43,15 @@ __global__ void slowAdd(float* data, float value, int n, int spins) {
   }
 }
 
+// one step of a sequence whose result depends on the order of the steps; it takes `cycles` first,
+// so that a queue that waits for it has to wait for real
+__global__ void sequenceStep(unsigned* value, unsigned factor, unsigned add, long long cycles) {
+  const long long start = clock64();
+  while (clock64() - start < cycles) {
+  }
+  *value = *value * factor + add;
+}
+
 int failures = 0;
 void expect(bool ok, const char* what) {
   std::printf("%s: %s\n", ok ? "ok  " : "FAIL", what);
@@ -117,6 +126,36 @@ int main() {
   }
   expect(ok, "a stream waits for an event of another queue");
   expect(api.isEventCompleted(event), "the event has completed");
+
+  // two queues take turns on one value many times, each waiting for the latest event of the other
+  // (with DEVICE_HSA_QUEUE_WAITS=signal: thousands of signals of marks, given back and reused)
+  {
+    auto* value = static_cast<unsigned*>(api.allocGlobMem(sizeof(unsigned)));
+    unsigned expected = 7;
+    api.copyToAsync(value, &expected, sizeof(unsigned), s1);
+    void* turn1 = api.createEvent(false);
+    void* turn2 = api.createEvent(false);
+    api.recordEventOnStream(turn2, s2);
+    constexpr unsigned Rounds = 3000;
+    for (unsigned round = 0; round < Rounds; ++round) {
+      api.syncStreamWithEvent(s1, turn2);
+      sequenceStep<<<1, 1, 0, static_cast<hipStream_t>(s1)>>>(
+          value, 3U, round, round % 7 == 0 ? 20000 : 0);
+      api.recordEventOnStream(turn1, s1);
+      api.syncStreamWithEvent(s2, turn1);
+      sequenceStep<<<1, 1, 0, static_cast<hipStream_t>(s2)>>>(
+          value, 5U, 2 * round + 1, round % 11 == 0 ? 20000 : 0);
+      api.recordEventOnStream(turn2, s2);
+      expected = (expected * 3U + round) * 5U + 2 * round + 1;
+    }
+    unsigned result = 0;
+    api.copyFromAsync(&result, value, sizeof(unsigned), s2);
+    api.syncStreamWithHost(s2);
+    expect(result == expected, "two queues take turns 3000 times, each waiting for the other");
+    api.destroyEvent(turn1);
+    api.destroyEvent(turn2);
+    api.freeGlobMem(value);
+  }
 
   // a HIP stream waits for an HSA event, and an HSA stream for a HIP event
   void* event2 = api.createEvent(false);

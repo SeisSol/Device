@@ -42,11 +42,16 @@ namespace device::hsaqueues {
 
 /**
  * Runs host functions for the queues: each once its queue has reached it (`reach` drops to 0), in
- * the order the queues get there; then it lets the queue go on (`gate` rises to 1). The queue drops
- * `reach` once more when it has gone on, after which both signals get reused.
+ * the order the queues get there; then it lets the queue go on (`gate` rises to 1, or drops from 1
+ * to 0 with `gateDrops`). The queue drops `reach` once more when it has gone on, after which both
+ * signals get reused.
  */
 class HostThread {
   public:
+  // the gate drops from 1 to 0 instead of rising: for queues that wait by barrier-AND packets,
+  // which wait for signals at 0 (see Runtime::markSignals); set before the first host function
+  bool gateDrops{false};
+
   struct Job {
     hsa_signal_t reach;
     hsa_signal_t gate;
@@ -83,7 +88,7 @@ class HostThread {
     hsa_signal_t gate;
     check(hsa_amd_signal_create(1, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &reach),
           "hsa_amd_signal_create");
-    check(hsa_amd_signal_create(0, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &gate),
+    check(hsa_amd_signal_create(gateDrops ? 1 : 0, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &gate),
           "hsa_amd_signal_create");
     return {reach, gate};
   }
@@ -150,13 +155,13 @@ class HostThread {
       for (auto job = active.begin(); job != active.end();) {
         if (!job->ran && hsa_signal_load_scacquire(job->reach) < 1) {
           job->function();
-          hsa_signal_store_screlease(job->gate, 1);
+          hsa_signal_store_screlease(job->gate, gateDrops ? 0 : 1);
           job->ran = true;
           progress = true;
         }
         if (job->ran && hsa_signal_load_scacquire(job->reach) < 0) {
           hsa_signal_store_relaxed(job->reach, 1);
-          hsa_signal_store_relaxed(job->gate, 0);
+          hsa_signal_store_relaxed(job->gate, gateDrops ? 1 : 0);
           {
             const std::lock_guard lock(mutex_);
             free_.emplace_back(job->reach, job->gate);

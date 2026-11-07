@@ -134,6 +134,20 @@ class Runtime {
   hsa_ven_amd_loader_1_03_pfn_t loader{};
   // whether the command processor waits for signal values itself (barrier-value packets)
   bool barrierValue{false};
+  // without them (DEVICE_HSA_QUEUE_WAITS=signal, the default where the table knows of no
+  // barrier-value packets): each mark counts down a signal of its own as well, from a pool, and
+  // other queues wait for it by barrier-AND packets, as HIP does (see Queue::waitFor())
+  bool markSignals{false};
+  // set when the queues go (see finalize()): they keep the signals of their marks then, as the
+  // queues that waited for them may be gone already
+  std::atomic<bool> finalizing{false};
+  /// a signal for a mark, at 1
+  hsa_signal_t markSignal();
+  /// gives a signal of a mark back that no packet reads any longer
+  void freeMarkSignal(hsa_signal_t signal);
+  /// a signal of a mark that packets of other queues may still read, at the end: it goes when the
+  /// queues do (see finalize())
+  void retireMarkSignal(hsa_signal_t signal);
   std::uint32_t stackSize{1024};
   std::uint32_t queuePackets{1U << 14};
   std::uint64_t kernargRingBytes{DefaultKernargRingMiB << 20};
@@ -179,6 +193,9 @@ class Runtime {
   std::unordered_map<std::uint64_t, std::string> kernelNames_;
   std::mutex traceMutex_;
   std::vector<hsa_signal_t> traceSignals_;
+  std::mutex markSignalMutex_;
+  std::vector<hsa_signal_t> freeMarkSignals_;
+  std::vector<hsa_signal_t> retiredMarkSignals_;
 };
 
 /// memory for kernel arguments: in device memory that the host writes, or in host memory

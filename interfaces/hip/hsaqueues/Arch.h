@@ -14,9 +14,9 @@ namespace device::hsaqueues {
 /**
  * What HSA queues know of an architecture of AMD GPUs: what its command processor takes, and the
  * defaults that measurements there chose (see the table in Arch.cpp). An architecture that the
- * table lacks gets the cautious defaults: waits by kernels, kernel arguments in host memory, queues
- * anywhere. The environment decides otherwise in any case (DEVICE_HSA_QUEUE_WAITS, _PIPES and
- * _KERNARGS).
+ * table lacks gets the cautious defaults: waits by barrier-AND packets on a signal of each mark
+ * (standard packets, as HIP waits), kernel arguments in host memory, queues anywhere. The
+ * environment decides otherwise in any case (DEVICE_HSA_QUEUE_WAITS, _PIPES and _KERNARGS).
  *
  * HSA queues only get enabled on architectures marked Runs, unless DEVICE_HSA_QUEUE_UNTESTED=1.
  * For a new architecture: run the test of HSA queues and its benchmarks there (barrier-value
