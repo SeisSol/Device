@@ -301,6 +301,8 @@ void hostFunction(void* handle, const std::function<void()>& function) {
 namespace {
 std::mutex counterMutex;
 std::unordered_map<const void*, hsa_signal_t> counterSignals;
+// how many there are: without any (e.g. without HSA queues), isCounter() takes no lock
+std::atomic<std::size_t> counterCount{0};
 
 hsa_signal_t counterSignal(const void* location) {
   const std::lock_guard lock(counterMutex);
@@ -321,6 +323,7 @@ std::uint32_t* allocCounter() {
   auto* counter = reinterpret_cast<std::uint32_t*>(const_cast<hsa_signal_value_t*>(value));
   const std::lock_guard lock(counterMutex);
   counterSignals.emplace(counter, signal);
+  ++counterCount;
   return counter;
 }
 
@@ -334,12 +337,13 @@ void freeCounter(std::uint32_t* counter) {
     }
     signal = found->second;
     counterSignals.erase(found);
+    --counterCount;
   }
   hsa_signal_destroy(signal);
 }
 
 bool isCounter(const void* location) {
-  if (location == nullptr) {
+  if (location == nullptr || counterCount.load(std::memory_order_relaxed) == 0) {
     return false;
   }
   const std::lock_guard lock(counterMutex);
