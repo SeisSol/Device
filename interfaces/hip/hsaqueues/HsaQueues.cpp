@@ -62,19 +62,39 @@ struct Stream {
   std::uint64_t lastIndex{0};
 };
 
-struct Event {
-  hipEvent_t hip{nullptr};
+// what an event stands for since it got recorded last
+struct EventState {
   // recorded on an HSA stream: the mark of the queue
   Queue* queue{nullptr};
   std::uint64_t mark{0};
-  // with timing, on an HSA stream: the signal of a kernel that took the time there
-  bool timing{false};
-  hsa_signal_t stamp{};
+  // with timing, on an HSA stream: whether a kernel took the time there (into Event::stamp)
   bool stamped{false};
   // recorded on a stream of HIP (see Runtime::hipWaitsOnDevice): the counter of that stream (from
   // allocCounter()) and the value it gets after the work before the event
   std::uint32_t* hipCounter{nullptr};
   std::uint32_t hipValue{0};
+};
+
+struct Event {
+  hipEvent_t hip{nullptr};
+  // with timing (on HSA streams): the signal of the kernel that takes the time
+  bool timing{false};
+  hsa_signal_t stamp{};
+
+  /// the state of the event as of its latest record: records and waits may come from different
+  /// threads (the mutex of a queue never gets taken while this lock is held)
+  EventState state() {
+    const std::lock_guard lock(mutex_);
+    return state_;
+  }
+  void record(const EventState& state) {
+    const std::lock_guard lock(mutex_);
+    state_ = state;
+  }
+
+  private:
+  std::mutex mutex_;
+  EventState state_;
 };
 
 Stream* streamOf(void* handle) {
@@ -433,6 +453,10 @@ void waitOnHipStream(const Queue& queue, std::uint64_t mark, hipStream_t stream)
 void* createEvent(bool withTiming) {
   auto* event = new Event();
   event->timing = withTiming && Runtime::instance().timing;
+  if (event->timing) {
+    check(hsa_amd_signal_create(1, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &event->stamp),
+          "hsa_amd_signal_create");
+  }
   if (withTiming) {
     APIWRAP(hipEventCreate(&event->hip));
   } else {
@@ -457,38 +481,32 @@ hipEvent_t hipEventOf(void* handle) {
 
 void recordEvent(void* eventHandle, void* streamHandle) {
   auto* event = eventOf(eventHandle);
+  EventState state;
   if (isTagged(streamHandle) && !capturing(streamHandle)) {
     auto* stream = streamOf(streamHandle);
     auto& queue = *stream->queue;
     const std::lock_guard lock(queue.mutex);
     if (event->timing) {
-      if (event->stamp.handle == 0) {
-        check(hsa_amd_signal_create(1, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &event->stamp),
-              "hsa_amd_signal_create");
-      }
       queue.stamp(event->stamp);
       stream->lastIndex = queue.created();
-      event->stamped = true;
+      state.stamped = true;
     }
-    event->queue = &queue;
-    event->mark = queue.markCoveringLocked(stream->lastIndex);
-    event->hipCounter = nullptr;
+    state.queue = &queue;
+    state.mark = queue.markCoveringLocked(stream->lastIndex);
+    event->record(state);
     if (dagLog().on()) {
       dagLog().line("R %lld %p %d %p %llu %llu\n",
                     DagLog::now(),
                     static_cast<void*>(stream),
                     queue.number(),
                     static_cast<void*>(event),
-                    static_cast<unsigned long long>(event->mark),
+                    static_cast<unsigned long long>(state.mark),
                     static_cast<unsigned long long>(stream->lastIndex));
     }
     return;
   }
   // on a stream of HIP, or one that gets captured
   auto hipStream = vehicle(streamHandle);
-  event->queue = nullptr;
-  event->stamped = false;
-  event->hipCounter = nullptr;
   internals::anchorCapture(hipStream);
   if (Runtime::instance().hipWaitsOnDevice && !isTagged(streamHandle) &&
       internals::captureState(hipStream).status != hipStreamCaptureStatusActive) {
@@ -506,18 +524,22 @@ void recordEvent(void* eventHandle, void* streamHandle) {
     void* args[] = {&location, &value};
     APIWRAP(hipLaunch(
         reinterpret_cast<const void*>(hsaWriteCounter), dim3(1), dim3(1), args, 0, hipStream));
-    event->hipCounter = location;
-    event->hipValue = value;
+    state.hipCounter = location;
+    state.hipValue = value;
+    event->record(state);
     return;
   }
   APIWRAP(hipEventRecord(event->hip, hipStream));
   internals::noteRecordedEvent(event->hip, hipStream);
+  event->record(state);
 }
 
 double timespan(void* startHandle, void* endHandle) {
   auto* start = eventOf(startHandle);
   auto* end = eventOf(endHandle);
-  if (start->stamped && end->stamped) {
+  const auto startState = start->state();
+  const auto endState = end->state();
+  if (startState.stamped && endState.stamped) {
     const auto stamp = [](hsa_signal_t signal) {
       while (hsa_signal_wait_scacquire(
                  signal, HSA_SIGNAL_CONDITION_LT, 1, UINT64_MAX, HSA_WAIT_STATE_ACTIVE) >= 1) {
@@ -542,7 +564,8 @@ double timespan(void* startHandle, void* endHandle) {
     const auto ticks = static_cast<double>(second) - static_cast<double>(first);
     return ticks / static_cast<double>(Runtime::instance().timestampFrequency);
   }
-  if (start->queue == nullptr && end->queue == nullptr && !start->stamped && !end->stamped) {
+  if (startState.queue == nullptr && endState.queue == nullptr && !startState.stamped &&
+      !endState.stamped) {
     float time{};
     APIWRAP(hipEventElapsedTime(&time, start->hip, end->hip));
     return static_cast<double>(time) / 1000.0;
@@ -578,9 +601,7 @@ bool trace(const TraceSink& sink) {
 
 void recordEventOnHost(void* handle) {
   auto* event = eventOf(handle);
-  event->queue = nullptr;
-  event->stamped = false;
-  event->hipCounter = nullptr;
+  event->record(EventState{});
   internals::forgetEvent(event->hip);
   APIWRAP(hipEventRecord(event->hip));
 }
@@ -594,10 +615,11 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
       return;
     }
     auto* event = eventOf(eventHandle);
-    if (event->queue == nullptr) {
-      if (event->hipCounter != nullptr) {
+    const auto state = event->state();
+    if (state.queue == nullptr) {
+      if (state.hipCounter != nullptr) {
         // the counter that a kernel of ours sets after the event on the stream of HIP
-        waitMemory(streamHandle, event->hipCounter, event->hipValue);
+        waitMemory(streamHandle, state.hipCounter, state.hipValue);
         return;
       }
       warnOnce("HSA streams wait for events recorded on streams of HIP on the host");
@@ -606,7 +628,7 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
     }
     auto& queue = *stream->queue;
     const std::lock_guard lock(queue.mutex);
-    queue.waitFor(*event->queue, event->mark);
+    queue.waitFor(*state.queue, state.mark);
     stream->lastIndex = queue.created();
     if (dagLog().on()) {
       dagLog().line("W %lld %p %d %p\n",
@@ -618,17 +640,17 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
     return;
   }
   auto hipStream = vehicle(streamHandle);
-  if (isTagged(eventHandle) && eventOf(eventHandle)->queue != nullptr) {
-    auto* event = eventOf(eventHandle);
+  if (const auto state = isTagged(eventHandle) ? eventOf(eventHandle)->state() : EventState{};
+      state.queue != nullptr) {
     if (internals::captureState(hipStream).status == hipStreamCaptureStatusActive) {
       logError() << "HSA queues: a stream that gets captured cannot wait for an HSA stream.";
     }
     if (Runtime::instance().hipWaitsOnDevice) {
-      waitOnHipStream(*event->queue, event->mark, hipStream);
+      waitOnHipStream(*state.queue, state.mark, hipStream);
       return;
     }
     warnOnce("streams of HIP wait for events of HSA streams on the host");
-    event->queue->wait(event->mark);
+    state.queue->wait(state.mark);
     return;
   }
   const auto hipEvent = hipEventOf(eventHandle);
@@ -639,16 +661,16 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
 
 bool eventDone(void* handle) {
   auto* event = eventOf(handle);
-  if (event->queue != nullptr) {
-    return event->queue->reached(event->mark);
+  if (const auto state = event->state(); state.queue != nullptr) {
+    return state.queue->reached(state.mark);
   }
   return APIWRAPX(hipEventQuery(event->hip), {hipErrorNotReady}) == hipSuccess;
 }
 
 void syncEvent(void* handle) {
   auto* event = eventOf(handle);
-  if (event->queue != nullptr) {
-    event->queue->wait(event->mark);
+  if (const auto state = event->state(); state.queue != nullptr) {
+    state.queue->wait(state.mark);
     return;
   }
   APIWRAP(hipEventSynchronize(event->hip));
