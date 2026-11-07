@@ -58,12 +58,15 @@ ArgKind argKind(const std::string& kind) {
 }
 
 /// the keys of the metadata of a kernel that the HSA queues know (code objects v3 to v6, as LLVM
-/// writes them); a key they do not know may change how the kernel has to be launched
+/// writes them); a key they do not know may change how the kernel has to be launched. (LLVM 23 of
+/// the AFAR drops writes .gfx1250_revision into the metadata of every kernel, e.g. B0 for gfx942
+/// as well; of ROCm, only LLVM knows it, CLR and ROCr launch without it.)
 bool knownKernelKey(const std::string& key) {
   static const std::unordered_set<std::string> keys{".agpr_count",
                                                     ".args",
                                                     ".cluster_dims",
                                                     ".device_enqueue_symbol",
+                                                    ".gfx1250_revision",
                                                     ".group_segment_fixed_size",
                                                     ".kernarg_segment_align",
                                                     ".kernarg_segment_size",
