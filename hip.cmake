@@ -65,6 +65,22 @@ else()
     option(DEVICE_HIP_HSA_QUEUES "Build the streams on HSA queues of our own (AMD GPUs)" ON)
 endif()
 if (DEVICE_HIP_HSA_QUEUES)
+    # HSA and comgr, which ROCm may keep under prefixes of their own (e.g. Spack: hsa-rocr-dev and
+    # comgr apart from hip), as plain paths: a static device library hands its link libraries on
+    # to the programs, outside of the scope of imported targets of this directory; without them,
+    # the stub
+    find_path(DEVICE_HSA_INCLUDE_DIR hsa/hsa.h HINTS ${HIP_PATH}/include ${ROCM_PATH}/include)
+    find_library(DEVICE_HSA_LIBRARY hsa-runtime64 HINTS ${HIP_PATH}/lib ${ROCM_PATH}/lib)
+    find_path(DEVICE_COMGR_INCLUDE_DIR amd_comgr/amd_comgr.h HINTS ${HIP_PATH}/include ${ROCM_PATH}/include)
+    find_library(DEVICE_COMGR_LIBRARY amd_comgr HINTS ${HIP_PATH}/lib ${ROCM_PATH}/lib)
+    if (NOT DEVICE_HSA_INCLUDE_DIR OR NOT DEVICE_HSA_LIBRARY OR NOT DEVICE_COMGR_INCLUDE_DIR OR NOT DEVICE_COMGR_LIBRARY)
+        message(WARNING "HSA queues need the headers and libraries of HSA (hsa-runtime64) and "
+                        "comgr (amd_comgr), which were not found (see CMAKE_PREFIX_PATH); "
+                        "building without them.")
+        set(DEVICE_HIP_HSA_QUEUES OFF)
+    endif()
+endif()
+if (DEVICE_HIP_HSA_QUEUES)
     set(DEVICE_HSA_QUEUE_SOURCES interfaces/hip/hsaqueues/Arch.cpp
                                  interfaces/hip/hsaqueues/Common.cpp
                                  interfaces/hip/hsaqueues/Kernels.cpp
@@ -109,7 +125,8 @@ else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
 endif()
 if (DEVICE_HIP_HSA_QUEUES)
-    target_link_libraries(device PRIVATE ${HIP_PATH}/lib/libhsa-runtime64.so ${HIP_PATH}/lib/libamd_comgr.so)
+    target_include_directories(device PRIVATE ${DEVICE_HSA_INCLUDE_DIR} ${DEVICE_COMGR_INCLUDE_DIR})
+    target_link_libraries(device PRIVATE ${DEVICE_HSA_LIBRARY} ${DEVICE_COMGR_LIBRARY})
 endif()
 
 # The launch hook for HSA queues, to be compiled into the program itself (see
