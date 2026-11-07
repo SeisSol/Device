@@ -69,10 +69,12 @@ struct EventState {
   std::uint64_t mark{0};
   // with timing, on an HSA stream: whether a kernel took the time there (into Event::stamp)
   bool stamped{false};
-  // recorded on a stream of HIP (see Runtime::hipWaitsOnDevice): the counter of that stream (from
-  // allocCounter()) and the value it gets after the work before the event
-  std::uint32_t* hipCounter{nullptr};
-  std::uint32_t hipValue{0};
+  // recorded on a stream of HIP (see Runtime::hipWaitsOnDevice): the counter of that stream (a
+  // signal that only counts up, with the address of its value) and the value it gets after the work
+  // before the event
+  hsa_signal_t hipCounter{};
+  const std::int64_t* hipCounterValue{nullptr};
+  std::int64_t hipValue{0};
 };
 
 struct Event {
@@ -352,7 +354,7 @@ void waitMemory(void* handle, std::uint32_t* location, std::uint32_t value) {
     // the command processor waits for the signal
     const std::lock_guard lock(queue.mutex);
     const auto first = queue.created();
-    queue.waitForCounter(signal, value);
+    queue.waitForCounter(signal, value, 0xffffffff);
     stream->lastIndex = queue.created();
     logOther(stream, queue, first, "counter");
     return;
@@ -428,10 +430,12 @@ void freeAsync(void* ptr, void* handle) {
 
 namespace {
 // the counters of the streams of HIP that events got recorded on (see Runtime::hipWaitsOnDevice),
-// with the value of the latest event; the lock keeps the values in the order of the streams
+// with the value of the latest event; the lock keeps the values in the order of the streams. Their
+// signals count in 64 bits, as a mark does (a counter of the host has 32 bits only).
 struct HipStreamCounter {
-  std::uint32_t* counter{nullptr};
-  std::uint32_t value{0};
+  hsa_signal_t signal{};
+  const std::int64_t* value{nullptr};
+  std::int64_t count{0};
 };
 std::mutex hipCounterMutex;
 std::unordered_map<hipStream_t, HipStreamCounter> hipCounters;
@@ -447,6 +451,31 @@ void waitOnHipStream(const Queue& queue, std::uint64_t mark, hipStream_t stream)
   void* args[] = {&value, &below};
   APIWRAP(
       hipLaunch(reinterpret_cast<const void*>(hsaHipWaitBelow), dim3(1), dim3(1), args, 0, stream));
+}
+
+/// lets an HSA stream wait for an event recorded on a stream of HIP: until the counter of that
+/// stream has reached the value of the event (see recordEvent())
+void waitHipCounter(Stream& stream, const EventState& state) {
+  auto& queue = *stream.queue;
+  const std::lock_guard lock(queue.mutex);
+  const auto first = queue.created();
+  if (Runtime::instance().barrierValue) {
+    queue.waitForCounter(state.hipCounter, state.hipValue, -1);
+  } else {
+    const std::int64_t* value = state.hipCounterValue;
+    std::int64_t atLeast = state.hipValue;
+    void* args[] = {&value, &atLeast};
+    queue.dispatch(Queue::kernelOf(reinterpret_cast<const void*>(hsaWaitAtLeast)),
+                   dim3(1),
+                   dim3(1),
+                   0,
+                   args,
+                   queue.hostWaitFences(),
+                   hsa_signal_t{0});
+    queue.acquireFromHost();
+  }
+  stream.lastIndex = queue.created();
+  logOther(&stream, queue, first, "counter");
 }
 } // namespace
 
@@ -514,17 +543,22 @@ void recordEvent(void* eventHandle, void* streamHandle) {
     // give the signal of an event)
     const std::lock_guard lock(hipCounterMutex);
     auto& counter = hipCounters[hipStream];
-    if (counter.counter == nullptr) {
-      counter.counter = allocCounter();
+    if (counter.signal.handle == 0) {
+      check(hsa_amd_signal_create(0, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &counter.signal),
+            "hsa_amd_signal_create");
+      volatile hsa_signal_value_t* value = nullptr;
+      check(hsa_amd_signal_value_pointer(counter.signal, &value), "hsa_amd_signal_value_pointer");
+      counter.value = const_cast<const std::int64_t*>(value);
     }
     APIWRAP(hipEventRecord(event->hip, hipStream));
     internals::noteRecordedEvent(event->hip, hipStream);
-    std::uint32_t* location = counter.counter;
-    std::uint32_t value = ++counter.value;
+    auto* location = const_cast<std::int64_t*>(counter.value);
+    std::int64_t value = ++counter.count;
     void* args[] = {&location, &value};
     APIWRAP(hipLaunch(
         reinterpret_cast<const void*>(hsaWriteCounter), dim3(1), dim3(1), args, 0, hipStream));
-    state.hipCounter = location;
+    state.hipCounter = counter.signal;
+    state.hipCounterValue = counter.value;
     state.hipValue = value;
     event->record(state);
     return;
@@ -617,9 +651,9 @@ void streamWaitEvent(void* streamHandle, void* eventHandle) {
     auto* event = eventOf(eventHandle);
     const auto state = event->state();
     if (state.queue == nullptr) {
-      if (state.hipCounter != nullptr) {
+      if (state.hipCounter.handle != 0) {
         // the counter that a kernel of ours sets after the event on the stream of HIP
-        waitMemory(streamHandle, state.hipCounter, state.hipValue);
+        waitHipCounter(*stream, state);
         return;
       }
       warnOnce("HSA streams wait for events recorded on streams of HIP on the host");

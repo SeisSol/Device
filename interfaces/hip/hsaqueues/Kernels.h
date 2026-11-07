@@ -26,7 +26,7 @@ __global__ void hsaStamp();
 __global__ void hsaSpin(std::uint64_t ticks);
 __global__ void hsaWaitHost(const std::uint32_t* counter, std::uint32_t atLeast);
 __global__ void hsaHipWaitBelow(const std::int64_t* value, std::int64_t below);
-__global__ void hsaWriteCounter(std::uint32_t* counter, std::uint32_t value);
+__global__ void hsaWriteCounter(std::int64_t* counter, std::int64_t value);
 __global__ void hsaAcquireSystem();
 
 } // namespace device::hsaqueues

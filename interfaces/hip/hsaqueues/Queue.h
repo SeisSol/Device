@@ -504,15 +504,16 @@ class Queue {
     return hsa_signal_t{0};
   }
 
-  /// lets the work enqueued from now on wait until the 32-bit counter in the signal reaches `value`
-  void waitForCounter(hsa_signal_t signal, std::uint32_t value) {
+  /// lets the work enqueued from now on wait until the value of the signal, masked by `mask` (e.g.
+  /// 0xffffffff for a 32-bit counter), reaches `value`
+  void waitForCounter(hsa_signal_t signal, std::int64_t value, std::int64_t mask) {
     PacketImage packet;
     auto& barrier = packet.as<hsa_amd_barrier_value_packet_t>();
     barrier.signal = signal;
     barrier.value = value;
-    barrier.mask = 0xffffffff;
+    barrier.mask = mask;
     barrier.cond = HSA_SIGNAL_CONDITION_GTE;
-    // (the host has written the data the counter stands for)
+    // (the host, or a stream of HIP, has written the data that the counter stands for)
     packet.setHeader(
         static_cast<std::uint16_t>((HSA_PACKET_TYPE_VENDOR_SPECIFIC << HSA_PACKET_HEADER_TYPE) |
                                    BarrierBit | hostWaitFences()),

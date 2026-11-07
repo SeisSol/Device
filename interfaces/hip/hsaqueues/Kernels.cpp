@@ -102,7 +102,7 @@ __global__ void hsaHipWaitBelow(const std::int64_t* value, std::int64_t below) {
 
 // on a stream of HIP, after the work before it there: sets a counter that HSA queues wait for (see
 // recordEvent())
-__global__ void hsaWriteCounter(std::uint32_t* counter, std::uint32_t value) {
+__global__ void hsaWriteCounter(std::int64_t* counter, std::int64_t value) {
   __hip_atomic_store(counter, value, __ATOMIC_RELEASE, __HIP_MEMORY_SCOPE_SYSTEM);
 }
 
