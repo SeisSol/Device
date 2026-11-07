@@ -20,11 +20,11 @@ __global__ void hsaFill(char* dst,
                         std::size_t width,
                         std::size_t height,
                         std::size_t pitch);
-__global__ void hsaWaitBelow(const volatile std::int64_t* value, std::int64_t below);
-__global__ void hsaWaitAtLeast(const volatile std::int64_t* value, std::int64_t atLeast);
+__global__ void hsaWaitBelow(const std::int64_t* value, std::int64_t below);
+__global__ void hsaWaitAtLeast(const std::int64_t* value, std::int64_t atLeast);
 __global__ void hsaStamp();
 __global__ void hsaSpin(std::uint64_t ticks);
-__global__ void hsaWaitHost(const volatile std::uint32_t* counter, std::uint32_t atLeast);
+__global__ void hsaWaitHost(const std::uint32_t* counter, std::uint32_t atLeast);
 __global__ void hsaHipWaitBelow(const std::int64_t* value, std::int64_t below);
 __global__ void hsaWriteCounter(std::uint32_t* counter, std::uint32_t value);
 __global__ void hsaAcquireSystem();

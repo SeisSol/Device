@@ -55,21 +55,23 @@ __global__ void hsaFill(char* dst,
   }
 }
 
+// the waits below read with the scope of the system: the values come from the command processor or
+// the host, past the caches of the device
+
 // until the value of a signal is below `below`
-__global__ void hsaWaitBelow(const volatile std::int64_t* value, std::int64_t below) {
-  while (*value >= below) {
+__global__ void hsaWaitBelow(const std::int64_t* value, std::int64_t below) {
+  while (__hip_atomic_load(value, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM) >= below) {
     __builtin_amdgcn_s_sleep(2);
   }
 }
 
 // until the value of a signal is at least `atLeast`
-__global__ void hsaWaitAtLeast(const volatile std::int64_t* value, std::int64_t atLeast) {
-  while (*value < atLeast) {
+__global__ void hsaWaitAtLeast(const std::int64_t* value, std::int64_t atLeast) {
+  while (__hip_atomic_load(value, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM) < atLeast) {
     __builtin_amdgcn_s_sleep(2);
   }
 }
 
-// until a counter in host memory is at least `atLeast`
 // takes the time (by its completion signal, on a queue with profiling)
 __global__ void hsaStamp() {}
 
@@ -81,8 +83,9 @@ __global__ void hsaSpin(std::uint64_t ticks) {
   }
 }
 
-__global__ void hsaWaitHost(const volatile std::uint32_t* counter, std::uint32_t atLeast) {
-  while (*counter < atLeast) {
+// until a counter in host memory is at least `atLeast`
+__global__ void hsaWaitHost(const std::uint32_t* counter, std::uint32_t atLeast) {
+  while (__hip_atomic_load(counter, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_SYSTEM) < atLeast) {
     __builtin_amdgcn_s_sleep(2);
   }
 }
