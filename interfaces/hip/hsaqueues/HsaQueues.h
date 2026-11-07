@@ -37,6 +37,11 @@
  * stream of HIP that stands in for it (its vehicle). A graph that gets launched on an HSA stream
  * gets translated into packets, once per graph and queue; its temporary allocations (hipMallocAsync
  * while capturing) get memory of the queue instead, which the translation puts into the arguments.
+ * So the temporary allocations of a graph live only until it is done (the graphs of a queue share
+ * that memory, and a graph that does not free one stops with an error), they take the sum of their
+ * sizes, and pointers into them get moved where they are arguments of kernels, copies and fills
+ * (any 8 bytes of an argument whose value lies in such an allocation count as one), not where the
+ * device reads them from memory (e.g. arrays of pointers).
  *
  * Events are tagged pointers as well, once HSA queues are enabled: recorded on an HSA stream, an
  * event is a mark of its queue; recorded on a stream of HIP, an event of HIP. With

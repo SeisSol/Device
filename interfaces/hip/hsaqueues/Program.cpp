@@ -171,8 +171,11 @@ Program::Program(Queue& queue,
     });
   }
 
-  // the temporary allocations get memory of the queue, one after the other
+  // the temporary allocations get memory of the queue, one after the other; all programs of the
+  // queue share that memory, so each allocation has to be freed within its graph (HIP may give an
+  // address to several allocations of a graph, one after the other)
   std::vector<Allocation> allocations;
+  std::unordered_map<std::uint64_t, std::int64_t> unfreed;
   std::uint64_t arenaBytes = 0;
   for (const auto i : order) {
     hipGraphNodeType type{};
@@ -183,6 +186,19 @@ Program::Program(Queue& queue,
       const auto begin = reinterpret_cast<std::uint64_t>(params.dptr);
       allocations.push_back({begin, begin + params.bytesize, arenaBytes});
       arenaBytes = alignUp(arenaBytes + params.bytesize, 256);
+      ++unfreed[begin];
+    } else if (type == hipGraphNodeTypeMemFree) {
+      void* freed = nullptr;
+      APIWRAP(hipGraphMemFreeNodeGetParams(nodes[i], &freed));
+      --unfreed[reinterpret_cast<std::uint64_t>(freed)];
+    }
+  }
+  for (const auto& [address, count] : unfreed) {
+    if (count > 0) {
+      logError() << "HSA queues: a graph allocates memory that it does not free itself"
+                 << reinterpret_cast<const void*>(address)
+                 << "; on HSA queues, the temporary allocations of a graph (allocMemAsync() while "
+                    "capturing) live only until the graph is done, so free them within it as well.";
     }
   }
   if (!allocations.empty()) {
