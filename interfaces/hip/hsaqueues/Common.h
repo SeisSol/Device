@@ -133,6 +133,43 @@ struct KernelInfo {
 
 // ------------------------------------------------------------------------------------------------
 
+/**
+ * The extended kernel dispatch packet of AMD (vendor-specific packet format 3,
+ * hsa_amd_ext_kernel_dispatch_packet_t of newer ROCr headers than those of ROCm 7.2), as CLR writes
+ * all kernels on gfx12.5: the grid in clusters of workgroups, a hint for the share of group memory,
+ * and a dependent signal that the command processor waits for (at 0) before it launches the kernel.
+ */
+struct ExtDispatchPacket {
+  std::uint16_t header;
+  std::uint8_t amdFormat;
+  std::uint8_t setup;
+  std::uint16_t workgroupSizeX;
+  std::uint16_t workgroupSizeY;
+  std::uint16_t workgroupSizeZ;
+  std::uint16_t reserved0;
+  std::uint32_t clusterCountX;
+  std::uint16_t clusterCountY;
+  std::uint16_t clusterCountZ;
+  std::uint8_t clusterSizeX;
+  std::uint8_t clusterSizeY;
+  std::uint8_t clusterSizeZ;
+  // the share of group memory in each compute unit (7 bits; 127: all) and the reverse order (1 bit)
+  std::uint8_t perfHint;
+  std::uint32_t privateSegmentSize;
+  std::uint32_t groupSegmentSize;
+  std::uint64_t kernelObject;
+  void* kernargAddress;
+  hsa_signal_t depSignal;
+  hsa_signal_t completionSignal;
+};
+static_assert(sizeof(ExtDispatchPacket) == 64);
+static_assert(offsetof(ExtDispatchPacket, clusterCountX) == 12);
+static_assert(offsetof(ExtDispatchPacket, privateSegmentSize) == 24);
+static_assert(offsetof(ExtDispatchPacket, kernelObject) == 32);
+static_assert(offsetof(ExtDispatchPacket, depSignal) == 48);
+static_assert(offsetof(ExtDispatchPacket, completionSignal) == 56);
+constexpr std::uint8_t ExtKernelDispatchFormat = 3;
+
 /// a packet as it goes into a queue: all of its 64 bytes, the header word included
 struct PacketImage {
   std::array<std::uint8_t, 64> bytes{};

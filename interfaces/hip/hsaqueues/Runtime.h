@@ -138,6 +138,11 @@ class Runtime {
   // barrier-value packets): each mark counts down a signal of its own as well, from a pool, and
   // other queues wait for it by barrier-AND packets, as HIP does (see Queue::waitFor())
   bool markSignals{false};
+  // kernels go as extended dispatch packets (DEVICE_HSA_QUEUE_EXT_DISPATCH=1, the default where the
+  // table says so: gfx12.5), and a single wait for a mark goes into the next kernel with the
+  // barrier bit, as its dependent signal, instead of a barrier-AND packet of its own (see
+  // Queue::push())
+  bool extDispatch{false};
   // set when the queues go (see finalize()): they keep the signals of their marks then, as the
   // queues that waited for them may be gone already
   std::atomic<bool> finalizing{false};

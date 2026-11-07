@@ -305,6 +305,12 @@ bool Runtime::setUp() {
     barrierValue = true;
   }
   markSignals = waits == "signal" || (waits.empty() && !barrierValue);
+  extDispatch = setting<bool>("EXT_DISPATCH", arch_.extDispatch);
+  if (extDispatch && !arch_.extDispatch) {
+    logWarning() << "HSA queues: extended dispatch packets (DEVICE_HSA_QUEUE_EXT_DISPATCH=1) on"
+                 << arch_.name << ", which the table does not know to take them (gfx942 ends the"
+                 << "process at the first one).";
+  }
   // (a host function lets its queue go on by a signal that drops to 0 then, see HostThread)
   hostThread.gateDrops = markSignals;
   std::size_t stack = 0;
@@ -425,7 +431,8 @@ void Runtime::describe() {
             << "; work after the host sees"
             << "its data by" << (acquireByKernel ? "a fence in a kernel" : "packet fences")
             << "; kernel arguments in" << (deviceKernargs ? "device memory" : "host memory")
-            << "; queues of" << queuePackets << "packets and" << (kernargRingBytes >> 20)
+            << (extDispatch ? "; kernels as extended dispatch packets" : "") << "; queues of"
+            << queuePackets << "packets and" << (kernargRingBytes >> 20)
             << "MiB for kernel arguments";
 }
 

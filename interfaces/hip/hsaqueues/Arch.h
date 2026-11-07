@@ -47,6 +47,9 @@ struct ArchTraits {
   /// whether the kernel arguments go into fine-grained device memory by default, instead of host
   /// memory
   bool deviceKernargs{false};
+  /// whether kernels go as extended dispatch packets (with a dependent signal), as CLR writes them
+  /// there (gfx12.5), instead of kernel dispatch packets
+  bool extDispatch{false};
   /// the devices, and what the table entry rests on (for the log)
   std::string note;
 };

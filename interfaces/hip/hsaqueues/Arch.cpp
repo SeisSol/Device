@@ -20,6 +20,7 @@ struct Entry {
   bool spreadPipes;
   bool deviceKernargs;
   std::string_view note;
+  bool extDispatch{false};
 };
 
 using Tested = ArchTraits::Tested;
@@ -75,8 +76,9 @@ constexpr std::array Table{
           false,
           false,
           "gfx12.5: CLR leaves barrier-value packets off there, keeps kernel arguments in device "
-          "memory, and writes kernels as extended dispatch packets (with a dependent signal); "
-          "untested whether the command processor takes standard dispatch packets"},
+          "memory, and writes kernels as extended dispatch packets, a single wait as their "
+          "dependent signal; HSA queues do the latter, untested",
+          true},
     Entry{"gfx11",
           true,
           Tested::No,
@@ -106,6 +108,7 @@ ArchTraits archTraits(std::string_view name) {
       traits.barrierValue = entry.barrierValue;
       traits.spreadPipes = entry.spreadPipes;
       traits.deviceKernargs = entry.deviceKernargs;
+      traits.extDispatch = entry.extDispatch;
       traits.note = std::string(entry.note);
       return traits;
     }

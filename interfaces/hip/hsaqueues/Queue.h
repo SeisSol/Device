@@ -123,13 +123,20 @@ class Queue {
 
   /// enqueues a packet: into the queue, or into host memory while it is full (see drain())
   void push(const PacketImage& packet) {
-    if (runtime_.tracing.load(std::memory_order_relaxed)) {
-      PacketImage traced = packet;
-      annotate(traced);
-      pushImage(traced);
-    } else {
+    const bool tracing = runtime_.tracing.load(std::memory_order_relaxed);
+    if (!tracing && !runtime_.extDispatch) {
       pushImage(packet);
+      return;
     }
+    PacketImage image = packet;
+    if (runtime_.extDispatch) {
+      // (a wait that it does not take comes first)
+      extend(image);
+    }
+    if (tracing) {
+      annotate(image);
+    }
+    pushImage(image);
   }
 
   /// a kernel or wait whose times the trace takes, by a signal of its own (see trace())
@@ -186,6 +193,11 @@ class Queue {
       completion = &packet.completion_signal;
       entry.object = packet.kernel_object;
     } else if (type == HSA_PACKET_TYPE_VENDOR_SPECIFIC &&
+               ((word >> 16U) & 0xffU) == ExtKernelDispatchFormat) {
+      auto& packet = image.as<ExtDispatchPacket>();
+      completion = &packet.completionSignal;
+      entry.object = packet.kernelObject;
+    } else if (type == HSA_PACKET_TYPE_VENDOR_SPECIFIC &&
                ((word >> 16U) & 0xffU) == HSA_AMD_PACKET_TYPE_BARRIER_VALUE) {
       auto& packet = image.as<hsa_amd_barrier_value_packet_t>();
       completion = &packet.completion_signal;
@@ -203,6 +215,89 @@ class Queue {
     *completion = entry.signal;
     const std::lock_guard lock(traceMutex_);
     traced_.push_back(entry);
+  }
+
+  /**
+   * With Runtime::extDispatch: a kernel goes as an extended dispatch packet, in clusters of one
+   * workgroup, with all group memory (as CLR writes kernels on gfx12.5); with the barrier bit, it
+   * takes the pending wait (see waitFor()) as its dependent signal. A kernel without the barrier
+   * bit, and any other packet, gets the pending wait as a barrier-AND packet before it.
+   */
+  void extend(PacketImage& image) {
+    std::uint32_t word = 0;
+    std::memcpy(&word, image.bytes.data(), sizeof(word));
+    const auto header = static_cast<std::uint16_t>(word & 0xffffU);
+    constexpr auto TypeMask = static_cast<std::uint16_t>(((1U << HSA_PACKET_HEADER_WIDTH_TYPE) - 1U)
+                                                         << HSA_PACKET_HEADER_TYPE);
+    if (((header & TypeMask) >> HSA_PACKET_HEADER_TYPE) != HSA_PACKET_TYPE_KERNEL_DISPATCH) {
+      writePendingWait();
+      return;
+    }
+    const auto standard = image.as<hsa_kernel_dispatch_packet_t>();
+    // (the grid in workgroups, which the extended packet takes with 16 bits in y and z)
+    const std::uint32_t groupsX = standard.grid_size_x / standard.workgroup_size_x;
+    const std::uint32_t groupsY = standard.grid_size_y / standard.workgroup_size_y;
+    const std::uint32_t groupsZ = standard.grid_size_z / standard.workgroup_size_z;
+    if (groupsY > 0xffffU || groupsZ > 0xffffU) {
+      warnOnce("kernels with more than 65535 workgroups in y or z go as kernel dispatch packets");
+      writePendingWait();
+      return;
+    }
+    ExtDispatchPacket ext{};
+    ext.workgroupSizeX = standard.workgroup_size_x;
+    ext.workgroupSizeY = standard.workgroup_size_y;
+    ext.workgroupSizeZ = standard.workgroup_size_z;
+    ext.clusterCountX = groupsX;
+    ext.clusterCountY = static_cast<std::uint16_t>(groupsY);
+    ext.clusterCountZ = static_cast<std::uint16_t>(groupsZ);
+    ext.clusterSizeX = 1;
+    ext.clusterSizeY = 1;
+    ext.clusterSizeZ = 1;
+    ext.perfHint = 127;
+    ext.privateSegmentSize = standard.private_segment_size;
+    ext.groupSegmentSize = standard.group_segment_size;
+    ext.kernelObject = standard.kernel_object;
+    ext.kernargAddress = standard.kernarg_address;
+    ext.completionSignal = standard.completion_signal;
+    auto extHeader = static_cast<std::uint16_t>(
+        (header & ~TypeMask) | (HSA_PACKET_TYPE_VENDOR_SPECIFIC << HSA_PACKET_HEADER_TYPE));
+    if (pendingWait_.handle != 0) {
+      if ((header & BarrierBit) != 0) {
+        ext.depSignal = pendingWait_;
+        extHeader = withAcquire(extHeader, runtime_.waitFences);
+        pendingWait_ = hsa_signal_t{0};
+      } else {
+        writePendingWait();
+      }
+    }
+    // (the dimensions)
+    const auto setup = static_cast<std::uint16_t>((word >> 16U) & 0xffU);
+    image.as<ExtDispatchPacket>() = ext;
+    image.setHeader(extHeader, static_cast<std::uint16_t>(ExtKernelDispatchFormat | (setup << 8U)));
+  }
+
+  /// the pending wait (see waitFor()) as a barrier-AND packet of its own
+  void writePendingWait() {
+    if (pendingWait_.handle == 0) {
+      return;
+    }
+    PacketImage packet;
+    packet.as<hsa_barrier_and_packet_t>().dep_signal[0] = pendingWait_;
+    packet.setHeader(
+        static_cast<std::uint16_t>((HSA_PACKET_TYPE_BARRIER_AND << HSA_PACKET_HEADER_TYPE) |
+                                   BarrierBit | runtime_.waitFences),
+        0);
+    pendingWait_ = hsa_signal_t{0};
+    pushImage(packet);
+  }
+
+  /// `header` with at least the acquire scope of `fences`
+  static std::uint16_t withAcquire(std::uint16_t header, std::uint16_t fences) {
+    constexpr unsigned Shift = HSA_PACKET_HEADER_SCACQUIRE_FENCE_SCOPE;
+    constexpr unsigned Mask = ((1U << HSA_PACKET_HEADER_WIDTH_SCACQUIRE_FENCE_SCOPE) - 1U) << Shift;
+    const unsigned own = (header & Mask) >> Shift;
+    const unsigned wanted = (fences & Mask) >> Shift;
+    return static_cast<std::uint16_t>((header & ~Mask) | (std::max(own, wanted) << Shift));
   }
 
   public:
@@ -302,6 +397,10 @@ class Queue {
 
   /// a mark after the packets before `index` (see created()): the latest one if it is, or a new one
   std::uint64_t markCoveringLocked(std::uint64_t index) {
+    if (pendingWait_.handle != 0) {
+      // (a wait not written yet counts as work after the latest mark)
+      return mark();
+    }
     if (index == 0) {
       return 0;
     }
@@ -314,7 +413,8 @@ class Queue {
   /// whether the queue has done all it got (its last packet is a mark that has been reached), with
   /// `mutex` held
   [[nodiscard]] bool idleLocked() const {
-    return overflow_.empty() && marks_ > 0 && lastMarkIndex_ == created_ && reached(marks_);
+    return pendingWait_.handle == 0 && overflow_.empty() && marks_ > 0 &&
+           lastMarkIndex_ == created_ && reached(marks_);
   }
 
   // the time (s of steady_clock) by which the queue is predicted to have done all it got, for
@@ -459,6 +559,13 @@ class Queue {
       const auto signal = other.markSignalFor(mark, *this, marks_ + 1);
       if (signal.handle == 0) {
         // reached, and its signal given back meanwhile
+        return;
+      }
+      if (runtime_.extDispatch) {
+        // the next kernel with the barrier bit takes it as its dependent signal (see extend()); a
+        // wait pending already goes as a packet of its own, as a kernel takes one signal only
+        writePendingWait();
+        pendingWait_ = signal;
         return;
       }
       PacketImage packet;
@@ -789,6 +896,9 @@ class Queue {
   };
   std::mutex signalMutex_;
   std::deque<MarkSignal> markSignals_;
+  // with Runtime::extDispatch: the signal of a mark that the work enqueued next waits for, not
+  // written yet (see extend())
+  hsa_signal_t pendingWait_{};
   volatile hsa_signal_value_t* counterValue_{nullptr};
   std::uint64_t created_{0};
   std::uint64_t marks_{0};
