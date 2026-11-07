@@ -451,6 +451,12 @@ void Runtime::scanCodeObjects() {
 }
 
 const KernelInfo& Runtime::kernel(const void* function) {
+  // the kernels that this thread has launched so far: launches from several threads share no lock
+  // here (the entries of `symbols` stay in place, and keep what they got when resolved)
+  thread_local std::unordered_map<const void*, const KernelInfo*> launched;
+  if (const auto found = launched.find(function); found != launched.end()) {
+    return *found->second;
+  }
   const auto& info = resolve(function);
   if (!info.unknownLayout.empty()) {
     logError() << "HSA queues: the kernel" << info.name << "needs" << info.unknownLayout
@@ -458,6 +464,7 @@ const KernelInfo& Runtime::kernel(const void* function) {
                   "for a newer architecture?); run without HSA queues, or teach "
                   "hsaqueues/Metadata.cpp and Queue::dispatch() about it.";
   }
+  launched.emplace(function, &info);
   return info;
 }
 
