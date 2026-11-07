@@ -11,10 +11,14 @@
 namespace device::hsaqueues {
 
 namespace {
+// which devices of an architecture an entry holds for
+enum class Devices : std::uint8_t { All, Apus, Discrete };
+
 struct Entry {
   // the name, or its beginning where `prefix`
   std::string_view name;
   bool prefix;
+  Devices devices;
   ArchTraits::Tested tested;
   bool barrierValue;
   bool spreadPipes;
@@ -29,6 +33,7 @@ using Tested = ArchTraits::Tested;
 constexpr std::array Table{
     Entry{"gfx90a",
           false,
+          Devices::All,
           Tested::Runs,
           true,
           true,
@@ -36,17 +41,27 @@ constexpr std::array Table{
           "MI200 (MI250X): the command processor serves the queues of a process on 4 pipes, which "
           "they share (spread: TPV13 on 2 nodes 1.92 s instead of 2.43 s); kernel arguments in "
           "device memory: TPV13 1.7 % less"},
-    Entry{
-        "gfx942",
-        false,
-        Tested::Runs,
-        true,
-        false,
-        true,
-        "MI300 (MI300A): no shared pipes found; kernel arguments in device memory: TPV5 and TPV13 "
-        "9-10 % less on four ranks"},
+    Entry{"gfx942",
+          false,
+          Devices::Apus,
+          Tested::Runs,
+          true,
+          false,
+          true,
+          "MI300A: no shared pipes found; kernel arguments in device memory: TPV5 and TPV13 9-10 % "
+          "less on four ranks"},
+    Entry{"gfx942",
+          false,
+          Devices::Discrete,
+          Tested::No,
+          true,
+          false,
+          true,
+          "MI300X, MI325X: as the MI300A, untested (a discrete GPU, whose kernel arguments in "
+          "device memory the host writes over its link)"},
     Entry{"gfx94",
           true,
+          Devices::All,
           Tested::No,
           true,
           false,
@@ -54,6 +69,7 @@ constexpr std::array Table{
           "MI300 (gfx940, gfx941): as gfx942, untested"},
     Entry{"gfx950",
           false,
+          Devices::All,
           Tested::No,
           true,
           false,
@@ -62,6 +78,7 @@ constexpr std::array Table{
     Entry{
         "gfx1150",
         false,
+        Devices::All,
         Tested::UnitTest,
         false,
         false,
@@ -71,6 +88,7 @@ constexpr std::array Table{
     // (before the other gfx12: gfx1250, gfx1251)
     Entry{"gfx125",
           true,
+          Devices::All,
           Tested::No,
           false,
           false,
@@ -81,6 +99,7 @@ constexpr std::array Table{
           true},
     Entry{"gfx11",
           true,
+          Devices::All,
           Tested::No,
           false,
           false,
@@ -88,6 +107,7 @@ constexpr std::array Table{
           "RDNA 3: no barrier-value packets (as on the 890M); untested"},
     Entry{"gfx12",
           true,
+          Devices::All,
           Tested::No,
           false,
           false,
@@ -96,13 +116,16 @@ constexpr std::array Table{
 };
 } // namespace
 
-ArchTraits archTraits(std::string_view name) {
+ArchTraits archTraits(std::string_view name, bool apu) {
   // without the features (e.g. gfx90a:sramecc+:xnack-)
   const auto plain = name.substr(0, name.find(':'));
   ArchTraits traits;
   traits.name = std::string(plain);
+  traits.apu = apu;
   for (const auto& entry : Table) {
-    if (plain == entry.name || (entry.prefix && plain.substr(0, entry.name.size()) == entry.name)) {
+    const bool devices = entry.devices == Devices::All || (entry.devices == Devices::Apus) == apu;
+    if (devices && (plain == entry.name ||
+                    (entry.prefix && plain.substr(0, entry.name.size()) == entry.name))) {
       traits.known = true;
       traits.tested = entry.tested;
       traits.barrierValue = entry.barrierValue;

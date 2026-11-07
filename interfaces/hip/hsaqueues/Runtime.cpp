@@ -290,9 +290,15 @@ bool Runtime::setUp() {
   }
   char name[64] = {};
   hsa_agent_get_info(gpu, HSA_AGENT_INFO_NAME, name);
+  std::uint8_t memoryProperties[8] = {};
+  const bool apu =
+      hsa_agent_get_info(gpu,
+                         static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_MEMORY_PROPERTIES),
+                         memoryProperties) == HSA_STATUS_SUCCESS &&
+      hsa_flag_isset64(memoryProperties, HSA_AMD_MEMORY_PROPERTY_AGENT_IS_APU);
   // what the command processor of the device takes, and the defaults that measurements chose for it
   // (see Arch.cpp)
-  arch_ = archTraits(name);
+  arch_ = archTraits(name, apu);
   // only where programs have run with them, unless asked for (e.g. by the test of a new
   // architecture, see tests/hsaqueues)
   if (arch_.tested != ArchTraits::Tested::Runs && !setting<bool>("UNTESTED", false)) {
@@ -411,7 +417,13 @@ void Runtime::describe() {
     logWarning() << "HSA queues: no program has run on" << arch_.name << "with them yet ("
                  << arch_.note << ").";
   }
-  logInfo() << "HSA queues on" << arch_.name << "; queues wait for other queues by"
+  // (where the queues go, and how waits behave, may change with the firmware)
+  std::uint32_t firmware = 0;
+  hsa_agent_get_info(
+      gpu, static_cast<hsa_agent_info_t>(HSA_AMD_AGENT_INFO_UCODE_VERSION), &firmware);
+  logInfo() << "HSA queues on" << arch_.name << (arch_.apu ? "(an APU" : "(a discrete GPU")
+            << "with the firmware" << firmware << "of the command processor); queues wait for"
+            << "other queues by"
             << (barrierValue  ? "barrier-value packets"
                 : markSignals ? "barrier-AND packets on a signal of each mark"
                               : "kernels")

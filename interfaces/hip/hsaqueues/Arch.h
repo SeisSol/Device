@@ -21,7 +21,9 @@ namespace device::hsaqueues {
  * HSA queues only get enabled on architectures marked Runs, unless DEVICE_HSA_QUEUE_UNTESTED=1.
  * For a new architecture: run the test of HSA queues and its benchmarks there (barrier-value
  * packets, the pipes that queues share, the costs of fences), add a line to the table, and mark it
- * Runs once programs ran there with HSA queues, bitwise as without.
+ * Runs once programs ran there with HSA queues, bitwise as without. An entry may hold for the APUs
+ * or the discrete GPUs of an architecture only (e.g. MI300A and MI300X, both gfx942); what the
+ * command processor does also depends on its firmware, whose version the log tells.
  */
 struct ArchTraits {
   enum class Tested : std::uint8_t {
@@ -35,6 +37,8 @@ struct ArchTraits {
 
   /// the name of the architecture as the agent tells it (e.g. gfx90a)
   std::string name;
+  /// whether the device is an APU (one memory with the host, e.g. MI300A), as the agent tells it
+  bool apu{false};
   /// whether the table has it; otherwise, the cautious defaults
   bool known{false};
   Tested tested{Tested::No};
@@ -54,8 +58,8 @@ struct ArchTraits {
   std::string note;
 };
 
-/// the traits of the architecture `name` (e.g. gfx90a, or gfx90a:sramecc+:xnack-)
-ArchTraits archTraits(std::string_view name);
+/// the traits of the architecture `name` (e.g. gfx90a, or gfx90a:sramecc+:xnack-), of an APU or not
+ArchTraits archTraits(std::string_view name, bool apu);
 
 } // namespace device::hsaqueues
 
