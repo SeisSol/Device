@@ -38,7 +38,8 @@ extern "C" hipError_t hipLaunchKernel(const void* function,
                                       void** args,
                                       std::size_t sharedMemBytes,
                                       hipStream_t stream) {
-  if (device::hsaqueues::isTagged(stream)) {
+  // (once the HSA queues are finalized, HIP reports their handles as invalid)
+  if (device::hsaqueues::isTagged(stream) && device::hsaqueues::enabled()) {
     return device::hsaqueues::launch(function, grid, block, args, sharedMemBytes, stream);
   }
   return hipLaunch()(function, grid, block, args, sharedMemBytes, stream);

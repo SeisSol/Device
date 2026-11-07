@@ -58,8 +58,11 @@
  */
 namespace device::hsaqueues {
 
+/// whether the handle is one of an HSA stream or event; the handle 1 is hipStreamLegacy, which
+/// stays with HIP
 inline bool isTagged(const void* handle) {
-  return (reinterpret_cast<std::uintptr_t>(handle) & 1U) != 0;
+  const auto bits = reinterpret_cast<std::uintptr_t>(handle);
+  return (bits & 1U) != 0 && bits != 1U;
 }
 
 /// the launch of HIP, which the hook in the program hands on to for streams of HIP
