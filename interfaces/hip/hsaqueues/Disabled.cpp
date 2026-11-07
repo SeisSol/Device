@@ -86,6 +86,7 @@ void launchGraph(Programs& /*programs*/, hipGraph_t /*graph*/, void* /*stream*/)
   unavailable("launchGraph");
 }
 bool noteOrigin(Programs& /*programs*/, hipGraphNode_t /*node*/, void* /*stream*/) { return false; }
+std::size_t deviceBytes() { return 0; }
 void syncAll() {}
 void finalize() {}
 

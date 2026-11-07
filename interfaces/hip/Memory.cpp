@@ -143,8 +143,8 @@ size_t ConcreteAPI::getMaxAvailableMem() { return properties[getDeviceId()].tota
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
   isFlagSet<DeviceSelected>(status);
   const std::lock_guard<std::mutex> lock(apiMutex);
-  // what is allocated now, not all that ever was
-  return statistics.allocatedMemBytes - statistics.deallocatedMemBytes;
+  // what is allocated now, not all that ever was; with what the HSA queues hold on the device
+  return statistics.allocatedMemBytes - statistics.deallocatedMemBytes + hsaqueues::deviceBytes();
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {

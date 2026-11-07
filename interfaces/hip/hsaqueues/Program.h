@@ -103,6 +103,7 @@ class Program {
   Queue& queue_;
   std::vector<ProgramPacket> packets_;
   void* kernargs_{nullptr};
+  std::size_t kernargBytes_{0};
   std::uint64_t lastIndex_{0};
   // lane 0 is the queue of the program; the others are the queues of the streams of its kernels
   // (GRAPH_ORIGIN) or helper queues of its own (GRAPH_SPREAD)

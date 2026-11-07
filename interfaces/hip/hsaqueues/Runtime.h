@@ -163,6 +163,9 @@ class Runtime {
   std::uint32_t domain{0};
   std::uint32_t computeUnits{0};
   HostThread hostThread;
+  // the device memory that the HSA queues hold (kernel arguments there, the temporaries of graphs),
+  // which counts as occupied (see deviceBytes())
+  std::atomic<std::size_t> deviceBytes{0};
 
   // the symbols of the kernels, from the loaded code objects; by their names (with .kd)
   std::unordered_map<std::string, KernelInfo> symbols;
@@ -206,6 +209,7 @@ class Runtime {
 
 /// memory for kernel arguments: in device memory that the host writes, or in host memory
 void* allocKernargMemory(std::size_t bytes);
+void freeKernargMemory(void* memory, std::size_t bytes);
 /// after the host has written kernel arguments into device memory: they are there before the
 /// packet that reads them gets published
 void flushKernargs(const void* last);

@@ -53,6 +53,12 @@
  * which HSA streams wait for by a barrier-value packet (DEVICE_HSA_QUEUE_HIP_WAITS=host waits on
  * the host instead).
  *
+ * Resources: each HSA queue takes a hardware queue of the device, besides those of HIP; where the
+ * queues spread over the pipes of the command processor (see Runtime::placeQueue()), an idle queue
+ * on each pipe and up to MaxSpareQueues spare ones stay as well, so several processes on one device
+ * may run short of hardware queues. The device memory of the HSA queues (kernel arguments there,
+ * the temporaries of graphs) counts as occupied (getCurrentlyOccupiedMem()).
+ *
  * Fences: a mark writes back the L2 cache (release of the system), for the host and for MPI, which
  * read device memory past it. Kernels and waits for other HSA queues only fence for the device
  * (agent): an acquire of the system in a packet drops the whole L2 cache, at the expense of the
@@ -156,6 +162,10 @@ void launchGraph(Programs& programs, hipGraph_t graph, void* stream);
 /// notes that a node of the graph is work of an HSA stream: with DEVICE_HSA_QUEUE_GRAPH_ORIGIN=1,
 /// the translation puts it back onto the queue of that stream; false if it has been noted before
 bool noteOrigin(Programs& programs, hipGraphNode_t node, void* stream);
+
+/// the device memory that the HSA queues hold (kernel arguments in device memory, the temporaries
+/// of graphs), in bytes
+std::size_t deviceBytes();
 
 /// waits until all HSA queues are done
 void syncAll();

@@ -98,11 +98,12 @@ class Queue {
       }
       markSignals_.clear();
     }
-    for (auto* arena : arenas_) {
+    for (const auto& [arena, bytes] : arenas_) {
       static_cast<void>(hipFree(arena));
+      runtime_.deviceBytes -= bytes;
     }
     static_cast<void>(hipStreamDestroy(helper_));
-    hsa_amd_memory_pool_free(ring_);
+    freeKernargMemory(ring_, ringBytes_);
     hsa_signal_destroy(counter_);
     hsa_queue_destroy(queue_);
   }
@@ -342,7 +343,7 @@ class Queue {
     warnOnce("the memory for kernel arguments of an HSA queue is used up; further arguments get "
              "memory of their own (DEVICE_HSA_QUEUE_KERNARG_MIB)");
     void* memory = allocKernargMemory(size);
-    ownKernargs_.push_back(memory);
+    ownKernargs_.emplace_back(memory, size);
     return memory;
   }
 
@@ -796,10 +797,11 @@ class Queue {
       // the graphs translated before keep the arena they got
       void* arena = nullptr;
       APIWRAP(hipMalloc(&arena, bytes));
-      arenas_.push_back(arena);
+      arenas_.emplace_back(arena, bytes);
+      runtime_.deviceBytes += bytes;
       arenaBytes_ = bytes;
     }
-    return arenas_.empty() ? nullptr : arenas_.back();
+    return arenas_.empty() ? nullptr : arenas_.back().first;
   }
 
   void* allocAsync(std::size_t bytes) {
@@ -821,8 +823,8 @@ class Queue {
       releases_.pop_front();
     }
     while (!ownReleases_.empty() && reached(ownReleases_.front().first)) {
-      for (auto* memory : ownReleases_.front().second) {
-        hsa_amd_memory_pool_free(memory);
+      for (const auto& [memory, bytes] : ownReleases_.front().second) {
+        freeKernargMemory(memory, bytes);
       }
       ownReleases_.pop_front();
     }
@@ -921,13 +923,13 @@ class Queue {
   // the marks, and how far the ring had been handed out when each got enqueued
   std::deque<std::pair<std::uint64_t, std::uint64_t>> releases_;
   // arguments that did not fit into the ring, and the marks that free them
-  std::vector<void*> ownKernargs_;
-  std::deque<std::pair<std::uint64_t, std::vector<void*>>> ownReleases_;
+  std::vector<std::pair<void*, std::size_t>> ownKernargs_;
+  std::deque<std::pair<std::uint64_t, std::vector<std::pair<void*, std::size_t>>>> ownReleases_;
 
   // for asynchronous allocations, which a stream of HIP that never gets any work makes
   hipStream_t helper_{nullptr};
   std::deque<std::pair<std::uint64_t, void*>> pendingFrees_;
-  std::vector<void*> arenas_;
+  std::vector<std::pair<void*, std::size_t>> arenas_;
   std::size_t arenaBytes_{0};
 };
 

@@ -346,6 +346,7 @@ Program::Program(Queue& queue,
 
   if (kernargBytes > 0) {
     kernargs_ = allocKernargMemory(kernargBytes);
+    kernargBytes_ = kernargBytes;
   }
   schedule_ = Runtime::instance().schedule;
   lanes_.push_back(&queue);
@@ -547,7 +548,7 @@ Program::~Program() {
   }
   queue_.wait(mark);
   if (kernargs_ != nullptr) {
-    hsa_amd_memory_pool_free(kernargs_);
+    freeKernargMemory(kernargs_, kernargBytes_);
   }
   for (auto& [index, signal] : measuring_) {
     Runtime::instance().freeTraceSignal(signal);

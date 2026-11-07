@@ -746,6 +746,8 @@ bool noteOrigin(Programs& programs, hipGraphNode_t node, void* handle) {
   return programs.impl->origins.emplace(node, stream->queue->number()).second;
 }
 
+std::size_t deviceBytes() { return enabled() ? Runtime::instance().deviceBytes.load() : 0; }
+
 void syncAll() {
   if (!enabled()) {
     return;

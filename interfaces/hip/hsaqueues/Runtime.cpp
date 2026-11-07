@@ -113,6 +113,7 @@ void* allocKernargMemory(std::size_t bytes) {
           "hsa_amd_memory_pool_allocate");
     const hsa_agent_t agents[] = {runtime.gpu, runtime.cpu};
     check(hsa_amd_agents_allow_access(2, agents, nullptr, memory), "hsa_amd_agents_allow_access");
+    runtime.deviceBytes += bytes;
   } else {
     check(hsa_amd_memory_pool_allocate(runtime.kernargPool, bytes, 0, &memory),
           "hsa_amd_memory_pool_allocate");
@@ -120,6 +121,13 @@ void* allocKernargMemory(std::size_t bytes) {
           "hsa_amd_agents_allow_access");
   }
   return memory;
+}
+
+void freeKernargMemory(void* memory, std::size_t bytes) {
+  hsa_amd_memory_pool_free(memory);
+  if (Runtime::instance().deviceKernargs) {
+    Runtime::instance().deviceBytes -= bytes;
+  }
 }
 
 /// after the host has written kernel arguments into device memory: they are there before the
@@ -573,8 +581,10 @@ hsa_queue_t* Runtime::placeQueue(int number) {
       logWarning() << "HSA queues: the queues do not seem to share pipes; they go anywhere";
       pipeSpread = false;
     } else {
+      // (each of them takes a hardware queue of the device, as the spare ones do)
       logInfo() << "HSA queues: the command processor serves the queues of the process on"
-                << pipes_.size() << "pipes";
+                << pipes_.size() << "pipes; finding them took"
+                << pipes_.size() + spareQueues_.size() << "idle HSA queues, which stay";
     }
   }
   // how busy a pipe is: by its own queues that are not light, then by all of them (a light queue
