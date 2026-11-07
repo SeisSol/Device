@@ -128,6 +128,9 @@ struct KernelInfo {
   bool dynamicStack{false};
   bool metadata{false};
   bool unsupported{false};
+  // another code object has a kernel of the same name (see Runtime::kernel()); the first one keeps
+  // its object and metadata here
+  bool ambiguous{false};
   std::vector<ArgInfo> args;
 };
 

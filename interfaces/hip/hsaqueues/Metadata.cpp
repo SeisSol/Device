@@ -108,6 +108,12 @@ void readMetadata(Runtime& runtime, const void* elf, std::size_t size) {
       std::string symbol;
       lookupString(kernel, ".symbol", symbol);
       auto& info = runtime.symbols[symbol];
+      if (info.metadata) {
+        // (each code object gets read once: another one has a kernel of the same name)
+        info.ambiguous = true;
+        amd_comgr_destroy_metadata(kernel);
+        continue;
+      }
       lookupString(kernel, ".name", info.name);
       info.metadata = true;
       info.kernargSize = lookupNumber(kernel, ".kernarg_segment_size", info.kernargSize);
@@ -189,7 +195,16 @@ hsa_status_t visitSymbol(hsa_executable_t /*executable*/,
   std::string name(length, '\0');
   hsa_executable_symbol_get_info(symbol, HSA_EXECUTABLE_SYMBOL_INFO_NAME, name.data());
   auto& info = runtime.symbols[name];
-  hsa_executable_symbol_get_info(symbol, HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT, &info.object);
+  std::uint64_t object = 0;
+  hsa_executable_symbol_get_info(symbol, HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_OBJECT, &object);
+  if (info.object != 0) {
+    // (every scan visits all executables again: only a different kernel object is another one)
+    if (info.object != object) {
+      info.ambiguous = true;
+    }
+    return HSA_STATUS_SUCCESS;
+  }
+  info.object = object;
   if (!info.metadata) {
     hsa_executable_symbol_get_info(
         symbol, HSA_EXECUTABLE_SYMBOL_INFO_KERNEL_KERNARG_SEGMENT_SIZE, &info.kernargSize);

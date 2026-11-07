@@ -467,6 +467,13 @@ const KernelInfo& Runtime::kernel(const void* function) {
     logError() << "HSA queues: no metadata for the kernel" << name
                << "(its code object was not loaded from memory)";
   }
+  if (known->second.ambiguous) {
+    // HIP knows the code object of the function, but tells only the name: e.g. kernels in anonymous
+    // namespaces of several translation units have the same name without -fgpu-rdc
+    logError() << "HSA queues: several code objects have a kernel named" << name
+               << "; which one HIP means is unknown here. Give the kernels names of their own (or "
+                  "link the device code with -fgpu-rdc).";
+  }
   if (known->second.name.empty()) {
     known->second.name = name;
   }
