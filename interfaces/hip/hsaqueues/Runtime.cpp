@@ -379,36 +379,6 @@ bool Runtime::setUp() {
   // device; the MI250X has 110)
   scheduleMaxBlocks =
       setting<std::uint64_t>("SCHEDULE_MAX_BLOCKS", computeUnits > 0 ? computeUnits : 128);
-  {
-    // "<queue>:<first>-<last>[+<first>-<last>...];..."
-    const auto masks = setting<std::string>("CU_MASKS", "");
-    std::size_t position = 0;
-    while (position < masks.size()) {
-      const auto end = std::min(masks.find(';', position), masks.size());
-      const auto entry = masks.substr(position, end - position);
-      position = end + 1;
-      const auto colon = entry.find(':');
-      if (colon == std::string::npos) {
-        continue;
-      }
-      std::vector<std::uint32_t> mask((computeUnits + 31) / 32, 0);
-      std::size_t range = colon + 1;
-      while (range < entry.size()) {
-        const auto rangeEnd = std::min(entry.find('+', range), entry.size());
-        const auto text = entry.substr(range, rangeEnd - range);
-        range = rangeEnd + 1;
-        const auto dash = text.find('-');
-        const auto first = static_cast<std::uint32_t>(std::stoul(text.substr(0, dash)));
-        const auto last = dash == std::string::npos
-                              ? first
-                              : static_cast<std::uint32_t>(std::stoul(text.substr(dash + 1)));
-        for (auto unit = first; unit <= last && unit < computeUnits; ++unit) {
-          mask[unit / 32] |= 1U << (unit % 32);
-        }
-      }
-      computeUnitMasks[std::stoi(entry.substr(0, colon))] = mask;
-    }
-  }
   // how the toolchain lays out launches, as the kernels of this library have it (usually compiled
   // along with the program): one that the HSA queues do not know declines them here, instead of
   // stopping at the first launch of such a kernel

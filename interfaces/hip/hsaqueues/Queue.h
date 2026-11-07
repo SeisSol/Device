@@ -72,12 +72,6 @@ class Queue {
     check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &counter_),
           "hsa_amd_signal_create");
     check(hsa_amd_signal_value_pointer(counter_, &counterValue_), "hsa_amd_signal_value_pointer");
-    if (const auto mask = runtime.computeUnitMasks.find(number);
-        mask != runtime.computeUnitMasks.end()) {
-      check(hsa_amd_queue_cu_set_mask(
-                queue_, static_cast<std::uint32_t>(mask->second.size() * 32), mask->second.data()),
-            "hsa_amd_queue_cu_set_mask");
-    }
     if (runtime.timing || runtime.tracing.load() || runtime.schedule) {
       // before the first packet: enabled later, the first stamps of the queue had no times
       enableProfiling();

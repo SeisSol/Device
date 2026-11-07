@@ -161,9 +161,6 @@ class Runtime {
   std::uint32_t bus{0};
   std::uint32_t slot{0};
   std::uint32_t domain{0};
-  // the compute units that the waves of a queue may use, by queue number
-  // (DEVICE_HSA_QUEUE_CU_MASKS, e.g. "-10:0-23;1:24-109"); all of them for the others
-  std::map<int, std::vector<std::uint32_t>> computeUnitMasks;
   std::uint32_t computeUnits{0};
   HostThread hostThread;
 

@@ -31,7 +31,8 @@ architectures (`interfaces/hip/hsaqueues/Arch.cpp`) says about a new one:
 - `pipemap`: whether queues share the pipes of the command processor, and
   whether the pipes stay put: `spreadPipes`.
 - `concurrent`: whether kernels without the barrier bit run at the same time
-  on one queue (the lanes of graphs).
+  on one queue (the kernels of a level of a graph go without barriers between
+  them).
 - `pollstall`: whether queues that wait slow down the kernels of another one
   (the kind of wait).
 - `sigdec`: whether signals that several queues count down lose decrements

@@ -137,7 +137,6 @@ Program::Program(Queue& queue,
   // streams of the queue (TPV5 on one MI300A: 1.78 s by levels)
   const bool byOrigin = setting<bool>("GRAPH_ORIGIN", false) && !origins.empty() &&
                         Runtime::instance().barrierValue && !Runtime::instance().schedule &&
-                        setting<unsigned>("GRAPH_LANES", 0U) == 0 &&
                         std::none_of(nodes.begin(), nodes.end(), [](hipGraphNode_t node) {
                           hipGraphNodeType type{};
                           APIWRAP(hipGraphNodeGetType(node, &type));
@@ -348,96 +347,16 @@ Program::Program(Queue& queue,
   if (kernargBytes > 0) {
     kernargs_ = allocKernargMemory(kernargBytes);
   }
-  // the helper lanes, and which level runs on which lanes (see Program)
   schedule_ = Runtime::instance().schedule;
-  const auto laneCount =
-      Runtime::instance().barrierValue && !schedule_ ? setting<unsigned>("GRAPH_LANES", 0U) : 0U;
-  const auto laneMinimum = setting<std::size_t>("GRAPH_LANE_MIN", std::size_t{3});
-  borrow_ = laneCount > 0 && setting<bool>("GRAPH_BORROW", false);
   lanes_.push_back(&queue);
-  for (unsigned lane = 1; lane <= laneCount; ++lane) {
-    lanes_.push_back(borrow_ ? nullptr
-                             : &Runtime::instance().queue(helperQueueNumber(queue.number(), lane)));
-  }
-  std::vector<unsigned> laneOf(work.size(), 0);
-  std::vector<bool> splitLevel(work.size(), false);
-  std::size_t splitLevels = 0;
-  for (std::size_t first = 0; first < work.size();) {
-    auto last = first;
-    bool host = false;
-    while (last < work.size() && work[last].level == work[first].level) {
-      host = host || static_cast<bool>(work[last].host);
-      ++last;
-    }
-    if (laneCount > 0 && !host && last - first >= laneMinimum) {
-      // the largest first onto the lane with the least so far (the queue first): the kernels are
-      // small, so each one costs about the same, and more so with many blocks
-      std::vector<std::size_t> items(last - first);
-      for (std::size_t k = 0; k < items.size(); ++k) {
-        items[k] = first + k;
-      }
-      const auto weight = [&](std::size_t k) {
-        return 128 + static_cast<std::uint64_t>(work[k].grid.x) * work[k].grid.y * work[k].grid.z;
-      };
-      std::stable_sort(items.begin(), items.end(), [&](std::size_t a, std::size_t b) {
-        return weight(a) > weight(b);
-      });
-      std::vector<std::uint64_t> load(laneCount + 1, 0);
-      for (const auto k : items) {
-        unsigned best = 0;
-        for (unsigned lane = 1; lane <= laneCount; ++lane) {
-          if (load[lane] < load[best]) {
-            best = lane;
-          }
-        }
-        laneOf[k] = best;
-        load[best] += weight(k);
-      }
-      for (auto k = first; k < last; ++k) {
-        splitLevel[k] = true;
-      }
-      ++splitLevels;
-    }
-    first = last;
-  }
   std::size_t previousLevel = SIZE_MAX;
   for (std::size_t index = 0; index < work.size(); ++index) {
     auto& item = work[index];
     const bool levelStart = item.level != previousLevel;
-    if (levelStart && splitLevel[index]) {
-      // the lanes of this level
-      std::vector<unsigned> used;
-      for (auto k = index; k < work.size() && work[k].level == item.level; ++k) {
-        if (laneOf[k] != 0 && std::find(used.begin(), used.end(), laneOf[k]) == used.end()) {
-          used.push_back(laneOf[k]);
-        }
-      }
-      std::sort(used.begin(), used.end());
-      ProgramPacket fork;
-      fork.kind = ProgramPacket::Kind::Fork;
-      fork.slot = forks_.size();
-      fork.lanes = used;
-      hsa_signal_t signal{};
-      check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
-            "hsa_amd_signal_create");
-      forks_.push_back(signal);
-      forkCounts_.push_back(0);
-      std::vector<hsa_signal_t> joins;
-      for (std::size_t k = 0; k < used.size(); ++k) {
-        check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
-              "hsa_amd_signal_create");
-        joins.push_back(signal);
-      }
-      joins_.push_back(joins);
-      joinCounts_.emplace_back(used.size(), 0);
-      packets_.push_back(std::move(fork));
-    }
     ProgramPacket packet;
-    packet.lane = laneOf[index];
     packet.level = item.level;
-    // the first one of each level waits for all before it (and so for the work before the graph);
-    // on a helper lane, the fork has waited
-    const bool barrier = levelStart || packet.lane != 0 || splitLevel[index];
+    // the first one of each level waits for all before it (and so for the work before the graph)
+    const bool barrier = levelStart;
     previousLevel = item.level;
     if (item.host) {
       packet.host = std::move(item.host);
@@ -472,24 +391,11 @@ Program::Program(Queue& queue,
       }
     }
     packets_.push_back(std::move(packet));
-    const bool levelEnd = index + 1 == work.size() || work[index + 1].level != item.level;
-    if (levelEnd && splitLevel[index]) {
-      ProgramPacket join;
-      join.kind = ProgramPacket::Kind::Join;
-      join.slot = forks_.size() - 1;
-      for (const auto& p : packets_) {
-        if (p.kind == ProgramPacket::Kind::Fork && p.slot == join.slot) {
-          join.lanes = p.lanes;
-        }
-      }
-      packets_.push_back(std::move(join));
-    }
   }
   if (kernargBytes > 0) {
     flushKernargs(static_cast<const char*>(kernargs_) + kernargBytes - 1);
   }
   if (schedule_) {
-    // (no fixed lanes: only work packets)
     for (std::size_t first = 0; first < packets_.size();) {
       auto last = first;
       bool host = false;
@@ -532,11 +438,10 @@ Program::Program(Queue& queue,
     }
   };
   // lanes of their own only for programs of kernels (a host function would wait for all lanes), not
-  // with the lanes of levels or the schedule
+  // with the schedule
   const bool anyHost = std::any_of(
       work.begin(), work.end(), [](const Pending& item) { return static_cast<bool>(item.host); });
-  const bool ownLanes =
-      Runtime::instance().barrierValue && laneCount == 0 && !schedule_ && !anyHost;
+  const bool ownLanes = Runtime::instance().barrierValue && !schedule_ && !anyHost;
   const auto waits = setting<std::string>("GRAPH_SPREAD_WAITS", "packet");
   spreadKernelWaits_ = waits == "kernel";
   joinKernelWaits_ = waits == "kernel" || waits == "join";
@@ -626,9 +531,7 @@ Program::Program(Queue& queue,
     }
     logInfo() << "HSA queue" << queue.number() << ": a graph of" << count << "nodes and"
               << edgeCount << "edges became" << work.size() << "packets in"
-              << kernelsPerLevel.size() << "levels of up to" << widest << "kernels;" << splitLevels
-              << "of them spread over" << laneCount
-              << (borrow_ ? "other HSA queues while idle" : "helper queues");
+              << kernelsPerLevel.size() << "levels of up to" << widest << "kernels";
   }
 }
 
@@ -646,7 +549,6 @@ Program::~Program() {
   if (kernargs_ != nullptr) {
     hsa_amd_memory_pool_free(kernargs_);
   }
-  // (the queue has waited for the helpers at each join)
   for (auto& [index, signal] : measuring_) {
     Runtime::instance().freeTraceSignal(signal);
   }
@@ -656,14 +558,6 @@ Program::~Program() {
     }
   }
   for (const auto& joins : levelJoins_) {
-    for (const auto signal : joins) {
-      hsa_signal_destroy(signal);
-    }
-  }
-  for (const auto signal : forks_) {
-    hsa_signal_destroy(signal);
-  }
-  for (const auto& joins : joins_) {
     for (const auto signal : joins) {
       hsa_signal_destroy(signal);
     }
@@ -683,11 +577,6 @@ void Program::push(unsigned lane, const PacketImage& image) {
   auto* queue = laneQueues_[lane];
   if (queue == nullptr || queue == &queue_) {
     queue_.push(image);
-    return;
-  }
-  if (borrow_) {
-    // (locked in submit())
-    queue->push(image);
     return;
   }
   // (the queue's mutex is held; the helpers of a queue are only ever locked after it)
@@ -759,72 +648,8 @@ std::uint64_t Program::submit() {
       ++spreadReplays_;
     }
   }
-  laneQueues_.assign(lanes_.begin(), lanes_.end());
-  std::vector<std::unique_lock<std::mutex>> borrowed;
-  static std::atomic<std::uint64_t> submits{0};
-  static std::atomic<std::uint64_t> lent{0};
-  static const bool borrowWhenIdle = setting<bool>("GRAPH_BORROW_IDLE", true);
-  static const bool verbose = setting<bool>("VERBOSE", false);
-  const bool borrowNow = borrow_ && (!borrowWhenIdle || queue_.idleLocked());
-  if (borrowNow) {
-    // other HSA queues on other pipes that have nothing to do (with the queue of the program idle
-    // as well: the level starts right away, and the helpers hold up the work of their own queue as
-    // little as they can); a lane without one runs on the queue of the program (its mutex is held:
-    // the others only get tried, never waited for)
-    const auto candidates = Runtime::instance().borrowable(queue_);
-    std::size_t next = 0;
-    for (std::size_t lane = 1; lane < laneQueues_.size(); ++lane) {
-      while (next < candidates.size()) {
-        auto* candidate = candidates[next++];
-        std::unique_lock lock(candidate->mutex, std::try_to_lock);
-        if (lock.owns_lock() && candidate->idleLocked()) {
-          laneQueues_[lane] = candidate;
-          borrowed.push_back(std::move(lock));
-          break;
-        }
-      }
-    }
-  }
-  if (borrow_ && verbose) {
-    const auto count = ++submits;
-    lent += borrowed.size();
-    if (count % 20000 == 0) {
-      logInfo() << "HSA queues: graphs borrowed" << lent.load() << "lanes in" << count << "replays";
-    }
-  }
-  constexpr std::uint16_t LaneFences = fenceBits(HSA_FENCE_SCOPE_NONE, HSA_FENCE_SCOPE_AGENT);
-  const auto countDown = [&](unsigned lane, hsa_signal_t signal) {
-    PacketImage packet;
-    packet.as<hsa_barrier_and_packet_t>().completion_signal = signal;
-    packet.setHeader(
-        static_cast<std::uint16_t>((HSA_PACKET_TYPE_BARRIER_AND << HSA_PACKET_HEADER_TYPE) |
-                                   BarrierBit | LaneFences),
-        0);
-    push(lane, packet);
-  };
   for (const auto& packet : packets_) {
-    if (packet.kind == ProgramPacket::Kind::Fork) {
-      // the queue has done all before the level; then the helpers start it (the lanes on the
-      // queue of the program run in its order)
-      std::vector<unsigned> lanes;
-      for (const auto lane : packet.lanes) {
-        if (laneQueues_[lane] != nullptr) {
-          lanes.push_back(lane);
-        }
-      }
-      if (!lanes.empty()) {
-        countDown(0, forks_[packet.slot]);
-        waitOnLanes(forks_[packet.slot], ++forkCounts_[packet.slot], lanes);
-      }
-    } else if (packet.kind == ProgramPacket::Kind::Join) {
-      // the helpers are done with the level; the queue waits for them
-      for (std::size_t k = 0; k < packet.lanes.size(); ++k) {
-        if (laneQueues_[packet.lanes[k]] != nullptr) {
-          countDown(packet.lanes[k], joins_[packet.slot][k]);
-          waitOnLanes(joins_[packet.slot][k], ++joinCounts_[packet.slot][k], {0});
-        }
-      }
-    } else if (packet.host) {
+    if (packet.host) {
       queue_.hostFunction(packet.host);
     } else {
       PacketImage image;
@@ -835,7 +660,7 @@ std::uint64_t Program::submit() {
         measuring_.emplace_back(static_cast<std::size_t>(&packet - packets_.data()), signal);
       }
       image.setHeader(packet.header, packet.rest);
-      push(packet.lane, image);
+      queue_.push(image);
     }
   }
   lastIndex_ = queue_.created();

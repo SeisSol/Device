@@ -48,13 +48,6 @@ struct ProgramPacket {
   std::uint16_t rest{0};
   // a host function instead of a kernel
   std::function<void()> host;
-  // the lane that runs it: 0 the queue of the program, the others its helper queues
-  unsigned lane{0};
-  // a fork (the helper lanes of the level start once the lane 0 has reached it) or a join (lane 0
-  // goes on once the helper lanes are done with the level), at the given slot of signals
-  enum class Kind : std::uint8_t { Work, Fork, Join } kind{Kind::Work};
-  std::size_t slot{0};
-  std::vector<unsigned> lanes;
   // the level in the graph
   std::size_t level{0};
 };
@@ -66,18 +59,17 @@ inline int helperQueueNumber(int queue, unsigned lane) {
 
 /**
  * A graph translated for a queue. The kernels of a level of the graph are independent of each
- * other; a queue runs them one after the other though, also without barriers in between (MI250X,
- * ROCm 6.3). With DEVICE_HSA_QUEUE_GRAPH_LANES=k, the levels with at least
- * DEVICE_HSA_QUEUE_GRAPH_LANE_MIN kernels (3 by default) get spread over the queue and k helper
- * queues of its own (lanes), the largest kernels first onto the lane with the least so far; the
- * helpers start the level once the queue has reached it (a fork), and the queue goes on once the
- * helpers are done with it (a join), by signals of the program that each replay counts down. That
- * pays off only with pipes of the command processor left for the helpers (see
- * Runtime::placeQueue()): on the MI250X, with two HSA queues (TPV13 2.16 s instead of 2.74), not
- * with four (2.87 instead of 1.92). With DEVICE_HSA_QUEUE_GRAPH_BORROW=1, the lanes go to other HSA
- * queues instead, those that are idle at each replay (and only while the queue of the program is
- * idle as well, unless DEVICE_HSA_QUEUE_GRAPH_BORROW_IDLE=0); on four queues, that made no
- * difference (1.94 s), and coupled the queues without the condition (2.03 s).
+ * other and go without barriers between them; a queue runs them one after the other though (MI250X,
+ * ROCm 6.3).
+ *
+ * Experimental, and off by default (they make some setups faster and others slower):
+ * - DEVICE_HSA_QUEUE_SCHEDULE=1: the levels get spread over other HSA queues by a predicted
+ *   schedule (see submitScheduled()).
+ * - DEVICE_HSA_QUEUE_GRAPH_ORIGIN=1: each kernel goes back onto the queue of the stream whose work
+ *   it was (lanes); the program takes the mutexes of those queues while holding that of its own,
+ *   so graphs that get launched from several threads at once may wait for each other forever.
+ * - DEVICE_HSA_QUEUE_GRAPH_SPREAD=k: the program gets spread over its queue and k - 1 helper queues
+ *   of its own by the durations that its first replays measure (see buildSpread()).
  */
 class Program {
   public:
@@ -95,9 +87,7 @@ class Program {
   [[nodiscard]] std::string levels() const {
     std::string text;
     for (const auto& packet : packets_) {
-      if (packet.kind == ProgramPacket::Kind::Work) {
-        text += packet.host ? " h" : " " + std::to_string(packet.level);
-      }
+      text += packet.host ? " h" : " " + std::to_string(packet.level);
     }
     return text;
   }
@@ -114,17 +104,11 @@ class Program {
   std::vector<ProgramPacket> packets_;
   void* kernargs_{nullptr};
   std::uint64_t lastIndex_{0};
-  // lane 0 is the queue of the program; the others are helper queues of their own, or (borrow_)
-  // other HSA queues that are idle when the program gets enqueued, chosen anew each time
+  // lane 0 is the queue of the program; the others are the queues of the streams of its kernels
+  // (GRAPH_ORIGIN) or helper queues of its own (GRAPH_SPREAD)
   std::vector<Queue*> lanes_;
-  bool borrow_{false};
-  // the queue of each lane in submit() (none: the lane runs on the queue of the program)
+  // the queue of each lane in submitSpread() (none: the lane runs on the queue of the program)
   std::vector<Queue*> laneQueues_;
-  std::vector<hsa_signal_t> forks_;
-  std::vector<std::vector<hsa_signal_t>> joins_;
-  // how often each signal has been counted down so far
-  std::vector<std::int64_t> forkCounts_;
-  std::vector<std::vector<std::int64_t>> joinCounts_;
 
   // DEVICE_HSA_QUEUE_SCHEDULE (see submitScheduled()): the levels (packets first..first+count-1),
   // the learned duration of each packet (s, 0: unknown), the signals of a replay that measures them
