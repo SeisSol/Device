@@ -56,9 +56,10 @@ namespace device::hsaqueues {
  *
  * Where the command processor does not wait for values (Runtime::markSignals), each mark counts
  * down a signal of its own as well, just before the counter; other queues wait for it by
- * barrier-AND packets. The signal goes back to the pool once the mark has been reached and the
- * command processors of the queues that wait for it have passed their packets (by their read
- * indices).
+ * barrier-AND packets. The signal goes back to the pool once the mark has been reached and each
+ * queue that waits for it has reached its next mark after the packet: only then has that packet
+ * surely done (the read index of a queue does not tell, as a command processor may take packets
+ * ahead, as on RDNA).
  */
 class Queue {
   public:
@@ -68,8 +69,6 @@ class Queue {
     if (queue_ == nullptr) {
       queue_ = createHsaQueue();
     }
-    // (a placed queue may have run probes before, see Runtime::placeQueue())
-    writeBase_ = hsa_queue_load_write_index_relaxed(queue_);
     check(hsa_amd_signal_create(CounterStart, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &counter_),
           "hsa_amd_signal_create");
     check(hsa_amd_signal_value_pointer(counter_, &counterValue_), "hsa_amd_signal_value_pointer");
@@ -391,22 +390,17 @@ class Queue {
     }
   }
 
-  /// whether the command processor has passed packet number `index` (see created())
-  [[nodiscard]] bool passed(std::uint64_t index) const {
-    return hsa_queue_load_read_index_scacquire(queue_) > writeBase_ + index - 1;
-  }
-
   /**
-   * The signal of mark `mark` (Runtime::markSignals), for packet number `index` of `waiter` that is
-   * about to wait for it: the signal stays the mark's until the command processor of the waiter has
-   * passed that packet. Nothing (a handle of 0) if the mark has been reached and its signal given
-   * back. (Locks only the signals of the marks, not `mutex`.)
+   * The signal of mark `mark` (Runtime::markSignals), for a packet of `waiter` that is about to
+   * wait for it, before mark `after` of the waiter: the signal stays the mark's until the waiter
+   * has reached that mark. Nothing (a handle of 0) if the mark has been reached and its signal
+   * given back. (Locks only the signals of the marks, not `mutex`.)
    */
-  hsa_signal_t markSignalFor(std::uint64_t mark, const Queue& waiter, std::uint64_t index) {
+  hsa_signal_t markSignalFor(std::uint64_t mark, const Queue& waiter, std::uint64_t after) {
     const std::lock_guard lock(signalMutex_);
     for (auto& entry : markSignals_) {
       if (entry.mark == mark) {
-        entry.waiters.emplace_back(&waiter, index);
+        entry.waiters.emplace_back(&waiter, after);
         return entry.signal;
       }
       if (entry.mark > mark) {
@@ -460,9 +454,9 @@ class Queue {
       predictUntil(other.predictedFree());
     }
     if (runtime_.markSignals) {
-      // (the packet comes next: registered before it gets written, the signal stays the mark's
-      // until the command processor has passed the packet)
-      const auto signal = other.markSignalFor(mark, *this, created_ + 1);
+      // (the packet comes next, before the next mark of this queue: registered before the packet
+      // gets written, the signal stays the mark's until this queue has reached that mark)
+      const auto signal = other.markSignalFor(mark, *this, marks_ + 1);
       if (signal.handle == 0) {
         // reached, and its signal given back meanwhile
         return;
@@ -738,7 +732,7 @@ class Queue {
   hsa_signal_t takeMarkSignal(std::uint64_t mark) {
     const std::lock_guard lock(signalMutex_);
     // (the marks reached so far: the counter comes after their signals; nothing goes back while
-    // the queues go, whose read indices the waiters are)
+    // the queues go, whose counters tell about the waiters)
     const auto reachedMarks =
         runtime_.finalizing.load(std::memory_order_relaxed)
             ? std::uint64_t{0}
@@ -749,7 +743,7 @@ class Queue {
       waiters.erase(
           std::remove_if(waiters.begin(),
                          waiters.end(),
-                         [](const auto& waiter) { return waiter.first->passed(waiter.second); }),
+                         [](const auto& waiter) { return waiter.first->reached(waiter.second); }),
           waiters.end());
       if (waiters.empty()) {
         runtime_.freeMarkSignal(entry->signal);
@@ -785,12 +779,9 @@ class Queue {
   Runtime& runtime_;
   int number_;
   hsa_queue_t* queue_{nullptr};
-  // the write index of the HSA queue when it became ours: packet number n has index writeBase_ + n
-  // - 1
-  std::uint64_t writeBase_{0};
   hsa_signal_t counter_{};
   // the signals of the marks not given back yet (Runtime::markSignals), in the order of the marks,
-  // and the packets of other queues that wait for each (queue, packet number)
+  // and the queues whose packets wait for each, with the mark of theirs after the packet
   struct MarkSignal {
     std::uint64_t mark{0};
     hsa_signal_t signal{};

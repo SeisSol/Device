@@ -128,7 +128,8 @@ int main() {
   expect(api.isEventCompleted(event), "the event has completed");
 
   // two queues take turns on one value many times, each waiting for the latest event of the other
-  // (with DEVICE_HSA_QUEUE_WAITS=signal: thousands of signals of marks, given back and reused)
+  // (with DEVICE_HSA_QUEUE_WAITS=signal: thousands of signals of marks, given back and reused);
+  // HSA_QUEUES_TEST_TURNS sets how many times (3000)
   {
     auto* value = static_cast<unsigned*>(api.allocGlobMem(sizeof(unsigned)));
     unsigned expected = 7;
@@ -136,8 +137,9 @@ int main() {
     void* turn1 = api.createEvent(false);
     void* turn2 = api.createEvent(false);
     api.recordEventOnStream(turn2, s2);
-    constexpr unsigned Rounds = 3000;
-    for (unsigned round = 0; round < Rounds; ++round) {
+    const char* turns = std::getenv("HSA_QUEUES_TEST_TURNS");
+    const unsigned rounds = turns != nullptr ? static_cast<unsigned>(std::atoi(turns)) : 3000U;
+    for (unsigned round = 0; round < rounds; ++round) {
       api.syncStreamWithEvent(s1, turn2);
       sequenceStep<<<1, 1, 0, static_cast<hipStream_t>(s1)>>>(
           value, 3U, round, round % 7 == 0 ? 20000 : 0);
@@ -151,7 +153,7 @@ int main() {
     unsigned result = 0;
     api.copyFromAsync(&result, value, sizeof(unsigned), s2);
     api.syncStreamWithHost(s2);
-    expect(result == expected, "two queues take turns 3000 times, each waiting for the other");
+    expect(result == expected, "two queues take turns, each waiting for the other");
     api.destroyEvent(turn1);
     api.destroyEvent(turn2);
     api.freeGlobMem(value);

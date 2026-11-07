@@ -713,7 +713,8 @@ hsa_signal_t Runtime::markSignal() {
   }
   // (only command processors wait for it; the host asks the counter of the queue instead)
   hsa_signal_t signal{};
-  check(hsa_amd_signal_create(1, 0, nullptr, HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
+  static const bool interrupts = setting<bool>("SIGNAL_INTERRUPTS", false);
+  check(hsa_amd_signal_create(1, 0, nullptr, interrupts ? 0 : HSA_AMD_SIGNAL_AMD_GPU_ONLY, &signal),
         "hsa_amd_signal_create");
   return signal;
 }
