@@ -30,6 +30,15 @@ struct Event {
   ZeTimestamps::Stamp stamp{};
 };
 
+#ifdef SYCL_EXT_ONEAPI_IN_ORDER_QUEUE_EVENTS
+// the event of the last command of an in-order queue (sycl_ext_oneapi_in_order_queue_events); newer
+// versions of DPC++ return an empty optional if the queue has had no command yet: then a done event
+[[maybe_unused]] std::optional<sycl::event> lastEvent(const sycl::event& event) { return event; }
+[[maybe_unused]] std::optional<sycl::event> lastEvent(const std::optional<sycl::event>& event) {
+  return event.has_value() ? event : std::make_optional<sycl::event>();
+}
+#endif
+
 /// gives the timestamp of the event back if it came from other timestamps than `timestamps`
 void keepTimestampsOf(Event& event, ZeTimestamps& timestamps) {
   if (event.timestamps != nullptr && event.timestamps != &timestamps) {
@@ -188,6 +197,16 @@ void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   }
 #endif
 
+#ifdef SYCL_EXT_ONEAPI_IN_ORDER_QUEUE_EVENTS
+  // the event of the last command of the (in-order) queue stands for all work before it, as an
+  // empty operation would; that is a barrier with oneAPI, i.e. a stall of the command streamer of
+  // the engine, which holds up all work submitted after it, also to other queues (on a Max 1550)
+  if (!recording(*queue)) {
+    event->syclEvent = lastEvent(queue->ext_oneapi_get_last_event());
+    return;
+  }
+#endif
+
   event->syclEvent = std::make_optional<sycl::event>(
       queue->submit([&](sycl::handler& h) { DEVICE_SYCL_EMPTY_OPERATION(h); }));
 }
@@ -206,6 +225,14 @@ void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
 
   if (!event->syclEvent.has_value()) {
     logError() << "Event not yet recorded; no synchronization possible.";
+  }
+
+  // nothing to wait for once the event is done: the wait would be a barrier, which (with oneAPI on
+  // a Max 1550) holds up all work submitted after it, also to other queues, while it waits
+  if (!recording(*queue) &&
+      event->syclEvent.value().get_info<sycl::info::event::command_execution_status>() ==
+          sycl::info::event_command_status::complete) {
+    return;
   }
 
   queue->submit([&](sycl::handler& h) {
