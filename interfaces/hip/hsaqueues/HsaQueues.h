@@ -1,0 +1,177 @@
+// SPDX-FileCopyrightText: 2026 SeisSol Group
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
+#ifndef SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_HSAQUEUES_H_
+#define SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_HSAQUEUES_H_
+
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <hip/hip_runtime_api.h>
+#include <memory>
+#include <string>
+#include <string_view>
+
+/**
+ * Streams on HSA queues of our own.
+ *
+ * HIP (CLR) puts all streams onto a few hardware queues that they share in turn (GPU_MAX_HW_QUEUES
+ * per priority, 4 by default), plus one more stream for each branch of each graph: a stream that
+ * waits holds up the streams behind it on its queue, and a wait for an event of another queue costs
+ * ~12 us (MI250X, ROCm 6.3). A GCD has 24 hardware queues only; with more, the queues that wait may
+ * keep the ones they wait for from getting a slot.
+ *
+ * An HSA stream runs its work on an HSA queue that only the HSA streams with the same queue number
+ * share, in the order it got enqueued. Kernels become AQL dispatch packets that we write ourselves:
+ * the kernel object comes from the loader, the layout of the arguments from the metadata of the
+ * code object (with the hidden arguments filled in as HIP does). A wait for another queue is a
+ * barrier packet on the signal that the marks of that queue count down (a mark completes once all
+ * work before it on its queue has). Copies and fills are kernels of our own; a host function runs
+ * on a thread of our own, while its queue waits for it.
+ *
+ * The handle of an HSA stream is a tagged pointer (bit 0 set), which no HIP call must get: kernel
+ * launches reach launch() through hipLaunchKernel, which the program defines itself (see
+ * Hook.cpp). While an HSA stream gets captured into a graph, all of its work goes to a
+ * stream of HIP that stands in for it (its vehicle). A graph that gets launched on an HSA stream
+ * gets translated into packets, once per graph and queue; its temporary allocations (hipMallocAsync
+ * while capturing) get memory of the queue instead, which the translation puts into the arguments.
+ * So the temporary allocations of a graph live only until it is done (the graphs of a queue share
+ * that memory, and a graph that does not free one stops with an error), they take the sum of their
+ * sizes, and pointers into them get moved where they are arguments of kernels, copies and fills
+ * (any 8 bytes of an argument whose value lies in such an allocation count as one), not where the
+ * device reads them from memory (e.g. arrays of pointers).
+ *
+ * Events are tagged pointers as well, once HSA queues are enabled: recorded on an HSA stream, an
+ * event is a mark of its queue; recorded on a stream of HIP, an event of HIP. With
+ * DEVICE_HSA_QUEUE_TIMING=1, events with timing take the time by a kernel each.
+ *
+ * HSA streams and streams of HIP (e.g. those that NCCL gets) wait for each other on the device: a
+ * stream of HIP waits for a mark by a kernel of ours that waits for the counter of the marks, and
+ * after each event recorded on a stream of HIP, a kernel of ours sets a counter of that stream,
+ * which HSA streams wait for by a barrier-value packet (DEVICE_HSA_QUEUE_HIP_WAITS=host waits on
+ * the host instead).
+ *
+ * Resources: each HSA queue takes a hardware queue of the device, besides those of HIP; where the
+ * queues spread over the pipes of the command processor (see Runtime::placeQueue()), an idle queue
+ * on each pipe and up to MaxSpareQueues spare ones stay as well, so several processes on one device
+ * may run short of hardware queues. The device memory of the HSA queues (kernel arguments there,
+ * the temporaries of graphs) counts as occupied (getCurrentlyOccupiedMem()).
+ *
+ * Fences: a mark writes back the L2 cache (release of the system), for the host and for MPI, which
+ * read device memory past it. Kernels and waits for other HSA queues only fence for the device
+ * (agent): an acquire of the system in a packet drops the whole L2 cache, at the expense of the
+ * kernels of all queues. Where the work has to see what the host wrote (after a wait for a counter
+ * or a host function, and in copies from host memory), a kernel of our own fences in the shader
+ * instead, which drops only the lines that may be stale (DEVICE_HSA_QUEUE_HOST_ACQUIRE=packet and
+ * DEVICE_HSA_QUEUE_WAIT_SCOPE=system go back to fences of packets).
+ */
+namespace device::hsaqueues {
+
+/// whether the handle is one of an HSA stream or event; the handle 1 is hipStreamLegacy, which
+/// stays with HIP
+inline bool isTagged(const void* handle) {
+  const auto bits = reinterpret_cast<std::uintptr_t>(handle);
+  return (bits & 1U) != 0 && bits != 1U;
+}
+
+/// the launch of HIP, which the hook in the program hands on to for streams of HIP
+using LaunchFunction = hipError_t (*)(const void*, dim3, dim3, void**, std::size_t, hipStream_t);
+
+/// called by the hook in the program (see Hook.cpp), at its start
+void registerLaunchHook(LaunchFunction hipLaunch);
+
+/// enables HSA queues, if HSA and the launch hook are there, on an architecture where programs have
+/// run with them (Arch.cpp; or with DEVICE_HSA_QUEUE_UNTESTED=1); returns whether they are enabled
+bool enable();
+bool enabled();
+
+/// a stream on the HSA queue with the given number (created on demand); a priority (0 to 1, unless
+/// NAN) applies to the whole queue
+void* createStream(int queue, double priority);
+void destroyStream(void* stream);
+
+/// the stream of HIP that stands in for an HSA stream while it gets captured; HIP streams stay
+hipStream_t vehicle(void* stream);
+
+/// whether the HSA stream gets captured into a graph right now (see beginCapture())
+bool capturing(void* stream);
+void beginCapture(void* stream);
+void endCapture(void* stream);
+
+/// kernel launches (from the hook in the program)
+hipError_t launch(const void* function,
+                  dim3 grid,
+                  dim3 block,
+                  void** args,
+                  std::size_t sharedMemBytes,
+                  hipStream_t stream);
+
+void syncStream(void* stream);
+bool streamDone(void* stream);
+void hostFunction(void* stream, const std::function<void()>& function);
+void waitMemory(void* stream, std::uint32_t* location, std::uint32_t value);
+
+/// counters for streamWaitMemory() that the command processor waits for: the values of signals
+std::uint32_t* allocCounter();
+void freeCounter(std::uint32_t* counter);
+/// whether the memory is a counter from allocCounter()
+bool isCounter(const void* location);
+
+/// copies between any memory the device can access; pageable host memory synchronously
+void copy(void* dst, const void* src, std::size_t bytes, void* stream);
+
+void* allocAsync(std::size_t bytes, void* stream);
+void freeAsync(void* ptr, void* stream);
+
+void* createEvent(bool withTiming);
+void destroyEvent(void* event);
+/// the event of HIP of an HSA event (for streams of HIP); HIP events stay
+hipEvent_t hipEventOf(void* event);
+void recordEvent(void* event, void* stream);
+void recordEventOnHost(void* event);
+void streamWaitEvent(void* stream, void* event);
+/// the time between two events, in seconds: by the kernels that took it for HSA events with timing
+double timespan(void* start, void* end);
+/// whether events with timing take the time on HSA streams (DEVICE_HSA_QUEUE_TIMING=1)
+bool timing();
+
+/// the trace of the kernels and waits of the HSA queues (see AbstractAPI::traceDevice()); an
+/// empty sink stops it; false without HSA queues
+using TraceSink = std::function<void(std::string_view name,
+                                     int queue,
+                                     std::chrono::steady_clock::time_point begin,
+                                     std::chrono::steady_clock::time_point end)>;
+bool trace(const TraceSink& sink);
+/// names an HSA stream for the DAG log (see DEVICE_HSA_QUEUE_DAG_LOG); others stay unnamed
+void nameStream(void* stream, const std::string& name);
+bool eventDone(void* event);
+void syncEvent(void* event);
+
+/// the graph of HIP that gets translated (see Program); one per DeviceGraph
+class Program;
+struct Programs {
+  Programs();
+  ~Programs();
+  Programs(const Programs&) = delete;
+  Programs& operator=(const Programs&) = delete;
+  std::unique_ptr<struct ProgramsImpl> impl;
+};
+void launchGraph(Programs& programs, hipGraph_t graph, void* stream);
+/// notes that a node of the graph is work of an HSA stream: with DEVICE_HSA_QUEUE_GRAPH_ORIGIN=1,
+/// the translation puts it back onto the queue of that stream; false if it has been noted before
+bool noteOrigin(Programs& programs, hipGraphNode_t node, void* stream);
+
+/// the device memory that the HSA queues hold (kernel arguments in device memory, the temporaries
+/// of graphs), in bytes
+std::size_t deviceBytes();
+
+/// waits until all HSA queues are done
+void syncAll();
+
+void finalize();
+
+} // namespace device::hsaqueues
+
+#endif // SEISSOLDEVICE_INTERFACES_HIP_HSAQUEUES_HSAQUEUES_H_

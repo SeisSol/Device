@@ -56,6 +56,43 @@ if (DEVICE_KERNEL_SAVETEMPS)
 endif()
 
 
+# Streams on HSA queues of our own (see interfaces/hip/hsaqueues/HsaQueues.h): a module of the HIP
+# interface that only programs enable that ask for it (AbstractAPI::enableHardwareQueues());
+# without it, a stub that never enables them
+if (IS_NVCC_PLATFORM)
+    set(DEVICE_HIP_HSA_QUEUES OFF)
+else()
+    option(DEVICE_HIP_HSA_QUEUES "Build the streams on HSA queues of our own (AMD GPUs)" ON)
+endif()
+if (DEVICE_HIP_HSA_QUEUES)
+    # HSA and comgr, which ROCm may keep under prefixes of their own (e.g. Spack: hsa-rocr-dev and
+    # comgr apart from hip), as plain paths: a static device library hands its link libraries on
+    # to the programs, outside of the scope of imported targets of this directory; without them,
+    # the stub
+    find_path(DEVICE_HSA_INCLUDE_DIR hsa/hsa.h HINTS ${HIP_PATH}/include ${ROCM_PATH}/include)
+    find_library(DEVICE_HSA_LIBRARY hsa-runtime64 HINTS ${HIP_PATH}/lib ${ROCM_PATH}/lib)
+    find_path(DEVICE_COMGR_INCLUDE_DIR amd_comgr/amd_comgr.h HINTS ${HIP_PATH}/include ${ROCM_PATH}/include)
+    find_library(DEVICE_COMGR_LIBRARY amd_comgr HINTS ${HIP_PATH}/lib ${ROCM_PATH}/lib)
+    if (NOT DEVICE_HSA_INCLUDE_DIR OR NOT DEVICE_HSA_LIBRARY OR NOT DEVICE_COMGR_INCLUDE_DIR OR NOT DEVICE_COMGR_LIBRARY)
+        message(WARNING "HSA queues need the headers and libraries of HSA (hsa-runtime64) and "
+                        "comgr (amd_comgr), which were not found (see CMAKE_PREFIX_PATH); "
+                        "building without them.")
+        set(DEVICE_HIP_HSA_QUEUES OFF)
+    endif()
+endif()
+if (DEVICE_HIP_HSA_QUEUES)
+    set(DEVICE_HSA_QUEUE_SOURCES interfaces/hip/hsaqueues/Arch.cpp
+                                 interfaces/hip/hsaqueues/Common.cpp
+                                 interfaces/hip/hsaqueues/Kernels.cpp
+                                 interfaces/hip/hsaqueues/Metadata.cpp
+                                 interfaces/hip/hsaqueues/HsaQueues.cpp
+                                 interfaces/hip/hsaqueues/Program.cpp
+                                 interfaces/hip/hsaqueues/Runtime.cpp
+                                 interfaces/hip/hsaqueues/Trace.cpp)
+else()
+    set(DEVICE_HSA_QUEUE_SOURCES interfaces/hip/hsaqueues/Disabled.cpp)
+endif()
+
 set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Control.cpp
                         interfaces/hip/Copy.cpp
@@ -64,6 +101,7 @@ set(DEVICE_SOURCE_FILES device.cpp
                         interfaces/hip/Memory.cpp
                         interfaces/hip/Streams.cpp
                         interfaces/hip/Graphs.cpp
+                        ${DEVICE_HSA_QUEUE_SOURCES}
                         algorithms/cudahip/ArrayManip.cpp
                         algorithms/cudahip/BatchManip.cpp
                         algorithms/cudahip/Debugging.cpp
@@ -85,6 +123,29 @@ if (IS_NVCC_PLATFORM)
     target_link_options(device PRIVATE -arch=${DEVICE_ARCH})
 else()
     target_link_libraries(device PUBLIC ${HIP_PATH}/lib/libamdhip64.so)
+endif()
+if (DEVICE_HIP_HSA_QUEUES)
+    target_include_directories(device PRIVATE ${DEVICE_HSA_INCLUDE_DIR} ${DEVICE_COMGR_INCLUDE_DIR})
+    target_link_libraries(device PRIVATE ${DEVICE_HSA_LIBRARY} ${DEVICE_COMGR_LIBRARY})
+endif()
+
+# The launch hook for HSA queues, to be compiled into the program itself (see
+# interfaces/hip/hsaqueues/Hook.cpp): link this target to the executable. Without HSA queues, it
+# brings nothing.
+add_library(device-hsa-queue-hook INTERFACE)
+if (DEVICE_HIP_HSA_QUEUES)
+    target_sources(device-hsa-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip/hsaqueues/Hook.cpp)
+    target_include_directories(device-hsa-queue-hook INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/interfaces/hip/hsaqueues ${HIP_PATH}/include)
+    target_compile_definitions(device-hsa-queue-hook INTERFACE __HIP_PLATFORM_AMD__)
+    target_link_libraries(device-hsa-queue-hook INTERFACE device ${CMAKE_DL_LIBS})
+endif()
+
+# the test and the probes of HSA queues (see tests/hsaqueues/README.md)
+if (DEVICE_HIP_HSA_QUEUES)
+    option(DEVICE_HSA_QUEUE_TESTS "Build the test and the probes of HSA queues" OFF)
+    if (DEVICE_HSA_QUEUE_TESTS)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/tests/hsaqueues/hsaqueues.cmake)
+    endif()
 endif()
 
 if (ENABLE_PROFILING_MARKERS)

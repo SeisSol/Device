@@ -5,6 +5,7 @@
 #include "HipWrappedAPI.h"
 #include "Internals.h"
 #include "hip/hip_runtime.h"
+#include "hsaqueues/HsaQueues.h"
 #include "utils/logger.h"
 
 #include <assert.h>
@@ -107,16 +108,25 @@ void ConcreteAPI::freePinnedMem(void* devPtr) {
 void* ConcreteAPI::allocMemAsync(size_t size, void* streamPtr) {
   if (size == 0) {
     return nullptr;
-  } else {
-    void* ptr;
-    APIWRAP(hipMallocAsync(&ptr, size, static_cast<hipStream_t>(streamPtr)));
-    return ptr;
   }
+  if (hsaqueues::isTagged(streamPtr) && !hsaqueues::capturing(streamPtr)) {
+    return hsaqueues::allocAsync(size, streamPtr);
+  }
+  // while an HSA stream gets captured, the graph gets an allocation of its own, which the
+  // translation of the graph moves to memory of the queue that it runs on
+  void* ptr;
+  APIWRAP(hipMallocAsync(&ptr, size, hsaqueues::vehicle(streamPtr)));
+  return ptr;
 }
 void ConcreteAPI::freeMemAsync(void* devPtr, void* streamPtr) {
-  if (devPtr != nullptr) {
-    APIWRAP(hipFreeAsync(devPtr, static_cast<hipStream_t>(streamPtr)));
+  if (devPtr == nullptr) {
+    return;
   }
+  if (hsaqueues::isTagged(streamPtr) && !hsaqueues::capturing(streamPtr)) {
+    hsaqueues::freeAsync(devPtr, streamPtr);
+    return;
+  }
+  APIWRAP(hipFreeAsync(devPtr, hsaqueues::vehicle(streamPtr)));
 }
 
 std::string ConcreteAPI::getMemLeaksReport() {
@@ -133,8 +143,8 @@ size_t ConcreteAPI::getMaxAvailableMem() { return properties[getDeviceId()].tota
 size_t ConcreteAPI::getCurrentlyOccupiedMem() {
   isFlagSet<DeviceSelected>(status);
   const std::lock_guard<std::mutex> lock(apiMutex);
-  // what is allocated now, not all that ever was
-  return statistics.allocatedMemBytes - statistics.deallocatedMemBytes;
+  // what is allocated now, not all that ever was; with what the HSA queues hold on the device
+  return statistics.allocatedMemBytes - statistics.deallocatedMemBytes + hsaqueues::deviceBytes();
 }
 
 size_t ConcreteAPI::getCurrentlyOccupiedUnifiedMem() {
@@ -155,6 +165,10 @@ void ConcreteAPI::unpinMemory(void* ptr) {
 
 void* ConcreteAPI::devicePointer(void* ptr) {
   isFlagSet<DeviceSelected>(status);
+  if (hsaqueues::isCounter(ptr)) {
+    // (the memory of a signal is at the same address on the device)
+    return ptr;
+  }
   void* result;
   APIWRAP(hipHostGetDevicePointer(&result, ptr, 0));
   return result;
