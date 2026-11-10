@@ -5,6 +5,7 @@
 #ifndef SEISSOLDEVICE_INTERFACES_SYCL_ZETIMESTAMPS_H_
 #define SEISSOLDEVICE_INTERFACES_SYCL_ZETIMESTAMPS_H_
 
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <optional>
@@ -79,8 +80,21 @@ class ZeTimestamps {
   [[maybe_unused]] bool usable{false};
   [[maybe_unused]] void* context{nullptr}; // ze_context_handle_t
   [[maybe_unused]] void* device{nullptr};  // ze_device_handle_t
-  double nanosecondsPerTick{0};
+  // the length of a tick: as the device reports it at first, then as measured (see calibrate())
+  std::atomic<double> nanosecondsPerTick{0};
   std::uint64_t validMask{~std::uint64_t{0}};
+  /*
+   * Measures the length of a tick against the steady clock of the host, from two readings of both
+   * clocks (zeDeviceGetGlobalTimestamps) at least a second apart. A Max 1550 reports 80 ns, but
+   * ticks every 80.11 ns: the times of the device would run 0.135 % short, and a trace that sets
+   * them against the host would drift by 1.35 ms per second. (With the mutex held.)
+   */
+  void calibrate();
+  // the reading of both clocks the length gets measured from (the host in ns of the steady clock),
+  // and when the length was measured last
+  [[maybe_unused]] std::uint64_t calibrationHost{0};
+  [[maybe_unused]] std::uint64_t calibrationDevice{0};
+  [[maybe_unused]] std::uint64_t lastCalibration{0};
   std::optional<sycl::context> syclContext{};
   std::vector<void*> pools;           // ze_event_pool_handle_t
   std::vector<std::uint64_t*> values; // host memory, a block per pool
