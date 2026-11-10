@@ -4,6 +4,7 @@
 
 #include "AbstractAPI.h"
 #include "CudaWrappedAPI.h"
+#include "Driver.h"
 #include "Internals.h"
 #include "utils/logger.h"
 
@@ -24,7 +25,8 @@ namespace {
 
 std::size_t alignSize(std::size_t size, const CUmemAllocationProp& prop) {
   std::size_t granularity{1};
-  DRVWRAP(cuMemGetAllocationGranularity(&granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM));
+  DRVWRAP(internals::driver().memGetAllocationGranularity(
+      &granularity, &prop, CU_MEM_ALLOC_GRANULARITY_MINIMUM));
 
   return ((size + granularity - 1) / granularity) * granularity;
 }
@@ -33,23 +35,23 @@ void* driverAllocate(std::size_t size, const CUmemAllocationProp& prop) {
   size = alignSize(size, prop);
 
   CUdeviceptr cptr{};
-  DRVWRAP(cuMemAddressReserve(&cptr, size, 0, 0, 0));
+  DRVWRAP(internals::driver().memAddressReserve(&cptr, size, 0, 0, 0));
 
   // cf.
   // https://docs.nvidia.com/cuda/hopper-tuning-guide/index.html?highlight=inline%20compression#inline-compression
   CUmemGenericAllocationHandle allocationHandle{};
-  DRVWRAP(cuMemCreate(&allocationHandle, size, &prop, 0));
+  DRVWRAP(internals::driver().memCreate(&allocationHandle, size, &prop, 0));
 
-  DRVWRAP(cuMemMap(cptr, size, 0, allocationHandle, 0));
+  DRVWRAP(internals::driver().memMap(cptr, size, 0, allocationHandle, 0));
 
-  DRVWRAP(cuMemRelease(allocationHandle));
+  DRVWRAP(internals::driver().memRelease(allocationHandle));
 
   CUmemAccessDesc accessDescriptor{};
   accessDescriptor.location.id = prop.location.id;
   accessDescriptor.location.type = prop.location.type;
   accessDescriptor.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
 
-  DRVWRAP(cuMemSetAccess(cptr, size, &accessDescriptor, 1));
+  DRVWRAP(internals::driver().memSetAccess(cptr, size, &accessDescriptor, 1));
 
   return reinterpret_cast<void*>(cptr);
 }
@@ -59,8 +61,8 @@ void driverFree(void* ptr, std::size_t size, const CUmemAllocationProp& prop) {
 
   auto cptr = reinterpret_cast<CUdeviceptr>(ptr);
 
-  DRVWRAP(cuMemUnmap(cptr, size));
-  DRVWRAP(cuMemAddressFree(cptr, size));
+  DRVWRAP(internals::driver().memUnmap(cptr, size));
+  DRVWRAP(internals::driver().memAddressFree(cptr, size));
 }
 
 } // namespace

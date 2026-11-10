@@ -19,6 +19,7 @@
 #endif
 
 #include "CudaWrappedAPI.h"
+#include "Driver.h"
 #include "Internals.h"
 
 namespace {
@@ -39,7 +40,7 @@ thread_local int currentDeviceId = -1;
 using namespace device;
 
 ConcreteAPI::ConcreteAPI() {
-  DRVWRAP(cuInit(0));
+  DRVWRAP(internals::driver().init(0));
 
   CHECK_ERR;
 
@@ -86,7 +87,7 @@ void ConcreteAPI::initialize() {
     APIWRAP(cudaDeviceGetStreamPriorityRange(&priorityLeast, &priorityGreatest));
 
     int canCompressProto = 0;
-    DRVWRAP(cuDeviceGetAttribute(
+    DRVWRAP(internals::driver().deviceGetAttribute(
         &canCompressProto, CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED, getDeviceId()));
     canCompress = canCompressProto != 0;
   } else {
