@@ -7,12 +7,14 @@
 
 #include "DataTypes.h"
 
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace device {
@@ -158,6 +160,36 @@ struct AbstractAPI {
    * classes round to the nearest one, and a device without priority support ignores the value.
    */
   virtual void* createStream(double priority = NAN) = 0;
+
+  /**
+   * Streams on hardware queues of their own: the device runs the work of such a stream on a
+   * hardware queue that only the streams with the same queue number share, in the order it gets
+   * enqueued, so that a stream that waits holds up no other ones. (HIP puts all streams onto a few
+   * hardware queues that they share; its backend creates HSA queues of its own and runs these
+   * streams there, outside of HIP, see interfaces/hip/hsaqueues/HsaQueues.h, and needs the target
+   * device-hsa-queue-hook in the program.)
+   *
+   * Enables them, and returns whether the device has them; call it before any stream or event gets
+   * created. Then, events can be recorded on and waited for by streams of either kind; events time
+   * only what is between two of them recorded on streams on hardware queues, and only on request
+   * (HIP: DEVICE_HSA_QUEUE_TIMING=1, see isCapableOfEventTiming()).
+   */
+  virtual bool enableHardwareQueues() { return false; }
+
+  /**
+   * A stream on the hardware queue `queue` (see enableHardwareQueues()); without those, an ordinary
+   * one, with the default priority. A priority (0 lowest, 1 highest) applies to the whole queue:
+   * its work gets taken up before that of queues of a lower priority.
+   *
+   * Its handle is for this API and for kernel launches only: HIP calls and libraries that take a
+   * stream (e.g. hipCUB, rocBLAS, RCCL) need one from createStream(). Kernels on it get neither
+   * device-side printf and assert messages nor malloc (HIP), and profilers that trace the calls of
+   * HIP do not see its launches (traceDevice() reports its work).
+   */
+  virtual void* createStreamOnHardwareQueue(int /*queue*/, double /*priority*/ = NAN) {
+    return createStream();
+  }
+
   virtual void destroyGenericStream(void* streamPtr) = 0;
   virtual void syncStreamWithHost(void* streamPtr) = 0;
   virtual bool isStreamWorkDone(void* streamPtr) = 0;
@@ -167,9 +199,38 @@ struct AbstractAPI {
   /**
    * Blocks the stream until the value at `location` has reached at least `value`. `location` has
    * to be host memory that the device can read, i.e. an allocation from allocPinnedMem with
-   * Destination::CurrentDevice.
+   * Destination::CurrentDevice, or a counter from allocCounter().
    */
   virtual void streamWaitMemory(void* streamPtr, uint32_t* location, uint32_t value) = 0;
+
+  /**
+   * A counter in host memory, 0 at first, that the host and the device (by its address from
+   * devicePointer()) read and write, and that streams wait for (see streamWaitMemory()). Streams on
+   * hardware queues (HIP: HSA queues, see enableHardwareQueues()) wait for it in the command
+   * processor of the device, as for a signal of HSA, instead of with a kernel that polls it.
+   */
+  virtual uint32_t* allocCounter() {
+    auto* counter =
+        static_cast<uint32_t*>(allocPinnedMem(sizeof(uint32_t), false, Destination::CurrentDevice));
+    *counter = 0;
+    return counter;
+  }
+  virtual void freeCounter(uint32_t* counter) { freePinnedMem(counter); }
+
+  /**
+   * Traces the work of the device piece by piece (HIP with HSA queues: each kernel and each wait of
+   * an HSA queue): calls `sink` with its name, the number of its queue, and its begin and end on
+   * the clock of the host, from a thread of the library, some time after it ran. Returns whether
+   * the device traces. An empty sink stops tracing, once the work traced so far has been reported.
+   * Tracing costs the device a little for each kernel.
+   */
+  using DeviceTraceSink = std::function<void(std::string_view name,
+                                             int queue,
+                                             std::chrono::steady_clock::time_point begin,
+                                             std::chrono::steady_clock::time_point end)>;
+  virtual bool traceDevice(DeviceTraceSink /*sink*/) { return false; }
+  /// names a stream for the logs of the device (HIP: the DAG log of the HSA queues)
+  virtual void nameStream(void* /*streamPtr*/, const std::string& /*name*/) {}
 
   virtual void* createEvent(bool withTiming = false) = 0;
   virtual void destroyEvent(void* eventPtr) = 0;
@@ -181,8 +242,9 @@ struct AbstractAPI {
 
   /**
    * Whether timespanEvents() can time events that were created with timing and recorded on
-   * streams. The SYCL backend needs either profiling on its queues (ENABLE_PROFILING_MARKERS=ON),
-   * or a device with profiling tags (sycl_ext_oneapi_profiling_tag) for that.
+   * streams. The SYCL backend needs either Level Zero underneath (with immediate command lists),
+   * profiling on its queues (ENABLE_PROFILING_MARKERS=ON), or a device with profiling tags
+   * (sycl_ext_oneapi_profiling_tag) for that.
    */
   virtual bool isCapableOfEventTiming() = 0;
 

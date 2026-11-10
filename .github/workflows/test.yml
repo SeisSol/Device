@@ -85,6 +85,8 @@ jobs:
             runner: ubuntu-24.04
             pythonbreak: true
             test: false
+            # (builds the test and the probes of HSA queues, which need an AMD GPU to run)
+            cmakeflags: -DDEVICE_HSA_QUEUE_TESTS=ON
           - arch: gfx906
             backend: acpp
             cc: gcc-13
@@ -103,6 +105,7 @@ jobs:
             runner: ubuntu-24.04
             pythonbreak: true
             test: false
+            cmakeflags: -DDEVICE_HSA_QUEUE_TESTS=ON
           - arch: skl
             backend: oneapi
             cc: icx
@@ -146,7 +149,8 @@ jobs:
           cmake .. -GNinja \
             -DDEVICE_BACKEND=${{matrix.setup.backend}} \
             -DSM=${{matrix.setup.arch}} \
-            -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+            -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+            ${{matrix.setup.cmakeflags}}
 
           ninja
 

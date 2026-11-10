@@ -4,6 +4,7 @@
 
 #include "Internals.h"
 #include "SyclWrappedAPI.h"
+#include "ZeTimestamps.h"
 
 #include <algorithm>
 #include <cassert>
@@ -23,6 +24,10 @@ struct Event {
   // recorded as a profiling tag (sycl_ext_oneapi_profiling_tag), which has its time also on queues
   // without profiling
   bool profilingTag{false};
+  // recorded as a timestamp of Level Zero (see ZeTimestamps), which `timestamps` gave
+  bool zeStamp{false};
+  ZeTimestamps* timestamps{nullptr};
+  ZeTimestamps::Stamp stamp{};
 };
 
 #ifdef SYCL_EXT_ONEAPI_IN_ORDER_QUEUE_EVENTS
@@ -33,6 +38,14 @@ struct Event {
   return event.has_value() ? event : std::make_optional<sycl::event>();
 }
 #endif
+
+/// gives the timestamp of the event back if it came from other timestamps than `timestamps`
+void keepTimestampsOf(Event& event, ZeTimestamps& timestamps) {
+  if (event.timestamps != nullptr && event.timestamps != &timestamps) {
+    event.timestamps->release(event.stamp);
+    event.timestamps = nullptr;
+  }
+}
 
 /// whether a graph records what gets submitted to the queue
 [[maybe_unused]] bool recording([[maybe_unused]] const sycl::queue& queue) {
@@ -45,20 +58,36 @@ struct Event {
 } // namespace
 
 void* ConcreteAPI::createEvent(bool withTiming) {
-  return new Event{std::nullopt, withTiming, false};
+  auto* event = new Event{};
+  event->withTiming = withTiming;
+  return event;
 }
 
 bool ConcreteAPI::isCapableOfEventTiming() {
 #ifdef PROFILING_ENABLED
   return true;
 #else
-  return this->currentContext()->profilingTags;
+  return this->currentContext()->profilingTags || this->currentContext()->zeTimestampsPossible;
 #endif
 }
 
 double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
   auto* start = static_cast<Event*>(eventPtrStart);
   auto* end = static_cast<Event*>(eventPtrEnd);
+
+  if (start->zeStamp || end->zeStamp) {
+    if (!(start->zeStamp && end->zeStamp) || start->timestamps != end->timestamps) {
+      logError() << "The SYCL backend cannot time events of which only one has a timestamp of "
+                    "Level Zero, or which lie on different devices.";
+      return 0.0;
+    }
+    for (const auto* event : {start, end}) {
+      if (!event->timestamps->completed(event->stamp)) {
+        event->timestamps->wait(event->stamp);
+      }
+    }
+    return start->timestamps->seconds(start->stamp, end->stamp);
+  }
 
 #ifndef PROFILING_ENABLED
   // Profiling information is only there when the queue carries the enable_profiling property, or
@@ -87,16 +116,26 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
 
   // cf. https://oneapi-src.github.io/SYCLomatic/dev_guide/reference/diagnostic_ref/dpct1012.html
 
-  return static_cast<double>(endTime - startTime) / 1'000'000'000.0;
+  // (the times are unsigned: an end before the start, e.g. on another queue, would wrap around)
+  const double nanoseconds = endTime >= startTime ? static_cast<double>(endTime - startTime)
+                                                  : -static_cast<double>(startTime - endTime);
+  return nanoseconds / 1'000'000'000.0;
 }
 
 void ConcreteAPI::destroyEvent(void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
+  if (event->timestamps != nullptr) {
+    event->timestamps->release(event->stamp);
+  }
   delete event;
 }
 
 void ConcreteAPI::syncEventWithHost(void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
+  if (event->zeStamp) {
+    event->timestamps->wait(event->stamp);
+    return;
+  }
   if (event->syclEvent) {
     waitCheck(event->syclEvent.value());
   }
@@ -104,6 +143,9 @@ void ConcreteAPI::syncEventWithHost(void* eventPtr) {
 
 bool ConcreteAPI::isEventCompleted(void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
+  if (event->zeStamp) {
+    return event->timestamps->completed(event->stamp);
+  }
   // (NOTE: we do not poll here on the SYCL implementation, i.e. we may get MPI-like issues)
   return !event->syclEvent.has_value() ||
          event->syclEvent.value().get_info<sycl::info::event::command_execution_status>() ==
@@ -113,11 +155,36 @@ bool ConcreteAPI::isEventCompleted(void* eventPtr) {
 void ConcreteAPI::recordEventOnHost(void* eventPtr) {
   auto* event = static_cast<Event*>(eventPtr);
   event->syclEvent = std::make_optional<sycl::event>();
+  event->profilingTag = false;
+  event->zeStamp = false;
+  if (event->withTiming) {
+    // the timestamp of the device now, comparable to those of the events on queues
+    auto& timestamps = this->currentContext()->zeTimestamps;
+    keepTimestampsOf(*event, timestamps);
+    if (timestamps.recordNow(event->stamp)) {
+      event->timestamps = &timestamps;
+      event->zeStamp = true;
+    }
+  }
 }
 
 void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
   auto* queue = static_cast<sycl::queue*>(streamPtr);
   auto* event = static_cast<Event*>(eventPtr);
+
+  event->zeStamp = false;
+  if (event->withTiming && !recording(*queue)) {
+    // a timestamp of Level Zero, if SYCL runs on it: far cheaper than a profiling tag there
+    auto& timestamps = this->currentContext()->zeTimestamps;
+    keepTimestampsOf(*event, timestamps);
+    if (timestamps.record(*queue, event->stamp)) {
+      event->timestamps = &timestamps;
+      event->zeStamp = true;
+      event->profilingTag = false;
+      event->syclEvent.reset();
+      return;
+    }
+  }
 
 #if !defined(PROFILING_ENABLED) && defined(SYCL_EXT_ONEAPI_PROFILING_TAG)
   // a tag completes once all work submitted before it has; on an in-order queue, it is a light
@@ -147,6 +214,14 @@ void ConcreteAPI::recordEventOnStream(void* eventPtr, void* streamPtr) {
 void ConcreteAPI::syncStreamWithEvent(void* streamPtr, void* eventPtr) {
   auto* queue = static_cast<sycl::queue*>(streamPtr);
   auto* event = static_cast<Event*>(eventPtr);
+
+  if (event->zeStamp) {
+    // a SYCL queue cannot wait for an event of Level Zero (oneAPI 2025.0 runs work that depends on
+    // an interop event right away); so the host waits for the timestamp instead, after which the
+    // work before it is done. (The events with timing are meant for timing, though.)
+    event->timestamps->wait(event->stamp);
+    return;
+  }
 
   if (!event->syclEvent.has_value()) {
     logError() << "Event not yet recorded; no synchronization possible.";

@@ -7,6 +7,7 @@
 
 #include "DeviceQueues.h"
 #include "Statistics.h"
+#include "ZeTimestamps.h"
 
 #include <unordered_map>
 
@@ -28,6 +29,10 @@ class DeviceContext {
   // whether the device takes the time of profiling tags on queues without profiling
   // (sycl_ext_oneapi_profiling_tag)
   bool profilingTags{false};
+
+  // the timestamps of Level Zero for the events with timing, and whether its queues can take them
+  ZeTimestamps zeTimestamps;
+  bool zeTimestampsPossible{false};
 
   private:
   void onExceptionOccurred(sycl::exception_list& exceptions);
