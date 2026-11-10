@@ -12,6 +12,7 @@ set(DEVICE_SOURCE_FILES device.cpp
         interfaces/sycl/DeviceContext.cpp
         interfaces/sycl/DeviceQueues.cpp
         interfaces/sycl/DeviceType.cpp
+        interfaces/sycl/ZeTimestamps.cpp
         algorithms/sycl/ArrayManip.cpp
         algorithms/sycl/BatchManip.cpp
         algorithms/sycl/Debugging.cpp
@@ -63,4 +64,15 @@ if ((${DEVICE_BACKEND} STREQUAL "acpp") OR (${DEVICE_BACKEND} STREQUAL "hipsycl"
 else()
     find_package(DpcppFlags REQUIRED)
     target_link_libraries(device PRIVATE dpcpp::device_flags)
+
+    # Level Zero, for the timestamps of the events with timing where SYCL runs on it
+    # (interfaces/sycl/ZeTimestamps.cpp); without it, they are profiling tags of SYCL
+    find_path(LEVEL_ZERO_INCLUDE_DIR level_zero/ze_api.h HINTS ENV LEVEL_ZERO_ROOT PATH_SUFFIXES include)
+    find_library(LEVEL_ZERO_LIBRARY ze_loader HINTS ENV LEVEL_ZERO_ROOT PATH_SUFFIXES lib lib64)
+    if (LEVEL_ZERO_INCLUDE_DIR AND LEVEL_ZERO_LIBRARY)
+        message(STATUS "Device: timestamps through Level Zero (${LEVEL_ZERO_LIBRARY})")
+        target_include_directories(device PRIVATE ${LEVEL_ZERO_INCLUDE_DIR})
+        target_link_libraries(device PRIVATE ${LEVEL_ZERO_LIBRARY})
+        target_compile_definitions(device PRIVATE DEVICE_SYCL_LEVEL_ZERO)
+    endif()
 endif()
