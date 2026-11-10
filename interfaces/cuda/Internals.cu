@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include "Driver.h"
 #include "utils/logger.h"
 
 #include <algorithm>
@@ -41,7 +42,7 @@ CUresult checkResultDriver(CUresult error,
                            std::initializer_list<CUresult> except) {
   if (error != CUDA_SUCCESS && std::find(except.begin(), except.end(), error) == except.end()) {
     const char* errstr = nullptr;
-    const auto errstrRes = cuGetErrorString(error, &errstr);
+    const auto errstrRes = driver().getErrorString(error, &errstr);
 
     std::stringstream stream;
     stream << '\n' << file << ", line " << line << ": ";

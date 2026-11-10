@@ -13,6 +13,7 @@ add_library(device ${DEVICE_LIBTYPE} device.cpp
                  interfaces/cuda/Streams.cu
                  interfaces/cuda/Graphs.cu
                  interfaces/cuda/Internals.cu
+                 interfaces/cuda/Driver.cu
                  algorithms/cudahip/ArrayManip.cpp
                  algorithms/cudahip/BatchManip.cpp
                  algorithms/cudahip/Debugging.cpp
@@ -52,8 +53,11 @@ if (EXTRA_DEVICE_FLAGS)
             >)
 endif()
 
-find_package(CUDAToolkit REQUIRED)
-target_link_libraries(device PUBLIC CUDA::cudart CUDA::cuda_driver)
+# CUDA 11.7 has the variants of the driver functions that interfaces/cuda/Driver.h looks up
+find_package(CUDAToolkit 11.7 REQUIRED)
+# The driver functions are looked up through the runtime; linking the driver library (libcuda)
+# would keep any program linked with the library from starting where there is no driver.
+target_link_libraries(device PUBLIC CUDA::cudart)
 
 if (ENABLE_PROFILING_MARKERS)
     target_link_libraries(device PUBLIC CUDA::nvtx3)
