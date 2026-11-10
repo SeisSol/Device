@@ -181,8 +181,9 @@ struct AbstractAPI {
 
   /**
    * Whether timespanEvents() can time events that were created with timing and recorded on
-   * streams. The SYCL backend needs either profiling on its queues (ENABLE_PROFILING_MARKERS=ON),
-   * or a device with profiling tags (sycl_ext_oneapi_profiling_tag) for that.
+   * streams. The SYCL backend needs either Level Zero underneath (with immediate command lists),
+   * profiling on its queues (ENABLE_PROFILING_MARKERS=ON), or a device with profiling tags
+   * (sycl_ext_oneapi_profiling_tag) for that.
    */
   virtual bool isCapableOfEventTiming() = 0;
 

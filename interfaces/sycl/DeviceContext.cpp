@@ -17,6 +17,8 @@ DeviceContext::DeviceContext(const sycl::device& targetDevice)
 #ifdef SYCL_EXT_ONEAPI_PROFILING_TAG
   profilingTags = targetDevice.has(sycl::aspect::ext_oneapi_queue_profiling_tag);
 #endif
+  // (the queues of a device all have the properties of the default queue, but the priority)
+  zeTimestampsPossible = zeTimestamps.possible(queueBuffer.getDefaultQueue());
 }
 
 void DeviceContext::onExceptionOccurred(sycl::exception_list& exceptions) {
