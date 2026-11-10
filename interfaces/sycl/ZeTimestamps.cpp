@@ -6,6 +6,7 @@
 
 #include "utils/logger.h"
 
+#include <chrono>
 #include <cstdint>
 #include <mutex>
 
@@ -23,6 +24,28 @@ namespace {
 constexpr std::uint32_t PoolSize = 256;
 
 ze_event_handle_t zeEvent(void* event) { return static_cast<ze_event_handle_t>(event); }
+
+std::uint64_t steadyNanoseconds() {
+  return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                        std::chrono::steady_clock::now().time_since_epoch())
+                                        .count());
+}
+
+// a reading of the global timestamp of the device, and of the steady clock of the host at the same
+// time (the middle of the call): the host clock that Level Zero reads along (CLOCK_MONOTONIC_RAW
+// on Linux) runs apart from the steady clock, which the time of the applications follows, by the
+// corrections of NTP (about 25 ppm on SuperMUC-NG Phase 2)
+bool readClocks(void* device, std::uint64_t& host, std::uint64_t& deviceTime) {
+  std::uint64_t ignored = 0;
+  const std::uint64_t before = steadyNanoseconds();
+  if (zeDeviceGetGlobalTimestamps(static_cast<ze_device_handle_t>(device), &ignored, &deviceTime) !=
+      ZE_RESULT_SUCCESS) {
+    return false;
+  }
+  const std::uint64_t after = steadyNanoseconds();
+  host = before + (after - before) / 2;
+  return true;
+}
 
 bool succeeded(ze_result_t result, const char* call) {
   if (result != ZE_RESULT_SUCCESS) {
@@ -92,12 +115,49 @@ bool ZeTimestamps::setUp([[maybe_unused]] sycl::queue& queue) {
   usable = nanosecondsPerTick > 0 && properties.timestampValidBits > 1;
   if (usable) {
     logInfo() << "Device: the events with timing take the global timestamp of Level Zero, with"
-              << nanosecondsPerTick << "ns per tick and" << properties.timestampValidBits
-              << "valid bits.";
+              << nanosecondsPerTick.load() << "ns per tick (as reported; measured against the host"
+              << "while running) and" << properties.timestampValidBits << "valid bits.";
+    // the reading the length of a tick gets measured from (see calibrate())
+    if (!readClocks(device, calibrationHost, calibrationDevice)) {
+      calibrationHost = 0;
+    }
+    lastCalibration = steadyNanoseconds();
   }
   return usable;
 #else
   return false;
+#endif
+}
+
+void ZeTimestamps::calibrate() {
+#ifdef DEVICE_SYCL_LEVEL_ZERO
+  if (!usable || calibrationHost == 0) {
+    return;
+  }
+  // at most once a second
+  const std::uint64_t now = steadyNanoseconds();
+  if (now - lastCalibration < 1000000000) {
+    return;
+  }
+  lastCalibration = now;
+  std::uint64_t host = 0;
+  std::uint64_t deviceTime = 0;
+  if (!readClocks(device, host, deviceTime)) {
+    return;
+  }
+  const std::uint64_t ticks = (deviceTime - calibrationDevice) & validMask;
+  const std::uint64_t elapsed = host - calibrationHost;
+  if (ticks == 0 || elapsed < 1000000000) {
+    return;
+  }
+  nanosecondsPerTick.store(static_cast<double>(elapsed) / static_cast<double>(ticks),
+                           std::memory_order_relaxed);
+  // the timestamps of the device wrap around (with 36 valid bits and 80 ns, after 1.5 hours):
+  // measure from here on, long before they could
+  if (static_cast<double>(ticks) > 0.25 * static_cast<double>(validMask)) {
+    calibrationHost = host;
+    calibrationDevice = deviceTime;
+  }
 #endif
 }
 
@@ -156,6 +216,7 @@ bool ZeTimestamps::record([[maybe_unused]] sycl::queue& queue, [[maybe_unused]] 
     if (!setUp(queue) || (stamp.event == nullptr && !acquire(stamp))) {
       return false;
     }
+    calibrate();
   }
   auto* event = zeEvent(stamp.event);
   if (stamp.recorded) {
@@ -187,6 +248,7 @@ bool ZeTimestamps::recordNow([[maybe_unused]] Stamp& stamp) {
     if (!usable || (stamp.event == nullptr && !acquire(stamp))) {
       return false;
     }
+    calibrate();
   }
   auto* event = zeEvent(stamp.event);
   if (stamp.recorded) {
@@ -233,7 +295,7 @@ double ZeTimestamps::seconds(const Stamp& start, const Stamp& end) const {
   const std::uint64_t negative = (validMask >> 1) + 1;
   const double signedTicks =
       ticks >= negative ? -static_cast<double>(validMask - ticks + 1) : static_cast<double>(ticks);
-  return signedTicks * nanosecondsPerTick * 1e-9;
+  return signedTicks * nanosecondsPerTick.load(std::memory_order_relaxed) * 1e-9;
 }
 
 void ZeTimestamps::release(Stamp& stamp) {
