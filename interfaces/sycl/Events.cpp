@@ -78,7 +78,10 @@ double ConcreteAPI::timespanEvents(void* eventPtrStart, void* eventPtrEnd) {
 
   // cf. https://oneapi-src.github.io/SYCLomatic/dev_guide/reference/diagnostic_ref/dpct1012.html
 
-  return static_cast<double>(endTime - startTime) / 1'000'000'000.0;
+  // (the times are unsigned: an end before the start, e.g. on another queue, would wrap around)
+  const double nanoseconds = endTime >= startTime ? static_cast<double>(endTime - startTime)
+                                                  : -static_cast<double>(startTime - endTime);
+  return nanoseconds / 1'000'000'000.0;
 }
 
 void ConcreteAPI::destroyEvent(void* eventPtr) {
